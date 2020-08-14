@@ -11,7 +11,7 @@ There are no compatibility guarantees. Things in here may change or move or
 disappear at any time.
 
 If you are a Vault plugin author and think you need a library in here in your
-plugin, please open an issue in the Vault repsoitory for discussion.
+plugin, please open an issue in the Vault repository for discussion.
 
 The libraries in here were originally pulled from vault/helper/metricsutil
 (metricsutil) and vault/internalshared (the rest). See there for contribution
