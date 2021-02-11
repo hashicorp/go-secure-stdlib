@@ -85,7 +85,7 @@ type Listener struct {
 	RandomPort bool `hcl:"-"`
 
 	CorsEnabledRaw        interface{} `hcl:"cors_enabled"`
-	CorsEnabled           bool        `hcl:"-"`
+	CorsEnabled           *bool       `hcl:"-"`
 	CorsAllowedOrigins    []string    `hcl:"cors_allowed_origins"`
 	CorsAllowedHeaders    []string    `hcl:"-"`
 	CorsAllowedHeadersRaw []string    `hcl:"cors_allowed_headers"`
@@ -321,10 +321,11 @@ func ParseListeners(result *SharedConfig, list *ast.ObjectList) error {
 		// CORS
 		{
 			if l.CorsEnabledRaw != nil {
-				if l.CorsEnabled, err = parseutil.ParseBool(l.CorsEnabledRaw); err != nil {
+				corsEnabled, err := parseutil.ParseBool(l.CorsEnabledRaw)
+				if err != nil {
 					return multierror.Prefix(fmt.Errorf("invalid value for cors_enabled: %w", err), fmt.Sprintf("listeners.%d", i))
 				}
-
+				l.CorsEnabled = &corsEnabled
 				l.CorsEnabledRaw = nil
 			}
 
