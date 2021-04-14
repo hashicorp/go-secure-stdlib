@@ -85,11 +85,13 @@ type Listener struct {
 	// RandomPort is used only for some testing purposes
 	RandomPort bool `hcl:"-"`
 
-	CorsEnabledRaw        interface{} `hcl:"cors_enabled"`
-	CorsEnabled           *bool       `hcl:"-"`
-	CorsAllowedOrigins    []string    `hcl:"cors_allowed_origins"`
-	CorsAllowedHeaders    []string    `hcl:"-"`
-	CorsAllowedHeadersRaw []string    `hcl:"cors_allowed_headers"`
+	CorsEnabledRaw                           interface{} `hcl:"cors_enabled"`
+	CorsEnabled                              *bool       `hcl:"-"`
+	CorsDisableDefaultAllowedOriginValuesRaw interface{} `hcl:"cors_disable_default_allowed_origin_values"`
+	CorsDisableDefaultAllowedOriginValues    *bool       `hcl:"-"`
+	CorsAllowedOrigins                       []string    `hcl:"cors_allowed_origins"`
+	CorsAllowedHeaders                       []string    `hcl:"-"`
+	CorsAllowedHeadersRaw                    []string    `hcl:"cors_allowed_headers"`
 }
 
 func (l *Listener) GoString() string {
@@ -328,6 +330,15 @@ func ParseListeners(result *SharedConfig, list *ast.ObjectList) error {
 				}
 				l.CorsEnabled = &corsEnabled
 				l.CorsEnabledRaw = nil
+			}
+
+			if l.CorsDisableDefaultAllowedOriginValuesRaw != nil {
+				disabled, err := parseutil.ParseBool(l.CorsDisableDefaultAllowedOriginValuesRaw)
+				if err != nil {
+					return multierror.Prefix(fmt.Errorf("invalid value for cors_disable_default_allowed_origin_values: %w", err), fmt.Sprintf("listeners.%d", i))
+				}
+				l.CorsDisableDefaultAllowedOriginValues = &disabled
+				l.CorsDisableDefaultAllowedOriginValuesRaw = nil
 			}
 
 			if strutil.StrListContains(l.CorsAllowedOrigins, "*") && len(l.CorsAllowedOrigins) > 1 {
