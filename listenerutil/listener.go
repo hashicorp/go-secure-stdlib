@@ -11,7 +11,6 @@ import (
 	"strconv"
 
 	"github.com/hashicorp/errwrap"
-	"github.com/hashicorp/shared-secure-libs/configutil"
 	"github.com/hashicorp/shared-secure-libs/reloadutil"
 	"github.com/hashicorp/vault/sdk/helper/tlsutil"
 	"github.com/jefferai/isbadcipher"
@@ -20,7 +19,7 @@ import (
 
 type Listener struct {
 	net.Listener
-	Config *configutil.Listener
+	Config ListenerConfig
 }
 
 type UnixSocketsConfig struct {
@@ -73,7 +72,7 @@ func UnixSocketListener(path string, unixSocketsConfig *UnixSocketsConfig) (net.
 }
 
 func TLSConfig(
-	l *configutil.Listener,
+	l *ListenerConfig,
 	props map[string]string,
 	ui cli.Ui) (*tls.Config, reloadutil.ReloadFunc, error) {
 	props["tls"] = "disabled"

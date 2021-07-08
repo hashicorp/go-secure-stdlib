@@ -148,9 +148,9 @@ func (t *Telemetry) GoString() string {
 	return fmt.Sprintf("*%#v", *t)
 }
 
-func parseTelemetryImpl(result *configutil.SharedConfig, list *ast.ObjectList) error {
+func parseTelemetryImpl(list *ast.ObjectList) (interface{}, error) {
 	if len(list.Items) > 1 {
-		return fmt.Errorf("only one 'telemetry' block is permitted")
+		return nil, fmt.Errorf("only one 'telemetry' block is permitted")
 	}
 
 	// Get our one item
@@ -158,13 +158,13 @@ func parseTelemetryImpl(result *configutil.SharedConfig, list *ast.ObjectList) e
 
 	t := new(Telemetry)
 	if err := hcl.DecodeObject(t, item.Val); err != nil {
-		return multierror.Prefix(err, "telemetry:")
+		return nil, multierror.Prefix(err, "telemetry:")
 	}
 
 	if t.PrometheusRetentionTimeRaw != nil {
 		var err error
 		if t.PrometheusRetentionTime, err = parseutil.ParseDurationSecond(t.PrometheusRetentionTimeRaw); err != nil {
-			return err
+			return nil, err
 		}
 		t.PrometheusRetentionTimeRaw = nil
 	} else {
@@ -177,7 +177,7 @@ func parseTelemetryImpl(result *configutil.SharedConfig, list *ast.ObjectList) e
 		} else {
 			var err error
 			if t.UsageGaugePeriod, err = parseutil.ParseDurationSecond(t.UsageGaugePeriodRaw); err != nil {
-				return err
+				return nil, err
 			}
 			t.UsageGaugePeriodRaw = nil
 		}
@@ -189,9 +189,7 @@ func parseTelemetryImpl(result *configutil.SharedConfig, list *ast.ObjectList) e
 		t.MaximumGaugeCardinality = MaximumGaugeCardinalityDefault
 	}
 
-	result.Telemetry = t
-
-	return nil
+	return t, nil
 }
 
 type SetupTelemetryOpts struct {
@@ -357,11 +355,11 @@ func SetupTelemetry(opts *SetupTelemetryOpts) (*metrics.InmemSink, *ClusterMetri
 	return inm, wrapper, prometheusEnabled, nil
 }
 
-func sanitizeTelemetryImpl(c *configutil.SharedConfig) map[string]interface{} {
-	if c.Telemetry == nil {
+func sanitizeTelemetryImpl(in interface{}) map[string]interface{} {
+	if in == nil {
 		return nil
 	}
-	t, ok := c.Telemetry.(*Telemetry)
+	t, ok := in.(*Telemetry)
 	if !ok {
 		return nil
 	}

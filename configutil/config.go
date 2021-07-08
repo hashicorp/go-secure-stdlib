@@ -8,21 +8,27 @@ import (
 	"github.com/hashicorp/errwrap"
 	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/ast"
+	"github.com/hashicorp/shared-secure-libs/listenerutil"
 	"github.com/hashicorp/vault/sdk/helper/parseutil"
 )
 
 // These two functions are overridden if metricsutil is invoked, but keep this
-// module from needing to depend on metricsutil and its variou deps otherwise.
+// module from needing to depend on metricsutil and its various deps otherwise.
+// Import the metricsutil module, e.g.
+//
+// _ "github.com/hashicorp/shared-secure-libs/metricsutil"
+//
+// in order to have telemetry be parsed.
 var (
-	ParseTelemetry    = func(*SharedConfig, *ast.ObjectList) error { return nil }
-	SanitizeTelemetry = func(*SharedConfig) map[string]interface{} { return nil }
+	ParseTelemetry    = func(*ast.ObjectList) (interface{}, error) { return nil, nil }
+	SanitizeTelemetry = func(interface{}) map[string]interface{} { return nil }
 )
 
 // SharedConfig contains some shared values
 type SharedConfig struct {
 	EntSharedConfig
 
-	Listeners []*Listener `hcl:"-"`
+	Listeners []*listenerutil.ListenerConfig `hcl:"-"`
 
 	Seals   []*KMS   `hcl:"-"`
 	Entropy *Entropy `hcl:"-"`
@@ -122,15 +128,19 @@ func ParseConfig(d string) (*SharedConfig, error) {
 	}
 
 	if o := list.Filter("listener"); len(o.Items) > 0 {
-		if err := ParseListeners(&result, o); err != nil {
+		l, err := listenerutil.ParseListeners(o)
+		if err != nil {
 			return nil, errwrap.Wrapf("error parsing 'listener': {{err}}", err)
 		}
+		result.Listeners = l
 	}
 
 	if o := list.Filter("telemetry"); len(o.Items) > 0 {
-		if err := ParseTelemetry(&result, o); err != nil {
+		t, err := ParseTelemetry(o)
+		if err != nil {
 			return nil, errwrap.Wrapf("error parsing 'telemetry': {{err}}", err)
 		}
+		result.Telemetry = t
 	}
 
 	entConfig := &(result.EntSharedConfig)
@@ -194,7 +204,7 @@ func (c *SharedConfig) Sanitized() map[string]interface{} {
 
 	// Sanitize telemetry stanza
 	if c.Telemetry != nil {
-		result["telemetry"] = SanitizeTelemetry(c)
+		result["telemetry"] = SanitizeTelemetry(c.Telemetry)
 	}
 
 	return result
