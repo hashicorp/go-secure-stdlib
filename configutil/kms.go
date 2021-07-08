@@ -58,7 +58,7 @@ func (k *KMS) GoString() string {
 
 func parseKMS(result *[]*KMS, list *ast.ObjectList, blockName string, maxKMS int) error {
 	if len(list.Items) > maxKMS {
-		return fmt.Errorf("only two or less %q blocks are permitted", blockName)
+		return fmt.Errorf("only %d or less %q blocks are permitted", maxKMS, blockName)
 	}
 
 	seals := make([]*KMS, 0, len(list.Items))
@@ -150,7 +150,7 @@ func ParseKMSes(d string) ([]*KMS, error) {
 	}
 
 	if o := list.Filter("kms"); len(o.Items) > 0 {
-		if err := parseKMS(&result.Seals, o, "kms", 3); err != nil {
+		if err := parseKMS(&result.Seals, o, "kms", 4); err != nil {
 			return nil, errwrap.Wrapf("error parsing 'kms': {{err}}", err)
 		}
 	}

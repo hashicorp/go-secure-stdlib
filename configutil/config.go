@@ -103,7 +103,7 @@ func ParseConfig(d string) (*SharedConfig, error) {
 	}
 
 	if o := list.Filter("kms"); len(o.Items) > 0 {
-		if err := parseKMS(&result.Seals, o, "kms", 3); err != nil {
+		if err := parseKMS(&result.Seals, o, "kms", 4); err != nil {
 			return nil, errwrap.Wrapf("error parsing 'kms': {{err}}", err)
 		}
 	}
