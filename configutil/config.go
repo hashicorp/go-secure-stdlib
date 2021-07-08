@@ -11,6 +11,13 @@ import (
 	"github.com/hashicorp/vault/sdk/helper/parseutil"
 )
 
+// These two functions are overridden if metricsutil is invoked, but keep this
+// module from needing to depend on metricsutil and its variou deps otherwise.
+var (
+	ParseTelemetry    = func(*SharedConfig, *ast.ObjectList) error { return nil }
+	SanitizeTelemetry = func(*SharedConfig) map[string]interface{} { return nil }
+)
+
 // SharedConfig contains some shared values
 type SharedConfig struct {
 	EntSharedConfig
@@ -23,7 +30,7 @@ type SharedConfig struct {
 	DisableMlock    bool        `hcl:"-"`
 	DisableMlockRaw interface{} `hcl:"disable_mlock"`
 
-	Telemetry *Telemetry `hcl:"telemetry"`
+	Telemetry interface{} `hcl:"telemetry"`
 
 	DefaultMaxRequestDuration    time.Duration `hcl:"-"`
 	DefaultMaxRequestDurationRaw interface{}   `hcl:"default_max_request_duration"`
@@ -121,7 +128,7 @@ func ParseConfig(d string) (*SharedConfig, error) {
 	}
 
 	if o := list.Filter("telemetry"); len(o.Items) > 0 {
-		if err := parseTelemetry(&result, o); err != nil {
+		if err := ParseTelemetry(&result, o); err != nil {
 			return nil, errwrap.Wrapf("error parsing 'telemetry': {{err}}", err)
 		}
 	}
@@ -187,35 +194,7 @@ func (c *SharedConfig) Sanitized() map[string]interface{} {
 
 	// Sanitize telemetry stanza
 	if c.Telemetry != nil {
-		sanitizedTelemetry := map[string]interface{}{
-			"statsite_address":                       c.Telemetry.StatsiteAddr,
-			"statsd_address":                         c.Telemetry.StatsdAddr,
-			"disable_hostname":                       c.Telemetry.DisableHostname,
-			"metrics_prefix":                         c.Telemetry.MetricsPrefix,
-			"usage_gauge_period":                     c.Telemetry.UsageGaugePeriod,
-			"maximum_gauge_cardinality":              c.Telemetry.MaximumGaugeCardinality,
-			"circonus_api_token":                     "",
-			"circonus_api_app":                       c.Telemetry.CirconusAPIApp,
-			"circonus_api_url":                       c.Telemetry.CirconusAPIURL,
-			"circonus_submission_interval":           c.Telemetry.CirconusSubmissionInterval,
-			"circonus_submission_url":                c.Telemetry.CirconusCheckSubmissionURL,
-			"circonus_check_id":                      c.Telemetry.CirconusCheckID,
-			"circonus_check_force_metric_activation": c.Telemetry.CirconusCheckForceMetricActivation,
-			"circonus_check_instance_id":             c.Telemetry.CirconusCheckInstanceID,
-			"circonus_check_search_tag":              c.Telemetry.CirconusCheckSearchTag,
-			"circonus_check_tags":                    c.Telemetry.CirconusCheckTags,
-			"circonus_check_display_name":            c.Telemetry.CirconusCheckDisplayName,
-			"circonus_broker_id":                     c.Telemetry.CirconusBrokerID,
-			"circonus_broker_select_tag":             c.Telemetry.CirconusBrokerSelectTag,
-			"dogstatsd_addr":                         c.Telemetry.DogStatsDAddr,
-			"dogstatsd_tags":                         c.Telemetry.DogStatsDTags,
-			"prometheus_retention_time":              c.Telemetry.PrometheusRetentionTime,
-			"stackdriver_project_id":                 c.Telemetry.StackdriverProjectID,
-			"stackdriver_location":                   c.Telemetry.StackdriverLocation,
-			"stackdriver_namespace":                  c.Telemetry.StackdriverNamespace,
-			"stackdriver_debug_logs":                 c.Telemetry.StackdriverDebugLogs,
-		}
-		result["telemetry"] = sanitizedTelemetry
+		result["telemetry"] = SanitizeTelemetry(c)
 	}
 
 	return result

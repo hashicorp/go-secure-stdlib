@@ -1,4 +1,4 @@
-package configutil
+package metricsutil
 
 import (
 	"context"
@@ -17,11 +17,16 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/ast"
-	"github.com/hashicorp/shared-secure-libs/metricsutil"
+	"github.com/hashicorp/shared-secure-libs/configutil"
 	"github.com/hashicorp/vault/sdk/helper/parseutil"
 	"github.com/mitchellh/cli"
 	"google.golang.org/api/option"
 )
+
+func init() {
+	configutil.ParseTelemetry = parseTelemetryImpl
+	configutil.SanitizeTelemetry = sanitizeTelemetryImpl
+}
 
 const (
 	PrometheusDefaultRetentionTime = 24 * time.Hour
@@ -143,7 +148,7 @@ func (t *Telemetry) GoString() string {
 	return fmt.Sprintf("*%#v", *t)
 }
 
-func parseTelemetry(result *SharedConfig, list *ast.ObjectList) error {
+func parseTelemetryImpl(result *configutil.SharedConfig, list *ast.ObjectList) error {
 	if len(list.Items) > 1 {
 		return fmt.Errorf("only one 'telemetry' block is permitted")
 	}
@@ -151,46 +156,40 @@ func parseTelemetry(result *SharedConfig, list *ast.ObjectList) error {
 	// Get our one item
 	item := list.Items[0]
 
-	var t Telemetry
-	if err := hcl.DecodeObject(&t, item.Val); err != nil {
+	t := new(Telemetry)
+	if err := hcl.DecodeObject(t, item.Val); err != nil {
 		return multierror.Prefix(err, "telemetry:")
 	}
 
-	if result.Telemetry == nil {
-		result.Telemetry = &Telemetry{}
-	}
-
-	if err := hcl.DecodeObject(&result.Telemetry, item.Val); err != nil {
-		return multierror.Prefix(err, "telemetry:")
-	}
-
-	if result.Telemetry.PrometheusRetentionTimeRaw != nil {
+	if t.PrometheusRetentionTimeRaw != nil {
 		var err error
-		if result.Telemetry.PrometheusRetentionTime, err = parseutil.ParseDurationSecond(result.Telemetry.PrometheusRetentionTimeRaw); err != nil {
+		if t.PrometheusRetentionTime, err = parseutil.ParseDurationSecond(t.PrometheusRetentionTimeRaw); err != nil {
 			return err
 		}
-		result.Telemetry.PrometheusRetentionTimeRaw = nil
+		t.PrometheusRetentionTimeRaw = nil
 	} else {
-		result.Telemetry.PrometheusRetentionTime = PrometheusDefaultRetentionTime
+		t.PrometheusRetentionTime = PrometheusDefaultRetentionTime
 	}
 
-	if result.Telemetry.UsageGaugePeriodRaw != nil {
-		if result.Telemetry.UsageGaugePeriodRaw == "none" {
-			result.Telemetry.UsageGaugePeriod = 0
+	if t.UsageGaugePeriodRaw != nil {
+		if t.UsageGaugePeriodRaw == "none" {
+			t.UsageGaugePeriod = 0
 		} else {
 			var err error
-			if result.Telemetry.UsageGaugePeriod, err = parseutil.ParseDurationSecond(result.Telemetry.UsageGaugePeriodRaw); err != nil {
+			if t.UsageGaugePeriod, err = parseutil.ParseDurationSecond(t.UsageGaugePeriodRaw); err != nil {
 				return err
 			}
-			result.Telemetry.UsageGaugePeriodRaw = nil
+			t.UsageGaugePeriodRaw = nil
 		}
 	} else {
-		result.Telemetry.UsageGaugePeriod = UsageGaugeDefaultPeriod
+		t.UsageGaugePeriod = UsageGaugeDefaultPeriod
 	}
 
-	if result.Telemetry.MaximumGaugeCardinality == 0 {
-		result.Telemetry.MaximumGaugeCardinality = MaximumGaugeCardinalityDefault
+	if t.MaximumGaugeCardinality == 0 {
+		t.MaximumGaugeCardinality = MaximumGaugeCardinalityDefault
 	}
+
+	result.Telemetry = t
 
 	return nil
 }
@@ -206,7 +205,7 @@ type SetupTelemetryOpts struct {
 
 // SetupTelemetry is used to setup the telemetry sub-systems and returns the
 // in-memory sink to be used in http configuration
-func SetupTelemetry(opts *SetupTelemetryOpts) (*metrics.InmemSink, *metricsutil.ClusterMetricSink, bool, error) {
+func SetupTelemetry(opts *SetupTelemetryOpts) (*metrics.InmemSink, *ClusterMetricSink, bool, error) {
 	if opts == nil {
 		return nil, nil, false, errors.New("nil opts passed into SetupTelemetry")
 	}
@@ -345,16 +344,53 @@ func SetupTelemetry(opts *SetupTelemetryOpts) (*metrics.InmemSink, *metricsutil.
 	}
 	fanout = append(fanout, inm)
 	globalMetrics, err := metrics.NewGlobal(metricsConf, fanout)
-
 	if err != nil {
 		return nil, nil, false, err
 	}
 
 	// Intialize a wrapper around the global sink; this will be passed to Core
 	// and to any backend.
-	wrapper := metricsutil.NewClusterMetricSink(opts.ClusterName, globalMetrics)
+	wrapper := NewClusterMetricSink(opts.ClusterName, globalMetrics)
 	wrapper.MaxGaugeCardinality = opts.Config.MaximumGaugeCardinality
 	wrapper.GaugeInterval = opts.Config.UsageGaugePeriod
 
 	return inm, wrapper, prometheusEnabled, nil
+}
+
+func sanitizeTelemetryImpl(c *configutil.SharedConfig) map[string]interface{} {
+	if c.Telemetry == nil {
+		return nil
+	}
+	t, ok := c.Telemetry.(*Telemetry)
+	if !ok {
+		return nil
+	}
+	return map[string]interface{}{
+		"statsite_address":                       t.StatsiteAddr,
+		"statsd_address":                         t.StatsdAddr,
+		"disable_hostname":                       t.DisableHostname,
+		"metrics_prefix":                         t.MetricsPrefix,
+		"usage_gauge_period":                     t.UsageGaugePeriod,
+		"maximum_gauge_cardinality":              t.MaximumGaugeCardinality,
+		"circonus_api_token":                     "",
+		"circonus_api_app":                       t.CirconusAPIApp,
+		"circonus_api_url":                       t.CirconusAPIURL,
+		"circonus_submission_interval":           t.CirconusSubmissionInterval,
+		"circonus_submission_url":                t.CirconusCheckSubmissionURL,
+		"circonus_check_id":                      t.CirconusCheckID,
+		"circonus_check_force_metric_activation": t.CirconusCheckForceMetricActivation,
+		"circonus_check_instance_id":             t.CirconusCheckInstanceID,
+		"circonus_check_search_tag":              t.CirconusCheckSearchTag,
+		"circonus_check_tags":                    t.CirconusCheckTags,
+		"circonus_check_display_name":            t.CirconusCheckDisplayName,
+		"circonus_broker_id":                     t.CirconusBrokerID,
+		"circonus_broker_select_tag":             t.CirconusBrokerSelectTag,
+		"dogstatsd_addr":                         t.DogStatsDAddr,
+		"dogstatsd_tags":                         t.DogStatsDTags,
+		"prometheus_retention_time":              t.PrometheusRetentionTime,
+		"stackdriver_project_id":                 t.StackdriverProjectID,
+		"stackdriver_location":                   t.StackdriverLocation,
+		"stackdriver_namespace":                  t.StackdriverNamespace,
+		"stackdriver_debug_logs":                 t.StackdriverDebugLogs,
+	}
 }
