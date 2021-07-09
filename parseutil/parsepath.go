@@ -1,4 +1,4 @@
-package configutil
+package parseutil
 
 import (
 	"errors"
