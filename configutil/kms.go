@@ -6,7 +6,6 @@ import (
 	"io"
 	"strings"
 
-	"github.com/hashicorp/errwrap"
 	"github.com/hashicorp/go-hclog"
 	wrapping "github.com/hashicorp/go-kms-wrapping"
 	aeadwrapper "github.com/hashicorp/go-kms-wrapping/wrappers/aead"
@@ -19,8 +18,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/ast"
-	"github.com/hashicorp/vault/sdk/helper/parseutil"
-	"github.com/hashicorp/vault/sdk/logical"
+	"github.com/hashicorp/shared-secure-libs/parseutil"
 )
 
 var (
@@ -145,13 +143,13 @@ func ParseKMSes(d string) ([]*KMS, error) {
 
 	if o := list.Filter("seal"); len(o.Items) > 0 {
 		if err := parseKMS(&result.Seals, o, "seal", 3); err != nil {
-			return nil, errwrap.Wrapf("error parsing 'seal': {{err}}", err)
+			return nil, fmt.Errorf("error parsing 'seal': %w", err)
 		}
 	}
 
 	if o := list.Filter("kms"); len(o.Items) > 0 {
 		if err := parseKMS(&result.Seals, o, "kms", 4); err != nil {
-			return nil, errwrap.Wrapf("error parsing 'kms': {{err}}", err)
+			return nil, fmt.Errorf("error parsing 'kms': %w", err)
 		}
 	}
 
@@ -234,10 +232,7 @@ func GetAliCloudKMSFunc(opts *wrapping.WrapperOptions, kms *KMS) (wrapping.Wrapp
 	wrapper := alicloudkms.NewWrapper(opts)
 	wrapperInfo, err := wrapper.SetConfig(kms.Config)
 	if err != nil {
-		// If the error is any other than logical.KeyNotFoundError, return the error
-		if !errwrap.ContainsType(err, new(logical.KeyNotFoundError)) {
-			return nil, nil, err
-		}
+		return nil, nil, err
 	}
 	info := make(map[string]string)
 	if wrapperInfo != nil {
@@ -254,10 +249,7 @@ var GetAWSKMSFunc = func(opts *wrapping.WrapperOptions, kms *KMS) (wrapping.Wrap
 	wrapper := awskms.NewWrapper(opts)
 	wrapperInfo, err := wrapper.SetConfig(kms.Config)
 	if err != nil {
-		// If the error is any other than logical.KeyNotFoundError, return the error
-		if !errwrap.ContainsType(err, new(logical.KeyNotFoundError)) {
-			return nil, nil, err
-		}
+		return nil, nil, err
 	}
 	info := make(map[string]string)
 	if wrapperInfo != nil {
@@ -274,10 +266,7 @@ func GetAzureKeyVaultKMSFunc(opts *wrapping.WrapperOptions, kms *KMS) (wrapping.
 	wrapper := azurekeyvault.NewWrapper(opts)
 	wrapperInfo, err := wrapper.SetConfig(kms.Config)
 	if err != nil {
-		// If the error is any other than logical.KeyNotFoundError, return the error
-		if !errwrap.ContainsType(err, new(logical.KeyNotFoundError)) {
-			return nil, nil, err
-		}
+		return nil, nil, err
 	}
 	info := make(map[string]string)
 	if wrapperInfo != nil {
@@ -292,10 +281,7 @@ func GetGCPCKMSKMSFunc(opts *wrapping.WrapperOptions, kms *KMS) (wrapping.Wrappe
 	wrapper := gcpckms.NewWrapper(opts)
 	wrapperInfo, err := wrapper.SetConfig(kms.Config)
 	if err != nil {
-		// If the error is any other than logical.KeyNotFoundError, return the error
-		if !errwrap.ContainsType(err, new(logical.KeyNotFoundError)) {
-			return nil, nil, err
-		}
+		return nil, nil, err
 	}
 	info := make(map[string]string)
 	if wrapperInfo != nil {
@@ -327,10 +313,7 @@ var GetTransitKMSFunc = func(opts *wrapping.WrapperOptions, kms *KMS) (wrapping.
 	wrapper := transit.NewWrapper(opts)
 	wrapperInfo, err := wrapper.SetConfig(kms.Config)
 	if err != nil {
-		// If the error is any other than logical.KeyNotFoundError, return the error
-		if !errwrap.ContainsType(err, new(logical.KeyNotFoundError)) {
-			return nil, nil, err
-		}
+		return nil, nil, err
 	}
 	info := make(map[string]string)
 	if wrapperInfo != nil {
