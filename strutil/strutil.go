@@ -8,7 +8,6 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/hashicorp/errwrap"
 	glob "github.com/ryanuber/go-glob"
 )
 
@@ -142,7 +141,7 @@ func ParseArbitraryKeyValues(input string, out map[string]string, sep string) er
 		// If JSON unmarshaling fails, consider that the input was
 		// supplied as a comma separated string of 'key=value' pairs.
 		if err = ParseKeyValues(input, out, sep); err != nil {
-			return errwrap.Wrapf("failed to parse the input: {{err}}", err)
+			return fmt.Errorf("failed to parse the input: %w", err)
 		}
 	}
 
