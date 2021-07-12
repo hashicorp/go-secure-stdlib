@@ -11,9 +11,9 @@ import (
 	"github.com/hashicorp/go-sockaddr"
 	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/ast"
-	"github.com/hashicorp/vault/sdk/helper/parseutil"
-	"github.com/hashicorp/vault/sdk/helper/strutil"
-	"github.com/hashicorp/vault/sdk/helper/tlsutil"
+	"github.com/hashicorp/shared-secure-libs/parseutil"
+	"github.com/hashicorp/shared-secure-libs/strutil"
+	"github.com/hashicorp/shared-secure-libs/tlsutil"
 )
 
 type ListenerTelemetry struct {
