@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hashicorp/errwrap"
 	sockaddr "github.com/hashicorp/go-sockaddr"
 	"github.com/hashicorp/shared-secure-libs/strutil"
 	"github.com/mitchellh/mapstructure"
@@ -298,7 +297,7 @@ func ParseAddrs(addrs interface{}) ([]*sockaddr.SockAddrMarshaler, error) {
 	for _, addr := range stringAddrs {
 		sa, err := sockaddr.NewSockAddr(addr)
 		if err != nil {
-			return nil, errwrap.Wrapf(fmt.Sprintf("error parsing address %q: {{err}}", addr), err)
+			return nil, fmt.Errorf("error parsing address %q: %w", addr, err)
 		}
 		out = append(out, &sockaddr.SockAddrMarshaler{
 			SockAddr: sa,
