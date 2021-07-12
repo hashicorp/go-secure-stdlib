@@ -2,10 +2,9 @@ package reloadutil
 
 import (
 	"crypto/x509"
+	"errors"
 	"io/ioutil"
 	"testing"
-
-	"github.com/hashicorp/errwrap"
 )
 
 func TestReload_KeyWithPassphrase(t *testing.T) {
@@ -63,7 +62,7 @@ opM24uvQT3Bc0UM0WNh3tdRFuboxDeBDh7PX/2RIoiaMuCCiRZ3O0A==
 	if err == nil {
 		t.Fatal("error expected")
 	}
-	if !errwrap.Contains(err, x509.IncorrectPasswordError.Error()) {
+	if !errors.As(err, &x509.IncorrectPasswordError) {
 		t.Fatalf("expected incorrect password error, got %v", err)
 	}
 
