@@ -1,18 +1,16 @@
-HashiCorp-internal libs
+Stdlib for HashiCorp Secure products
 =================
 
-Do not use these unless you know what you're doing.
+These libraries are maintained by engineers in the HashiCorp's Secure division
+as a stdlib for its projects -- Vault, Vault plugins, Boundary, etc. -- to
+reduce code duplication and increase consistency.
 
-These libraries are used by other HashiCorp products to reduce code duplication
-and increase consistency. They are not libraries needed by Vault plugins --
-those are in Vault's sdk/ module.
+Each library is its own Go module, although some of them may have dependencies
+on others within the repo. The libraries follow Go module versioning rules.
 
-There are no compatibility guarantees. Things in here may change or move or
-disappear at any time.
+Most of the libraries in here were originally pulled from
+vault/helper/metricsutil, vault/sdk/helper, and vault/internalshared; see there
+for contribution and change history prior to their move here.
 
-If you are a Vault plugin author and think you need a library in here in your
-plugin, please open an issue in the Vault repository for discussion.
-
-The libraries in here were originally pulled from vault/helper/metricsutil
-(metricsutil) and vault/internalshared (the rest). See there for contribution
-and change history prior to their move here.
+All modules are licensed according to MPLv2 as contained in the LICENSE file;
+this file is duplicated in each module.
