@@ -1,4 +1,4 @@
-module github.com/hashicorp/shared-secure-libs/kv-builder
+module github.com/hashicorp/go-secure-stdlib/kv-builder
 
 go 1.16
 

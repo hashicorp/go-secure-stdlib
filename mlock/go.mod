@@ -1,4 +1,4 @@
-module github.com/hashicorp/shared-secure-libs/mlock
+module github.com/hashicorp/go-secure-stdlib/mlock
 
 go 1.16
 

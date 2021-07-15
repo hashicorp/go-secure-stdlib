@@ -1,3 +1,3 @@
-module github.com/hashicorp/shared-secure-libs/gatedwriter
+module github.com/hashicorp/go-secure-stdlib/gatedwriter
 
 go 1.16

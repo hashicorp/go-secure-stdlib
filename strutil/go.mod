@@ -1,4 +1,4 @@
-module github.com/hashicorp/shared-secure-libs/strutil
+module github.com/hashicorp/go-secure-stdlib/strutil
 
 go 1.16
 

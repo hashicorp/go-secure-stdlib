@@ -11,8 +11,8 @@ import (
 	osuser "os/user"
 	"strconv"
 
-	"github.com/hashicorp/shared-secure-libs/reloadutil"
-	"github.com/hashicorp/shared-secure-libs/tlsutil"
+	"github.com/hashicorp/go-secure-stdlib/reloadutil"
+	"github.com/hashicorp/go-secure-stdlib/tlsutil"
 	"github.com/jefferai/isbadcipher"
 	"github.com/mitchellh/cli"
 )

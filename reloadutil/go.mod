@@ -1,3 +1,3 @@
-module github.com/hashicorp/shared-secure-libs/reloadutil
+module github.com/hashicorp/go-secure-stdlib/reloadutil
 
 go 1.16

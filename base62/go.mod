@@ -1,4 +1,4 @@
-module github.com/hashicorp/shared-secure-libs/base62
+module github.com/hashicorp/go-secure-stdlib/base62
 
 go 1.16
 

@@ -1,4 +1,4 @@
-module github.com/hashicorp/shared-secure-libs/password
+module github.com/hashicorp/go-secure-stdlib/password
 
 go 1.16
 

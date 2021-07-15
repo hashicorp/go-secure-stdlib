@@ -5,17 +5,17 @@ import (
 	"io/ioutil"
 	"time"
 
+	"github.com/hashicorp/go-secure-stdlib/listenerutil"
+	"github.com/hashicorp/go-secure-stdlib/parseutil"
 	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/ast"
-	"github.com/hashicorp/shared-secure-libs/listenerutil"
-	"github.com/hashicorp/shared-secure-libs/parseutil"
 )
 
 // These two functions are overridden if metricsutil is invoked, but keep this
 // module from needing to depend on metricsutil and its various deps otherwise.
 // Import the metricsutil module, e.g.
 //
-// _ "github.com/hashicorp/shared-secure-libs/metricsutil"
+// _ "github.com/hashicorp/go-secure-stdlib/metricsutil"
 //
 // in order to have telemetry be parsed.
 var (

@@ -9,8 +9,8 @@ import (
 	"net"
 	"strings"
 
-	"github.com/hashicorp/shared-secure-libs/parseutil"
-	"github.com/hashicorp/shared-secure-libs/strutil"
+	"github.com/hashicorp/go-secure-stdlib/parseutil"
+	"github.com/hashicorp/go-secure-stdlib/strutil"
 )
 
 var ErrInvalidCertParams = errors.New("invalid certificate parameters")

@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hashicorp/go-secure-stdlib/strutil"
 	sockaddr "github.com/hashicorp/go-sockaddr"
-	"github.com/hashicorp/shared-secure-libs/strutil"
 	"github.com/mitchellh/mapstructure"
 )
 
