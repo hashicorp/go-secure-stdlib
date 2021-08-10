@@ -52,25 +52,25 @@ type SharedConfig struct {
 }
 
 // LoadConfigFile loads the configuration from the given file.
-func LoadConfigFile(path string) (*SharedConfig, error) {
+func LoadConfigFile(path string, opt ...Option) (*SharedConfig, error) {
 	// Read the file
 	d, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	return ParseConfig(string(d))
+	return ParseConfig(string(d), opt...)
 }
 
-func LoadConfigKMSes(path string) ([]*KMS, error) {
+func LoadConfigKMSes(path string, opt ...Option) ([]*KMS, error) {
 	// Read the file
 	d, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	return ParseKMSes(string(d))
+	return ParseKMSes(string(d), opt...)
 }
 
-func ParseConfig(d string) (*SharedConfig, error) {
+func ParseConfig(d string, opt ...Option) (*SharedConfig, error) {
 	// Parse!
 	obj, err := hcl.Parse(d)
 	if err != nil {
@@ -103,19 +103,19 @@ func ParseConfig(d string) (*SharedConfig, error) {
 	}
 
 	if o := list.Filter("hsm"); len(o.Items) > 0 {
-		if err := parseKMS(&result.Seals, o, "hsm", 2); err != nil {
+		if err := parseKMS(&result.Seals, o, "hsm", append(opt, WithMaxKmsBlocks(2))...); err != nil {
 			return nil, fmt.Errorf("error parsing 'hsm': %w", err)
 		}
 	}
 
 	if o := list.Filter("seal"); len(o.Items) > 0 {
-		if err := parseKMS(&result.Seals, o, "seal", 3); err != nil {
+		if err := parseKMS(&result.Seals, o, "seal", append(opt, WithMaxKmsBlocks(3))...); err != nil {
 			return nil, fmt.Errorf("error parsing 'seal': %w", err)
 		}
 	}
 
 	if o := list.Filter("kms"); len(o.Items) > 0 {
-		if err := parseKMS(&result.Seals, o, "kms", 4); err != nil {
+		if err := parseKMS(&result.Seals, o, "kms", append(opt, WithMaxKmsBlocks(4))...); err != nil {
 			return nil, fmt.Errorf("error parsing 'kms': %w", err)
 		}
 	}

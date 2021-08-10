@@ -7,24 +7,16 @@ func (c *SharedConfig) Merge(c2 *SharedConfig) *SharedConfig {
 
 	result := new(SharedConfig)
 
-	for _, l := range c.Listeners {
-		result.Listeners = append(result.Listeners, l)
-	}
-	for _, l := range c2.Listeners {
-		result.Listeners = append(result.Listeners, l)
-	}
+	result.Listeners = append(result.Listeners, c.Listeners...)
+	result.Listeners = append(result.Listeners, c2.Listeners...)
 
 	result.Entropy = c.Entropy
 	if c2.Entropy != nil {
 		result.Entropy = c2.Entropy
 	}
 
-	for _, s := range c.Seals {
-		result.Seals = append(result.Seals, s)
-	}
-	for _, s := range c2.Seals {
-		result.Seals = append(result.Seals, s)
-	}
+	result.Seals = append(result.Seals, c.Seals...)
+	result.Seals = append(result.Seals, c2.Seals...)
 
 	result.Telemetry = c.Telemetry
 	if c2.Telemetry != nil {
