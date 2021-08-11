@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/fs"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -169,18 +170,18 @@ func configureWrapper(
 	}()
 
 	if configKMS == nil {
-		return nil, nil, fmt.Errorf("Nil KMS configuration passed in")
+		return nil, nil, fmt.Errorf("nil kms configuration passed in")
 	}
 	kmsType := strings.ToLower(configKMS.Type)
 
 	wrapperOpts, err := structpb.NewStruct(configKMS.Config)
 	if err != nil {
-		return nil, nil, fmt.Errorf("Error parsing KMS configuration: %w", err)
+		return nil, nil, fmt.Errorf("error parsing kms configuration: %w", err)
 	}
 
 	opts := getOpts(opt...)
 	if opts.withKmsPlugins == nil {
-		return nil, nil, fmt.Errorf("No KMS plugins available")
+		return nil, nil, fmt.Errorf("no kms plugins available")
 	}
 
 	// First, scan available plugins, then find the right one to use, and set the need init/finalize flag
@@ -190,12 +191,14 @@ func configureWrapper(
 	{
 		dirs, err := fs.ReadDir(opts.withKmsPlugins, ".")
 		if err != nil {
-			return nil, nil, fmt.Errorf("Error scanning KMS plugins: %w", err)
+			return nil, nil, fmt.Errorf("error scanning kms plugins: %w", err)
 		}
 		// Store a match between the config type string and the expected plugin name
 		for _, entry := range dirs {
+			log.Println(entry.Name())
 			pluginMap[strings.TrimLeft(entry.Name(), "gkw-")] = entry.Name()
 		}
+		log.Println(pluginMap)
 
 		// Now, find the right file name
 		var fileName string
@@ -203,14 +206,15 @@ func configureWrapper(
 		case wrapping.WrapperTypeShamir.String():
 			return nil, nil, nil
 		case wrapping.WrapperTypePkcs11.String():
-			return nil, nil, fmt.Errorf("KMS type 'pkcs11' requires the Vault Enterprise HSM binary")
+			return nil, nil, fmt.Errorf("kms type 'pkcs11' requires the Vault Enterprise HSM binary")
 		default:
 			fileName = pluginMap[kmsType]
 		}
 		if fileName == "" {
-			return nil, nil, fmt.Errorf("Unknown KMS type %q", kmsType)
+			return nil, nil, fmt.Errorf("unknown kms type %q", kmsType)
 		}
 	}
+	log.Println(fileName)
 
 	// Now, read plugin bytes and ready them for execution
 	var pluginPath string
@@ -222,10 +226,10 @@ func configureWrapper(
 		}
 		stat, err := file.Stat()
 		if err != nil {
-			return nil, nil, fmt.Errorf("Error discovering plugin information: %w", err)
+			return nil, nil, fmt.Errorf("error discovering kms plugin information: %w", err)
 		}
 		if stat.IsDir() {
-			return nil, nil, fmt.Errorf("Plugin is a directory, not a file")
+			return nil, nil, fmt.Errorf("kms plugin is a directory, not a file")
 		}
 
 		// Read in plugin bytes
@@ -234,26 +238,26 @@ func configureWrapper(
 		readLen, err := file.Read(buf)
 		if err != nil {
 			file.Close()
-			return nil, nil, fmt.Errorf("Error reading KMS plugin bytes: %w", err)
+			return nil, nil, fmt.Errorf("error reading kms plugin bytes: %w", err)
 		}
 		if err := file.Close(); err != nil {
-			return nil, nil, fmt.Errorf("Error closing KMS plugin file: %w", err)
+			return nil, nil, fmt.Errorf("error closing kms plugin file: %w", err)
 		}
 		if int64(readLen) != expLen {
-			return nil, nil, fmt.Errorf("Reading KMS plugin, expected %d bytes, read %d", expLen, readLen)
+			return nil, nil, fmt.Errorf("reading KMS plugin, expected %d bytes, read %d", expLen, readLen)
 		}
 
 		// Now, create a temp dir and write out the plugin bytes
 		tmpDir, err := ioutil.TempDir("", "*")
 		if err != nil {
-			return nil, nil, fmt.Errorf("Error creating tmp dir for KMS execution: %w", err)
+			return nil, nil, fmt.Errorf("error creating tmp dir for kms execution: %w", err)
 		}
 		cleanup = func() error {
 			return os.RemoveAll(tmpDir)
 		}
 		pluginPath = filepath.Join(tmpDir, fileName)
 		if err := ioutil.WriteFile(pluginPath, buf, fs.FileMode(0700)); err != nil {
-			return nil, cleanup, fmt.Errorf("Error writing out KMS plugin for execution: %w", err)
+			return nil, cleanup, fmt.Errorf("error writing out kms plugin for execution: %w", err)
 		}
 	}
 
@@ -284,18 +288,18 @@ func configureWrapper(
 		}
 		rpcClient, err := client.Client()
 		if err != nil {
-			return nil, cleanup, fmt.Errorf("Error fetching KMS plugin RPC client: %w", err)
+			return nil, cleanup, fmt.Errorf("error fetching kms plugin rpc client: %w", err)
 		}
 
 		raw, err := rpcClient.Dispense("wrapping")
 		if err != nil {
-			return nil, cleanup, fmt.Errorf("Error dispensing KMS plugin: %w", err)
+			return nil, cleanup, fmt.Errorf("error dispensing kms plugin: %w", err)
 		}
 
 		var ok bool
 		wrapper, ok = raw.(wrapping.Wrapper)
 		if !ok {
-			return nil, cleanup, fmt.Errorf("Error converting RPC KMS wrapper to normal wrapper: %w", err)
+			return nil, cleanup, fmt.Errorf("error converting rpc kms wrapper to normal wrapper: %w", err)
 		}
 	}
 
@@ -303,7 +307,7 @@ func configureWrapper(
 	{
 		wrapperConfigResult, err := wrapper.SetConfig(ctx, wrapping.WithWrapperOptions(wrapperOpts))
 		if err != nil {
-			return nil, cleanup, fmt.Errorf("Error setting configuration on the KMS plugin: %w", err)
+			return nil, cleanup, fmt.Errorf("error setting configuration on the kms plugin: %w", err)
 		}
 		kmsInfo := wrapperConfigResult.GetMetadata()
 		if len(kmsInfo) > 0 {
