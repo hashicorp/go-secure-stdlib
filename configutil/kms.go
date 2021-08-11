@@ -201,7 +201,6 @@ func configureWrapper(
 		log.Println(pluginMap)
 
 		// Now, find the right file name
-		var fileName string
 		switch kmsType {
 		case wrapping.WrapperTypeShamir.String():
 			return nil, nil, nil
