@@ -1,6 +1,10 @@
 package configutil
 
-import "io/fs"
+import (
+	"io/fs"
+
+	"github.com/hashicorp/go-hclog"
+)
 
 // getOpts - iterate the inbound Options and return a struct
 func getOpts(opt ...Option) options {
@@ -20,6 +24,7 @@ type Option func(*options)
 type options struct {
 	withKmsPlugins   fs.FS
 	withMaxKmsBlocks int
+	withLogger       hclog.Logger
 }
 
 func getDefaultOptions() options {
@@ -39,5 +44,12 @@ func WithMaxKmsBlocks(blocks int) Option {
 func WithKmsPlugins(plugins fs.FS) Option {
 	return func(o *options) {
 		o.withKmsPlugins = plugins
+	}
+}
+
+// WithLogger provides a way to override default logger for some purposes (e.g. kms plugins)
+func WithLogger(logger hclog.Logger) Option {
+	return func(o *options) {
+		o.withLogger = logger
 	}
 }
