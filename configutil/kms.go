@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/hashicorp/go-hclog"
 	gkwp "github.com/hashicorp/go-kms-wrapping/plugin/v2"
 	wrapping "github.com/hashicorp/go-kms-wrapping/v2"
 	"github.com/hashicorp/go-multierror"
@@ -262,12 +261,6 @@ func configureWrapper(
 
 	// Execute the plugin
 	{
-		logger := opts.withLogger
-		if logger == nil {
-			// Default to not having it spit out messages via its own default
-			// logger
-			logger = hclog.NewNullLogger()
-		}
 		var wrapPlugin gp.Plugin
 		switch needInitFinalize {
 		case true:
@@ -284,7 +277,7 @@ func configureWrapper(
 			AllowedProtocols: []gp.Protocol{
 				gp.ProtocolGRPC,
 			},
-			Logger:   logger,
+			Logger:   opts.withLogger,
 			AutoMTLS: true,
 		})
 		origCleanup := cleanup
