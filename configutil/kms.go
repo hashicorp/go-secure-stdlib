@@ -7,7 +7,6 @@ import (
 	"io"
 	"io/fs"
 	"io/ioutil"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -195,10 +194,8 @@ func configureWrapper(
 		}
 		// Store a match between the config type string and the expected plugin name
 		for _, entry := range dirs {
-			log.Println(entry.Name())
 			pluginMap[strings.TrimLeft(entry.Name(), "gkw-")] = entry.Name()
 		}
-		log.Println(pluginMap)
 
 		// Now, find the right file name
 		switch kmsType {
@@ -213,7 +210,6 @@ func configureWrapper(
 			return nil, nil, fmt.Errorf("unknown kms type %q", kmsType)
 		}
 	}
-	log.Println(fileName)
 
 	// Now, read plugin bytes and ready them for execution
 	var pluginPath string
