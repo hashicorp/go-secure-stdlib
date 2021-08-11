@@ -178,7 +178,7 @@ func configureWrapper(
 	// option
 	var keyId string
 	if keyIdRaw, ok := configKMS.Config["key_id"]; ok && keyIdRaw != nil {
-		keyId, ok = keyIdRaw.(string)
+		keyId, _ = keyIdRaw.(string)
 	}
 	wrapperOpts, err := structpb.NewStruct(configKMS.Config)
 	if err != nil {
