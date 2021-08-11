@@ -175,6 +175,13 @@ func configureWrapper(
 	}
 	kmsType := strings.ToLower(configKMS.Type)
 
+	// Translate key ID to the option to avoid every implementor having to
+	// realize you otherwise need to parse it out of Config instead of from the
+	// option
+	var keyId string
+	if keyIdRaw, ok := configKMS.Config["key_id"]; ok && keyIdRaw != nil {
+		keyId, ok = keyIdRaw.(string)
+	}
 	wrapperOpts, err := structpb.NewStruct(configKMS.Config)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error parsing kms configuration: %w", err)
@@ -304,7 +311,7 @@ func configureWrapper(
 
 	// Set configuration and parse info to be friendlier
 	{
-		wrapperConfigResult, err := wrapper.SetConfig(ctx, wrapping.WithWrapperOptions(wrapperOpts))
+		wrapperConfigResult, err := wrapper.SetConfig(ctx, wrapping.WithKeyId(keyId), wrapping.WithWrapperOptions(wrapperOpts))
 		if err != nil {
 			return nil, cleanup, fmt.Errorf("error setting configuration on the kms plugin: %w", err)
 		}
