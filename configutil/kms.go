@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/fs"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -20,6 +21,7 @@ import (
 	"github.com/hashicorp/go-secure-stdlib/parseutil"
 	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/ast"
+	"github.com/kr/pretty"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -178,6 +180,7 @@ func configureWrapper(
 	if err != nil {
 		return nil, nil, fmt.Errorf("error parsing kms configuration: %w", err)
 	}
+	log.Println(pretty.Sprint(wrapperOpts))
 
 	opts := getOpts(opt...)
 	if opts.withKmsPlugins == nil {
