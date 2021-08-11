@@ -11,6 +11,5 @@ require (
 	github.com/hashicorp/go-secure-stdlib/listenerutil v0.1.1
 	github.com/hashicorp/go-secure-stdlib/parseutil v0.1.1
 	github.com/hashicorp/hcl v1.0.0
-	github.com/kr/pretty v0.2.0
 	google.golang.org/protobuf v1.27.1
 )
