@@ -183,8 +183,9 @@ func configureWrapper(
 		return nil, nil, fmt.Errorf("No KMS plugins available")
 	}
 
-	// First, scan available plugins, then find the right one to use
+	// First, scan available plugins, then find the right one to use, and set the need init/finalize flag
 	pluginMap := map[string]string{}
+	var needInitFinalize bool
 	var fileName string
 	{
 		dirs, err := fs.ReadDir(opts.withKmsPlugins, ".")
@@ -258,10 +259,17 @@ func configureWrapper(
 
 	// Execute the plugin
 	{
+		var wrapPlugin gp.Plugin
+		switch needInitFinalize {
+		case true:
+			wrapPlugin = gkwp.NewInitFinalizerWrapperClient()
+		default:
+			wrapPlugin = gkwp.NewWrapperClient()
+		}
 		client := gp.NewClient(&gp.ClientConfig{
 			HandshakeConfig: gkwp.HandshakeConfig,
 			VersionedPlugins: map[int]gp.PluginSet{
-				1: {"wrapping": gkwp.NewWrapper(nil)},
+				1: {"wrapping": wrapPlugin},
 			},
 			Cmd: exec.Command(pluginPath),
 			AllowedProtocols: []gp.Protocol{
