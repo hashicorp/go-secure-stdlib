@@ -19,15 +19,16 @@ type Option func(*options)
 // options = how options are represented
 type options struct {
 	withKmsPlugins   fs.FS
-	withMaxKmsBlocks uint
+	withMaxKmsBlocks int
 }
 
 func getDefaultOptions() options {
 	return options{}
 }
 
-// WithMaxKmsBlocks provides a maximum number of allowed kms(/seal/hsm) blocks
-func WithMaxKmsBlocks(blocks uint) Option {
+// WithMaxKmsBlocks provides a maximum number of allowed kms(/seal/hsm) blocks.
+// Set negative for unlimited. 0 uses the lib default.
+func WithMaxKmsBlocks(blocks int) Option {
 	return func(o *options) {
 		o.withMaxKmsBlocks = blocks
 	}
