@@ -86,7 +86,7 @@ telemetry {
 
 type reversingWrapper struct{}
 
-func (r *reversingWrapper) SetConfig(_ context.Context, _ ...interface{}) (*wrapping.WrapperConfig, error) {
+func (r *reversingWrapper) SetConfig(_ context.Context, _ ...wrapping.Option) (*wrapping.WrapperConfig, error) {
 	return nil, nil
 }
 
@@ -97,13 +97,13 @@ func (r *reversingWrapper) KeyId(_ context.Context) (string, error) { return "re
 func (r *reversingWrapper) HmacKeyId() string                       { return "" }
 func (r *reversingWrapper) Init(_ context.Context) error            { return nil }
 func (r *reversingWrapper) Finalize(_ context.Context) error        { return nil }
-func (r *reversingWrapper) Encrypt(_ context.Context, input []byte, _ ...interface{}) (*wrapping.BlobInfo, error) {
+func (r *reversingWrapper) Encrypt(_ context.Context, input []byte, _ ...wrapping.Option) (*wrapping.BlobInfo, error) {
 	return &wrapping.BlobInfo{
 		Ciphertext: r.reverse(input),
 	}, nil
 }
 
-func (r *reversingWrapper) Decrypt(_ context.Context, input *wrapping.BlobInfo, _ ...interface{}) ([]byte, error) {
+func (r *reversingWrapper) Decrypt(_ context.Context, input *wrapping.BlobInfo, _ ...wrapping.Option) ([]byte, error) {
 	return r.reverse(input.Ciphertext), nil
 }
 
