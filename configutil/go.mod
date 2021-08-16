@@ -4,8 +4,8 @@ go 1.16
 
 require (
 	github.com/hashicorp/go-hclog v0.16.2
-	github.com/hashicorp/go-kms-wrapping/plugin/v2 v2.0.0-20210812153428-cc6f3f5d1dd7
-	github.com/hashicorp/go-kms-wrapping/v2 v2.0.0-20210812152405-51d6e60cb729
+	github.com/hashicorp/go-kms-wrapping/plugin/v2 v2.0.0-20210816213628-b5d47ca9ce92
+	github.com/hashicorp/go-kms-wrapping/v2 v2.0.0-20210816213204-2ad416791c91
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/go-plugin v1.4.2
 	github.com/hashicorp/go-secure-stdlib/listenerutil v0.1.1

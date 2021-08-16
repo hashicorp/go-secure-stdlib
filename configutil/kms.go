@@ -265,12 +265,9 @@ func configureWrapper(
 
 	// Execute the plugin
 	{
-		var wrapPlugin gp.Plugin
-		switch needInitFinalize {
-		case true:
-			wrapPlugin = gkwp.NewInitFinalizerWrapperClient()
-		default:
-			wrapPlugin = gkwp.NewWrapperClient()
+		wrapPlugin, err := gkwp.NewWrapperClient(gkwp.WithInitFinalizeInterface(needInitFinalize))
+		if err != nil {
+			return nil, nil, fmt.Errorf("error creating plugin wrapper client: %w", err)
 		}
 		client := gp.NewClient(&gp.ClientConfig{
 			HandshakeConfig: gkwp.HandshakeConfig,
