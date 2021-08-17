@@ -43,6 +43,15 @@ type CredentialsConfig struct {
 	// The profile for the shared credentials provider, if being used
 	Profile string
 
+	// The role ARN to use if using the web identity token provider
+	RoleARN string
+
+	// The role session name to use if using the web identity token provider
+	RoleSessionName string
+
+	// The web identity token file to use if using the web identity token provider
+	WebIdentityTokenFile string
+
 	// The http.Client to use, or nil for the client to use its default
 	HTTPClient *http.Client
 
@@ -80,9 +89,18 @@ func (c *CredentialsConfig) GenerateCredentialChain() (*credentials.Credentials,
 			"static AWS client credentials haven't been properly configured (the access key or secret key were provided but not both)")
 	}
 
-	roleARN := os.Getenv("AWS_ROLE_ARN")
-	tokenPath := os.Getenv("AWS_WEB_IDENTITY_TOKEN_FILE")
-	sessionName := os.Getenv("AWS_ROLE_SESSION_NAME")
+	roleARN := c.RoleARN
+	if roleARN == "" {
+		roleARN = os.Getenv("AWS_ROLE_ARN")
+	}
+	tokenPath := c.WebIdentityTokenFile
+	if tokenPath == "" {
+		tokenPath = os.Getenv("AWS_WEB_IDENTITY_TOKEN_FILE")
+	}
+	roleSessionName := c.RoleSessionName
+	if roleSessionName == "" {
+		roleSessionName = os.Getenv("AWS_ROLE_SESSION_NAME")
+	}
 	if roleARN != "" && tokenPath != "" {
 		// this session is only created to create the WebIdentityRoleProvider, as the env variables are already there
 		// this automatically assumes the role, but the provider needs to be added to the chain
@@ -91,12 +109,12 @@ func (c *CredentialsConfig) GenerateCredentialChain() (*credentials.Credentials,
 		if err != nil {
 			return nil, errors.Wrap(err, "error creating a new session to create a WebIdentityRoleProvider")
 		}
-		webIdentityProvider := stscreds.NewWebIdentityRoleProvider(sts.New(sess), roleARN, sessionName, tokenPath)
+		webIdentityProvider := stscreds.NewWebIdentityRoleProvider(sts.New(sess), roleARN, roleSessionName, tokenPath)
 
 		// Check if the webIdentityProvider can successfully retrieve
 		// credentials (via sts:AssumeRole), and warn if there's a problem.
 		if _, err := webIdentityProvider.Retrieve(); err != nil {
-			c.log(hclog.Warn, "error assuming role", "roleARN", roleARN, "tokenPath", tokenPath, "sessionName", sessionName, "err", err)
+			c.log(hclog.Warn, "error assuming role", "roleARN", roleARN, "tokenPath", tokenPath, "sessionName", roleSessionName, "err", err)
 		}
 
 		// Add the web identity role credential provider
