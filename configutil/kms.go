@@ -1,6 +1,8 @@
 package configutil
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/rand"
 	"fmt"
@@ -201,7 +203,7 @@ func configureWrapper(
 		}
 		// Store a match between the config type string and the expected plugin name
 		for _, entry := range dirs {
-			pluginMap[strings.TrimLeft(entry.Name(), "gkw-")] = entry.Name()
+			pluginMap[strings.TrimRight(strings.TrimLeft(entry.Name(), "gkw-"), ".gz")] = entry.Name()
 		}
 
 		// Now, find the right file name
@@ -247,6 +249,21 @@ func configureWrapper(
 		}
 		if int64(readLen) != expLen {
 			return nil, nil, fmt.Errorf("reading KMS plugin, expected %d bytes, read %d", expLen, readLen)
+		}
+
+		// If it's compressed, uncompress it
+		if strings.HasSuffix(fileName, ".gz") {
+			gzipReader, err := gzip.NewReader(bytes.NewReader(buf))
+			if err != nil {
+				return nil, nil, fmt.Errorf("error creating gzip decompression reader: %w", err)
+			}
+			uncompBuf := new(bytes.Buffer)
+			_, err = uncompBuf.ReadFrom(gzipReader)
+			gzipReader.Close()
+			if err != nil {
+				return nil, nil, fmt.Errorf("error reading gzip compressed data from reader: %w", err)
+			}
+			buf = uncompBuf.Bytes()
 		}
 
 		// Now, create a temp dir and write out the plugin bytes
