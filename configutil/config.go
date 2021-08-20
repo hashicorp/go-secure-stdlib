@@ -71,7 +71,10 @@ func LoadConfigKMSes(path string, opt ...Option) ([]*KMS, error) {
 }
 
 func ParseConfig(d string, opt ...Option) (*SharedConfig, error) {
-	opts := getOpts(opt...)
+	opts, err := getOpts(opt...)
+	if err != nil {
+		return nil, err
+	}
 
 	// Parse!
 	obj, err := hcl.Parse(d)

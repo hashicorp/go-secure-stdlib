@@ -10,18 +10,15 @@ import (
 	"io/fs"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
 	gkwp "github.com/hashicorp/go-kms-wrapping/plugin/v2"
 	wrapping "github.com/hashicorp/go-kms-wrapping/v2"
 	"github.com/hashicorp/go-multierror"
-	gp "github.com/hashicorp/go-plugin"
 	"github.com/hashicorp/go-secure-stdlib/parseutil"
 	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/ast"
-	"google.golang.org/protobuf/types/known/structpb"
 )
 
 var (
@@ -50,7 +47,7 @@ type KMS struct {
 	Purpose []string `hcl:"-"`
 
 	Disabled bool
-	Config   map[string]interface{}
+	Config   map[string]string
 }
 
 func (k *KMS) GoString() string {
@@ -58,9 +55,18 @@ func (k *KMS) GoString() string {
 }
 
 func parseKMS(result *[]*KMS, list *ast.ObjectList, blockName string, opt ...Option) error {
-	opts := getOpts(opt...)
-	if opts.withMaxKmsBlocks > 0 && len(list.Items) > int(opts.withMaxKmsBlocks) {
-		return fmt.Errorf("only %d or less %q blocks are permitted", opts.withMaxKmsBlocks, blockName)
+	opts, err := getOpts(opt...)
+	if err != nil {
+		return err
+	}
+
+	switch {
+	case opts.withMaxKmsBlocks > 0:
+		if len(list.Items) > int(opts.withMaxKmsBlocks) {
+			return fmt.Errorf("only %d or less %q blocks are permitted", opts.withMaxKmsBlocks, blockName)
+		}
+	default:
+		// Allow unlimited
 	}
 
 	seals := make([]*KMS, 0, len(list.Items))
@@ -99,11 +105,22 @@ func parseKMS(result *[]*KMS, list *ast.ObjectList, blockName string, opt ...Opt
 			delete(m, "disabled")
 		}
 
+		strMap := make(map[string]string, len(m))
+		for k, v := range m {
+			s, err := parseutil.ParseString(v)
+			if err != nil {
+				return multierror.Prefix(err, fmt.Sprintf("%s.%s:", blockName, key))
+			}
+			strMap[k] = s
+		}
+
 		seal := &KMS{
 			Type:     strings.ToLower(key),
 			Purpose:  purpose,
 			Disabled: disabled,
-			Config:   m,
+		}
+		if len(strMap) > 0 {
+			seal.Config = strMap
 		}
 
 		seals = append(seals, seal)
@@ -175,35 +192,34 @@ func configureWrapper(
 	}
 	kmsType := strings.ToLower(configKMS.Type)
 
-	// Translate key ID to the option to avoid every implementor having to
-	// realize you otherwise need to parse it out of Config instead of from the
-	// option
-	var keyId string
-	if keyIdRaw, ok := configKMS.Config["key_id"]; ok && keyIdRaw != nil {
-		keyId, _ = keyIdRaw.(string)
-	}
-	wrapperOpts, err := structpb.NewStruct(configKMS.Config)
+	opts, err := getOpts(opt...)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error parsing kms configuration: %w", err)
+		return nil, nil, fmt.Errorf("error parsing kms options: %w", err)
 	}
-
-	opts := getOpts(opt...)
-	if opts.withKmsPlugins == nil {
+	if len(opts.withKmsPluginsFilesystems) == 0 {
 		return nil, nil, fmt.Errorf("no kms plugins available")
 	}
 
-	// First, scan available plugins, then find the right one to use, and set the need init/finalize flag
-	pluginMap := map[string]string{}
+	// First, scan available plugins, then find the right one to use, and set
+	// the need init/finalize flag
+	type pluginInfo struct {
+		containerFs fs.FS
+		filename    string
+	}
+	pluginMap := map[string]pluginInfo{}
 	var needInitFinalize bool
-	var fileName string
+	var plugin pluginInfo
 	{
-		dirs, err := fs.ReadDir(opts.withKmsPlugins, ".")
-		if err != nil {
-			return nil, nil, fmt.Errorf("error scanning kms plugins: %w", err)
-		}
-		// Store a match between the config type string and the expected plugin name
-		for _, entry := range dirs {
-			pluginMap[strings.TrimRight(strings.TrimLeft(entry.Name(), "gkw-"), ".gz")] = entry.Name()
+		for _, fsInfo := range opts.withKmsPluginsFilesystems {
+			dirs, err := fs.ReadDir(fsInfo.FS, ".")
+			if err != nil {
+				return nil, nil, fmt.Errorf("error scanning kms plugins: %w", err)
+			}
+			// Store a match between the config type string and the expected plugin name
+			for _, entry := range dirs {
+				pluginMap[strings.TrimRight(strings.TrimLeft(entry.Name(), fsInfo.prefix), ".gz")] =
+					pluginInfo{containerFs: fsInfo.FS, filename: entry.Name()}
+			}
 		}
 
 		// Now, find the right file name
@@ -213,9 +229,9 @@ func configureWrapper(
 		case wrapping.WrapperTypePkcs11.String():
 			return nil, nil, fmt.Errorf("kms type 'pkcs11' requires the Vault Enterprise HSM binary")
 		default:
-			fileName = pluginMap[kmsType]
+			plugin = pluginMap[kmsType]
 		}
-		if fileName == "" {
+		if plugin.filename == "" {
 			return nil, nil, fmt.Errorf("unknown kms type %q", kmsType)
 		}
 	}
@@ -224,7 +240,7 @@ func configureWrapper(
 	var pluginPath string
 	{
 		// Open and basic validation
-		file, err := opts.withKmsPlugins.Open(fileName)
+		file, err := plugin.containerFs.Open(plugin.filename)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -252,7 +268,7 @@ func configureWrapper(
 		}
 
 		// If it's compressed, uncompress it
-		if strings.HasSuffix(fileName, ".gz") {
+		if strings.HasSuffix(plugin.filename, ".gz") {
 			gzipReader, err := gzip.NewReader(bytes.NewReader(buf))
 			if err != nil {
 				return nil, nil, fmt.Errorf("error creating gzip decompression reader: %w", err)
@@ -274,7 +290,7 @@ func configureWrapper(
 		cleanup = func() error {
 			return os.RemoveAll(tmpDir)
 		}
-		pluginPath = filepath.Join(tmpDir, fileName)
+		pluginPath = filepath.Join(tmpDir, plugin.filename)
 		if err := ioutil.WriteFile(pluginPath, buf, fs.FileMode(0700)); err != nil {
 			return nil, cleanup, fmt.Errorf("error writing out kms plugin for execution: %w", err)
 		}
@@ -282,22 +298,10 @@ func configureWrapper(
 
 	// Execute the plugin
 	{
-		wrapPlugin, err := gkwp.NewWrapperClient(gkwp.WithInitFinalizeInterface(needInitFinalize))
+		client, err := gkwp.NewWrapperClient(pluginPath, gkwp.WithInitFinalizeInterface(needInitFinalize), gkwp.WithLogger(opts.withLogger))
 		if err != nil {
-			return nil, nil, fmt.Errorf("error creating plugin wrapper client: %w", err)
+			return nil, cleanup, fmt.Errorf("error fetching kms plugin client: %w", err)
 		}
-		client := gp.NewClient(&gp.ClientConfig{
-			HandshakeConfig: gkwp.HandshakeConfig,
-			VersionedPlugins: map[int]gp.PluginSet{
-				1: {"wrapping": wrapPlugin},
-			},
-			Cmd: exec.Command(pluginPath),
-			AllowedProtocols: []gp.Protocol{
-				gp.ProtocolGRPC,
-			},
-			Logger:   opts.withLogger,
-			AutoMTLS: true,
-		})
 		origCleanup := cleanup
 		cleanup = func() error {
 			client.Kill()
@@ -322,7 +326,7 @@ func configureWrapper(
 
 	// Set configuration and parse info to be friendlier
 	{
-		wrapperConfigResult, err := wrapper.SetConfig(ctx, wrapping.WithKeyId(keyId), wrapping.WithWrapperOptions(wrapperOpts))
+		wrapperConfigResult, err := wrapper.SetConfig(ctx, wrapping.WithKeyId(configKMS.Config["key_id"]), wrapping.WithWrapperOptions(configKMS.Config))
 		if err != nil {
 			return nil, cleanup, fmt.Errorf("error setting configuration on the kms plugin: %w", err)
 		}
