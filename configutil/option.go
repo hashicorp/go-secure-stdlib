@@ -33,9 +33,10 @@ type pluginSourceInfo struct {
 
 // options = how options are represented
 type options struct {
-	withKmsPluginsSources []pluginSourceInfo
-	withMaxKmsBlocks      int
-	withLogger            hclog.Logger
+	withKmsPluginsSources           []pluginSourceInfo
+	withKmsPluginExecutionDirectory string
+	withMaxKmsBlocks                int
+	withLogger                      hclog.Logger
 }
 
 func getDefaultOptions() options {
@@ -86,6 +87,16 @@ func WithKmsPluginsMap(plugins map[string]func() (wrapping.Wrapper, error)) Opti
 				pluginMap: plugins,
 			},
 		)
+		return nil
+	}
+}
+
+// WithKmsPluginExecutionDirectory allows setting a specific directory for
+// writing out and executing plugins; if not set, os.TempDir will be used to
+// create a suitable directory.
+func WithKmsPluginExecutionDirectory(dir string) Option {
+	return func(o *options) error {
+		o.withKmsPluginExecutionDirectory = dir
 		return nil
 	}
 }

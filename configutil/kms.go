@@ -326,15 +326,23 @@ func createPluginWrapper(plugin pluginInfo, opt ...Option) (wrapping.Wrapper, fu
 		buf = uncompBuf.Bytes()
 	}
 
-	// Now, create a temp dir and write out the plugin bytes
-	tmpDir, err := ioutil.TempDir("", "*")
-	if err != nil {
-		return nil, nil, fmt.Errorf("error creating tmp dir for kms execution: %w", err)
-	}
 	cleanup := func() error {
-		return os.RemoveAll(tmpDir)
+		return nil
 	}
-	pluginPath := filepath.Join(tmpDir, plugin.filename)
+
+	// Now, create a temp dir and write out the plugin bytes
+	dir := opts.withKmsPluginExecutionDirectory
+	if dir == "" {
+		tmpDir, err := ioutil.TempDir("", "*")
+		if err != nil {
+			return nil, nil, fmt.Errorf("error creating tmp dir for kms execution: %w", err)
+		}
+		cleanup = func() error {
+			return os.RemoveAll(tmpDir)
+		}
+		dir = tmpDir
+	}
+	pluginPath := filepath.Join(dir, plugin.filename)
 	if err := ioutil.WriteFile(pluginPath, buf, fs.FileMode(0700)); err != nil {
 		return nil, cleanup, fmt.Errorf("error writing out kms plugin for execution: %w", err)
 	}
