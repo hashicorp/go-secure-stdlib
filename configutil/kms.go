@@ -11,6 +11,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	gkwp "github.com/hashicorp/go-kms-wrapping/plugin/v2"
@@ -221,8 +222,14 @@ func configureWrapper(
 				}
 				// Store a match between the config type string and the expected plugin name
 				for _, entry := range dirs {
-					pluginMap[strings.TrimRight(strings.TrimLeft(entry.Name(), sourceInfo.pluginFsPrefix), ".gz")] =
-						pluginInfo{containerFs: sourceInfo.pluginFs, filename: entry.Name()}
+					pluginType := strings.TrimRight(strings.TrimLeft(entry.Name(), sourceInfo.pluginFsPrefix), ".gz")
+					if runtime.GOOS == "windows" {
+						pluginType = strings.TrimSuffix(pluginType, ".exe")
+					}
+					pluginMap[pluginType] = pluginInfo{
+						containerFs: sourceInfo.pluginFs,
+						filename:    entry.Name(),
+					}
 				}
 			case sourceInfo.pluginMap != nil:
 				for k, creationFunc := range sourceInfo.pluginMap {
@@ -343,6 +350,9 @@ func createPluginWrapper(plugin pluginInfo, opt ...Option) (wrapping.Wrapper, fu
 		dir = tmpDir
 	}
 	pluginPath := filepath.Join(dir, plugin.filename)
+	if runtime.GOOS == "windows" {
+		pluginPath += ".exe"
+	}
 	if err := ioutil.WriteFile(pluginPath, buf, fs.FileMode(0700)); err != nil {
 		return nil, cleanup, fmt.Errorf("error writing out kms plugin for execution: %w", err)
 	}
