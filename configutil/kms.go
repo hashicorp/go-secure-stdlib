@@ -222,7 +222,7 @@ func configureWrapper(
 				}
 				// Store a match between the config type string and the expected plugin name
 				for _, entry := range dirs {
-					pluginType := strings.TrimRight(strings.TrimLeft(entry.Name(), sourceInfo.pluginFsPrefix), ".gz")
+					pluginType := strings.TrimSuffix(strings.TrimPrefix(entry.Name(), sourceInfo.pluginFsPrefix), ".gz")
 					if runtime.GOOS == "windows" {
 						pluginType = strings.TrimSuffix(pluginType, ".exe")
 					}
