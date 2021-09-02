@@ -20,7 +20,7 @@ import (
 // if the old one could not be deleted.
 //
 // Supported options: WithEnvironmentCredentials, WithSharedCredentials,
-// WithAwsSession
+// WithAwsSession, WithUsername
 func (c *CredentialsConfig) RotateKeys(opt ...Option) error {
 	if c.AccessKey == "" || c.SecretKey == "" {
 		return errors.New("cannot rotate credentials when either access_key or secret_key is empty")
@@ -59,7 +59,7 @@ func (c *CredentialsConfig) RotateKeys(opt ...Option) error {
 // CreateAccessKey creates a new access/secret key pair.
 //
 // Supported options: WithEnvironmentCredentials, WithSharedCredentials,
-// WithAwsSession
+// WithAwsSession, WithUsername
 func (c *CredentialsConfig) CreateAccessKey(opt ...Option) (*iam.CreateAccessKeyOutput, error) {
 	opts, err := getOpts(opt...)
 	if err != nil {

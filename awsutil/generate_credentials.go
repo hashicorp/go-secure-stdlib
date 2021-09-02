@@ -70,6 +70,11 @@ type CredentialsConfig struct {
 	Logger hclog.Logger
 }
 
+// GenerateCredentialChain uses the config to generate a credential chain
+// suitable for creating AWS sessions and clients.
+//
+// Supported options: WithAccessKey, WithSecretKey, WithLogger, WithStsEndpoint,
+// WithIamEndpoint, WithMaxRetries, WithRegion, WithHttpClient.
 func NewCredentialsConfig(opt ...Option) (*CredentialsConfig, error) {
 	opts, err := getOpts(opt...)
 	if err != nil {
