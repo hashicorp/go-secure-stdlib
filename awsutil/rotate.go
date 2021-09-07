@@ -172,9 +172,9 @@ func (c *CredentialsConfig) GetSession(opt ...Option) (*session.Session, error) 
 	var endpoint string
 	switch opts.withClientType {
 	case "sts":
-		endpoint = c.StsEndpoint
+		endpoint = c.STSEndpoint
 	case "iam":
-		endpoint = c.IamEndpoint
+		endpoint = c.IAMEndpoint
 	default:
 		return nil, fmt.Errorf("unknown client type %q in GetSession", opts.withClientType)
 	}

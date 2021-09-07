@@ -34,10 +34,10 @@ type CredentialsConfig struct {
 	SessionToken string
 
 	// The IAM endpoint to use; if not set will use the default
-	IamEndpoint string
+	IAMEndpoint string
 
 	// The STS endpoint to use; if not set will use the default
-	StsEndpoint string
+	STSEndpoint string
 
 	// If specified, the region will be provided to the config of the
 	// EC2RoleProvider's client. This may be useful if you want to e.g. reuse
@@ -85,8 +85,8 @@ func NewCredentialsConfig(opt ...Option) (*CredentialsConfig, error) {
 		AccessKey:   opts.withAccessKey,
 		SecretKey:   opts.withSecretKey,
 		Logger:      opts.withLogger,
-		StsEndpoint: opts.withStsEndpoint,
-		IamEndpoint: opts.withIamEndpoint,
+		STSEndpoint: opts.withStsEndpoint,
+		IAMEndpoint: opts.withIamEndpoint,
 		MaxRetries:  opts.withMaxRetries,
 	}
 
