@@ -1,8 +1,10 @@
 package awsutil
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -202,7 +204,7 @@ func (c *CredentialsConfig) GetSession(opt ...Option) (*session.Session, error) 
 // account and user ID.
 //
 // Supported options: WithEnvironmentCredentials,
-// WithSharedCredentials, WithAwsSession
+// WithSharedCredentials, WithAwsSession, WithTimeout
 func (c *CredentialsConfig) GetCallerIdentity(opt ...Option) (*sts.GetCallerIdentityOutput, error) {
 	opts, err := getOpts(opt...)
 	if err != nil {
@@ -222,10 +224,36 @@ func (c *CredentialsConfig) GetCallerIdentity(opt ...Option) (*sts.GetCallerIden
 		return nil, errors.New("could not obtain STS client from session")
 	}
 
-	cid, err := client.GetCallerIdentity(&sts.GetCallerIdentityInput{})
-	if err != nil {
-		return nil, fmt.Errorf("error calling sts.GetCallerIdentity: %w", err)
-	}
+	delay := time.Second
+	maxDelay := time.Second * 30
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), opts.withTimeout)
+	defer cancel()
+	for {
+		cid, err := client.GetCallerIdentity(&sts.GetCallerIdentityInput{})
+		if err == nil {
+			return cid, nil
+		}
 
-	return cid, nil
+		// TODO: can add a context here for external cancellation in the future
+		select {
+		case <-time.After(delay):
+			// pass
+
+		case <-timeoutCtx.Done():
+			// Format our error based on how we were called.
+			if opts.withTimeout == 0 {
+				// There was no timeout, just return the error unwrapped.
+				return nil, err
+			}
+
+			// Otherwise, return the error wrapped in a timeout error.
+			return nil, fmt.Errorf("timeout after %s waiting for success: %w", opts.withTimeout, err)
+		}
+
+		// exponential backoff, multiply delay by 2, limit by maxDelay
+		delay *= 2
+		if delay > maxDelay {
+			delay = maxDelay
+		}
+	}
 }

@@ -1,10 +1,13 @@
 package awsutil
 
 import (
+	"errors"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -97,4 +100,33 @@ func TestCallerIdentityWithSession(t *testing.T) {
 	assert.NotEmpty(cid.Account)
 	assert.NotEmpty(cid.Arn)
 	assert.NotEmpty(cid.UserId)
+}
+
+func TestCallerIdentityErrorNoTimeout(t *testing.T) {
+	require := require.New(t)
+
+	c := &CredentialsConfig{
+		AccessKey: "bad",
+		SecretKey: "badagain",
+	}
+
+	_, err := c.GetCallerIdentity()
+	require.NotNil(err)
+	require.Implements((*awserr.Error)(nil), err)
+}
+
+func TestCallerIdentityErrorWithTimeout(t *testing.T) {
+	require := require.New(t)
+
+	c := &CredentialsConfig{
+		AccessKey: "bad",
+		SecretKey: "badagain",
+	}
+
+	_, err := c.GetCallerIdentity(WithTimeout(time.Second * 10))
+	require.NotNil(err)
+	require.True(strings.HasPrefix(err.Error(), "timeout after 10s waiting for success"))
+	err = errors.Unwrap(err)
+	require.NotNil(err)
+	require.Implements((*awserr.Error)(nil), err)
 }

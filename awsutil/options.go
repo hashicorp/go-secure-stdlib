@@ -3,6 +3,7 @@ package awsutil
 import (
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/hashicorp/go-hclog"
@@ -40,6 +41,7 @@ type options struct {
 	withMaxRetries             *int
 	withRegion                 string
 	withHttpClient             *http.Client
+	withTimeout                time.Duration
 }
 
 func getDefaultOptions() options {
@@ -156,6 +158,15 @@ func WithMaxRetries(with *int) Option {
 func WithHttpClient(with *http.Client) Option {
 	return func(o *options) error {
 		o.withHttpClient = with
+		return nil
+	}
+}
+
+// WithTimeout allows passing a timeout for operations that can wait
+// on success.
+func WithTimeout(with time.Duration) Option {
+	return func(o *options) error {
+		o.withTimeout = with
 		return nil
 	}
 }
