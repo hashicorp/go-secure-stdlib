@@ -7,6 +7,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/iam"
+	"github.com/aws/aws-sdk-go/service/sts"
 )
 
 // RotateKeys takes the access key and secret key from this credentials config
@@ -193,4 +194,38 @@ func (c *CredentialsConfig) GetSession(opt ...Option) (*session.Session, error) 
 	}
 
 	return sess, nil
+}
+
+// GetCallerIdentity runs sts.GetCallerIdentity for the current set
+// credentials. This can be used to check that credentials are valid,
+// in addition to checking details about the effective logged in
+// account and user ID.
+//
+// Supported options: WithEnvironmentCredentials,
+// WithSharedCredentials, WithAwsSession
+func (c *CredentialsConfig) GetCallerIdentity(opt ...Option) (*sts.GetCallerIdentityOutput, error) {
+	opts, err := getOpts(opt...)
+	if err != nil {
+		return nil, fmt.Errorf("error reading options in GetCallerIdentity: %w", err)
+	}
+
+	sess := opts.withAwsSession
+	if sess == nil {
+		sess, err = c.GetSession(opt...)
+		if err != nil {
+			return nil, fmt.Errorf("error calling GetSession: %w", err)
+		}
+	}
+
+	client := sts.New(sess)
+	if client == nil {
+		return nil, errors.New("could not obtain STS client from session")
+	}
+
+	cid, err := client.GetCallerIdentity(&sts.GetCallerIdentityInput{})
+	if err != nil {
+		return nil, fmt.Errorf("error calling sts.GetCallerIdentity: %w", err)
+	}
+
+	return cid, nil
 }

@@ -52,3 +52,49 @@ func TestRotation(t *testing.T) {
 	assert.NotEqual(secretKey, c.SecretKey)
 	cleanupKey = &c.AccessKey
 }
+
+func TestCallerIdentity(t *testing.T) {
+	require, assert := require.New(t), assert.New(t)
+
+	key, secretKey, sessionToken := os.Getenv("AWS_ACCESS_KEY_ID"), os.Getenv("AWS_SECRET_ACCESS_KEY"), os.Getenv("AWS_SESSION_TOKEN")
+	if key == "" || secretKey == "" {
+		t.Skip("missing AWS_ACCESS_KEY_ID or AWS_SECRET_ACCESS_KEY")
+	}
+
+	c := &CredentialsConfig{
+		AccessKey:    key,
+		SecretKey:    secretKey,
+		SessionToken: sessionToken,
+	}
+
+	cid, err := c.GetCallerIdentity()
+	require.NoError(err)
+	assert.NotEmpty(cid.Account)
+	assert.NotEmpty(cid.Arn)
+	assert.NotEmpty(cid.UserId)
+}
+
+func TestCallerIdentityWithSession(t *testing.T) {
+	require, assert := require.New(t), assert.New(t)
+
+	key, secretKey, sessionToken := os.Getenv("AWS_ACCESS_KEY_ID"), os.Getenv("AWS_SECRET_ACCESS_KEY"), os.Getenv("AWS_SESSION_TOKEN")
+	if key == "" || secretKey == "" {
+		t.Skip("missing AWS_ACCESS_KEY_ID or AWS_SECRET_ACCESS_KEY")
+	}
+
+	c := &CredentialsConfig{
+		AccessKey:    key,
+		SecretKey:    secretKey,
+		SessionToken: sessionToken,
+	}
+
+	sess, err := c.GetSession()
+	require.NoError(err)
+	require.NotNil(sess)
+
+	cid, err := c.GetCallerIdentity(WithAwsSession(sess))
+	require.NoError(err)
+	assert.NotEmpty(cid.Account)
+	assert.NotEmpty(cid.Arn)
+	assert.NotEmpty(cid.UserId)
+}
