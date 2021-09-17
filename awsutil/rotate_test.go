@@ -12,6 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const testRotationWaitTimeout = time.Second * 30
+
 func TestRotation(t *testing.T) {
 	require, assert := require.New(t), assert.New(t)
 
@@ -32,7 +34,7 @@ func TestRotation(t *testing.T) {
 	}
 
 	// Create an initial key
-	out, err := credsConfig.CreateAccessKey(WithUsername(username))
+	out, err := credsConfig.CreateAccessKey(WithUsername(username), WithTimeout(testRotationWaitTimeout))
 	require.NoError(err)
 	require.NotNil(out)
 
@@ -49,8 +51,7 @@ func TestRotation(t *testing.T) {
 		WithSecretKey(secretKey),
 	)
 	require.NoError(err)
-	time.Sleep(10 * time.Second)
-	require.NoError(c.RotateKeys())
+	require.NoError(c.RotateKeys(WithTimeout(testRotationWaitTimeout)))
 	assert.NotEqual(accessKey, c.AccessKey)
 	assert.NotEqual(secretKey, c.SecretKey)
 	cleanupKey = &c.AccessKey

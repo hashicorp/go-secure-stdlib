@@ -23,7 +23,7 @@ import (
 // if the old one could not be deleted.
 //
 // Supported options: WithEnvironmentCredentials, WithSharedCredentials,
-// WithAwsSession, WithUsername
+// WithAwsSession, WithUsername, WithTimeout
 func (c *CredentialsConfig) RotateKeys(opt ...Option) error {
 	if c.AccessKey == "" || c.SecretKey == "" {
 		return errors.New("cannot rotate credentials when either access_key or secret_key is empty")
@@ -62,11 +62,11 @@ func (c *CredentialsConfig) RotateKeys(opt ...Option) error {
 // CreateAccessKey creates a new access/secret key pair.
 //
 // Supported options: WithEnvironmentCredentials, WithSharedCredentials,
-// WithAwsSession, WithUsername
+// WithAwsSession, WithUsername, WithTimeout
 func (c *CredentialsConfig) CreateAccessKey(opt ...Option) (*iam.CreateAccessKeyOutput, error) {
 	opts, err := getOpts(opt...)
 	if err != nil {
-		return nil, fmt.Errorf("error reading options in RotateKeys: %w", err)
+		return nil, fmt.Errorf("error reading options in CreateAccessKey: %w", err)
 	}
 
 	sess := opts.withAwsSession
@@ -112,6 +112,20 @@ func (c *CredentialsConfig) CreateAccessKey(opt ...Option) (*iam.CreateAccessKey
 	}
 	if createAccessKeyRes.AccessKey.AccessKeyId == nil || createAccessKeyRes.AccessKey.SecretAccessKey == nil {
 		return nil, fmt.Errorf("nil AccessKeyId or SecretAccessKey returned from aws.CreateAccessKey")
+	}
+
+	// Check the credentials to make sure they are usable. We only do
+	// this if withTimeout is non-zero to ensue that we don't
+	// immediately fail due to eventual consistency.
+	if opts.withTimeout != 0 {
+		newC := &CredentialsConfig{
+			AccessKey: *createAccessKeyRes.AccessKey.AccessKeyId,
+			SecretKey: *createAccessKeyRes.AccessKey.SecretAccessKey,
+		}
+
+		if _, err := newC.GetCallerIdentity(WithTimeout(opts.withTimeout)); err != nil {
+			return nil, fmt.Errorf("error verifying new credentials: %w", err)
+		}
 	}
 
 	return createAccessKeyRes, nil
