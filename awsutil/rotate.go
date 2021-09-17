@@ -23,7 +23,9 @@ import (
 // if the old one could not be deleted.
 //
 // Supported options: WithEnvironmentCredentials, WithSharedCredentials,
-// WithAwsSession, WithUsername, WithTimeout
+// WithAwsSession, WithUsername, WithTimeout. Note that WithTimeout
+// here, when non-zero, controls the WithTimeout option on access key
+// creation. See CreateAccessKey for more details.
 func (c *CredentialsConfig) RotateKeys(opt ...Option) error {
 	if c.AccessKey == "" || c.SecretKey == "" {
 		return errors.New("cannot rotate credentials when either access_key or secret_key is empty")
@@ -63,6 +65,9 @@ func (c *CredentialsConfig) RotateKeys(opt ...Option) error {
 //
 // Supported options: WithEnvironmentCredentials, WithSharedCredentials,
 // WithAwsSession, WithUsername, WithTimeout
+//
+// When WithTimeout is non-zero, it specifies a timeout to wait on
+// the created credentials to be valid and ready for use.
 func (c *CredentialsConfig) CreateAccessKey(opt ...Option) (*iam.CreateAccessKeyOutput, error) {
 	opts, err := getOpts(opt...)
 	if err != nil {
@@ -239,7 +244,6 @@ func (c *CredentialsConfig) GetCallerIdentity(opt ...Option) (*sts.GetCallerIden
 	}
 
 	delay := time.Second
-	maxDelay := time.Second * 30
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), opts.withTimeout)
 	defer cancel()
 	for {
@@ -262,12 +266,6 @@ func (c *CredentialsConfig) GetCallerIdentity(opt ...Option) (*sts.GetCallerIden
 
 			// Otherwise, return the error wrapped in a timeout error.
 			return nil, fmt.Errorf("timeout after %s waiting for success: %w", opts.withTimeout, err)
-		}
-
-		// exponential backoff, multiply delay by 2, limit by maxDelay
-		delay *= 2
-		if delay > maxDelay {
-			delay = maxDelay
 		}
 	}
 }
