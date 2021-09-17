@@ -3,6 +3,7 @@ package awsutil
 import (
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -111,5 +112,10 @@ func Test_GetOpts(t *testing.T) {
 		opts, err := getOpts(WithHttpClient(client))
 		require.NoError(t, err)
 		assert.Equal(t, &opts.withHttpClient, &client)
+	})
+	t.Run("withTimeout", func(t *testing.T) {
+		opts, err := getOpts(WithTimeout(time.Second))
+		require.NoError(t, err)
+		assert.Equal(t, opts.withTimeout, time.Second)
 	})
 }

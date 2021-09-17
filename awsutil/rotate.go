@@ -1,12 +1,15 @@
 package awsutil
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/iam"
+	"github.com/aws/aws-sdk-go/service/sts"
 )
 
 // RotateKeys takes the access key and secret key from this credentials config
@@ -193,4 +196,64 @@ func (c *CredentialsConfig) GetSession(opt ...Option) (*session.Session, error) 
 	}
 
 	return sess, nil
+}
+
+// GetCallerIdentity runs sts.GetCallerIdentity for the current set
+// credentials. This can be used to check that credentials are valid,
+// in addition to checking details about the effective logged in
+// account and user ID.
+//
+// Supported options: WithEnvironmentCredentials,
+// WithSharedCredentials, WithAwsSession, WithTimeout
+func (c *CredentialsConfig) GetCallerIdentity(opt ...Option) (*sts.GetCallerIdentityOutput, error) {
+	opts, err := getOpts(opt...)
+	if err != nil {
+		return nil, fmt.Errorf("error reading options in GetCallerIdentity: %w", err)
+	}
+
+	sess := opts.withAwsSession
+	if sess == nil {
+		sess, err = c.GetSession(opt...)
+		if err != nil {
+			return nil, fmt.Errorf("error calling GetSession: %w", err)
+		}
+	}
+
+	client := sts.New(sess)
+	if client == nil {
+		return nil, errors.New("could not obtain STS client from session")
+	}
+
+	delay := time.Second
+	maxDelay := time.Second * 30
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), opts.withTimeout)
+	defer cancel()
+	for {
+		cid, err := client.GetCallerIdentity(&sts.GetCallerIdentityInput{})
+		if err == nil {
+			return cid, nil
+		}
+
+		// TODO: can add a context here for external cancellation in the future
+		select {
+		case <-time.After(delay):
+			// pass
+
+		case <-timeoutCtx.Done():
+			// Format our error based on how we were called.
+			if opts.withTimeout == 0 {
+				// There was no timeout, just return the error unwrapped.
+				return nil, err
+			}
+
+			// Otherwise, return the error wrapped in a timeout error.
+			return nil, fmt.Errorf("timeout after %s waiting for success: %w", opts.withTimeout, err)
+		}
+
+		// exponential backoff, multiply delay by 2, limit by maxDelay
+		delay *= 2
+		if delay > maxDelay {
+			delay = maxDelay
+		}
+	}
 }
