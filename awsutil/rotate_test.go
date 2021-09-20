@@ -34,7 +34,7 @@ func TestRotation(t *testing.T) {
 	}
 
 	// Create an initial key
-	out, err := credsConfig.CreateAccessKey(WithUsername(username), WithTimeout(testRotationWaitTimeout))
+	out, err := credsConfig.CreateAccessKey(WithUsername(username), WithValidityCheckTimeout(testRotationWaitTimeout))
 	require.NoError(err)
 	require.NotNil(out)
 
@@ -51,7 +51,7 @@ func TestRotation(t *testing.T) {
 		WithSecretKey(secretKey),
 	)
 	require.NoError(err)
-	require.NoError(c.RotateKeys(WithTimeout(testRotationWaitTimeout)))
+	require.NoError(c.RotateKeys(WithValidityCheckTimeout(testRotationWaitTimeout)))
 	assert.NotEqual(accessKey, c.AccessKey)
 	assert.NotEqual(secretKey, c.SecretKey)
 	cleanupKey = &c.AccessKey
@@ -116,7 +116,7 @@ func TestCallerIdentityErrorNoTimeout(t *testing.T) {
 	require.Implements((*awserr.Error)(nil), err)
 }
 
-func TestCallerIdentityErrorWithTimeout(t *testing.T) {
+func TestCallerIdentityErrorWithValidityCheckTimeout(t *testing.T) {
 	require := require.New(t)
 
 	c := &CredentialsConfig{
@@ -124,7 +124,7 @@ func TestCallerIdentityErrorWithTimeout(t *testing.T) {
 		SecretKey: "badagain",
 	}
 
-	_, err := c.GetCallerIdentity(WithTimeout(time.Second * 10))
+	_, err := c.GetCallerIdentity(WithValidityCheckTimeout(time.Second * 10))
 	require.NotNil(err)
 	require.True(strings.HasPrefix(err.Error(), "timeout after 10s waiting for success"))
 	err = errors.Unwrap(err)

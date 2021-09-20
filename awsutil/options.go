@@ -41,7 +41,7 @@ type options struct {
 	withMaxRetries             *int
 	withRegion                 string
 	withHttpClient             *http.Client
-	withTimeout                time.Duration
+	withValidityCheckTimeout   time.Duration
 }
 
 func getDefaultOptions() options {
@@ -162,11 +162,11 @@ func WithHttpClient(with *http.Client) Option {
 	}
 }
 
-// WithTimeout allows passing a timeout for operations that can wait
+// WithValidityCheckTimeout allows passing a timeout for operations that can wait
 // on success.
-func WithTimeout(with time.Duration) Option {
+func WithValidityCheckTimeout(with time.Duration) Option {
 	return func(o *options) error {
-		o.withTimeout = with
+		o.withValidityCheckTimeout = with
 		return nil
 	}
 }

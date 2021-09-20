@@ -23,8 +23,8 @@ import (
 // if the old one could not be deleted.
 //
 // Supported options: WithEnvironmentCredentials, WithSharedCredentials,
-// WithAwsSession, WithUsername, WithTimeout. Note that WithTimeout
-// here, when non-zero, controls the WithTimeout option on access key
+// WithAwsSession, WithUsername, WithValidityCheckTimeout. Note that WithValidityCheckTimeout
+// here, when non-zero, controls the WithValidityCheckTimeout option on access key
 // creation. See CreateAccessKey for more details.
 func (c *CredentialsConfig) RotateKeys(opt ...Option) error {
 	if c.AccessKey == "" || c.SecretKey == "" {
@@ -64,9 +64,9 @@ func (c *CredentialsConfig) RotateKeys(opt ...Option) error {
 // CreateAccessKey creates a new access/secret key pair.
 //
 // Supported options: WithEnvironmentCredentials, WithSharedCredentials,
-// WithAwsSession, WithUsername, WithTimeout
+// WithAwsSession, WithUsername, WithValidityCheckTimeout
 //
-// When WithTimeout is non-zero, it specifies a timeout to wait on
+// When WithValidityCheckTimeout is non-zero, it specifies a timeout to wait on
 // the created credentials to be valid and ready for use.
 func (c *CredentialsConfig) CreateAccessKey(opt ...Option) (*iam.CreateAccessKeyOutput, error) {
 	opts, err := getOpts(opt...)
@@ -120,15 +120,15 @@ func (c *CredentialsConfig) CreateAccessKey(opt ...Option) (*iam.CreateAccessKey
 	}
 
 	// Check the credentials to make sure they are usable. We only do
-	// this if withTimeout is non-zero to ensue that we don't
+	// this if withValidityCheckTimeout is non-zero to ensue that we don't
 	// immediately fail due to eventual consistency.
-	if opts.withTimeout != 0 {
+	if opts.withValidityCheckTimeout != 0 {
 		newC := &CredentialsConfig{
 			AccessKey: *createAccessKeyRes.AccessKey.AccessKeyId,
 			SecretKey: *createAccessKeyRes.AccessKey.SecretAccessKey,
 		}
 
-		if _, err := newC.GetCallerIdentity(WithTimeout(opts.withTimeout)); err != nil {
+		if _, err := newC.GetCallerIdentity(WithValidityCheckTimeout(opts.withValidityCheckTimeout)); err != nil {
 			return nil, fmt.Errorf("error verifying new credentials: %w", err)
 		}
 	}
@@ -223,7 +223,7 @@ func (c *CredentialsConfig) GetSession(opt ...Option) (*session.Session, error) 
 // account and user ID.
 //
 // Supported options: WithEnvironmentCredentials,
-// WithSharedCredentials, WithAwsSession, WithTimeout
+// WithSharedCredentials, WithAwsSession, WithValidityCheckTimeout
 func (c *CredentialsConfig) GetCallerIdentity(opt ...Option) (*sts.GetCallerIdentityOutput, error) {
 	opts, err := getOpts(opt...)
 	if err != nil {
@@ -244,7 +244,7 @@ func (c *CredentialsConfig) GetCallerIdentity(opt ...Option) (*sts.GetCallerIden
 	}
 
 	delay := time.Second
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), opts.withTimeout)
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), opts.withValidityCheckTimeout)
 	defer cancel()
 	for {
 		cid, err := client.GetCallerIdentity(&sts.GetCallerIdentityInput{})
@@ -259,13 +259,13 @@ func (c *CredentialsConfig) GetCallerIdentity(opt ...Option) (*sts.GetCallerIden
 
 		case <-timeoutCtx.Done():
 			// Format our error based on how we were called.
-			if opts.withTimeout == 0 {
+			if opts.withValidityCheckTimeout == 0 {
 				// There was no timeout, just return the error unwrapped.
 				return nil, err
 			}
 
 			// Otherwise, return the error wrapped in a timeout error.
-			return nil, fmt.Errorf("timeout after %s waiting for success: %w", opts.withTimeout, err)
+			return nil, fmt.Errorf("timeout after %s waiting for success: %w", opts.withValidityCheckTimeout, err)
 		}
 	}
 }
