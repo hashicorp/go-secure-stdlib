@@ -113,9 +113,9 @@ func Test_GetOpts(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, &opts.withHttpClient, &client)
 	})
-	t.Run("withTimeout", func(t *testing.T) {
-		opts, err := getOpts(WithTimeout(time.Second))
+	t.Run("withValidityCheckTimeout", func(t *testing.T) {
+		opts, err := getOpts(WithValidityCheckTimeout(time.Second))
 		require.NoError(t, err)
-		assert.Equal(t, opts.withTimeout, time.Second)
+		assert.Equal(t, opts.withValidityCheckTimeout, time.Second)
 	})
 }
