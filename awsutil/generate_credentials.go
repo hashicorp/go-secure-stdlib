@@ -180,6 +180,14 @@ func (c *CredentialsConfig) GenerateCredentialChain(opt ...Option) (*credentials
 		providers = append(providers, webIdentityProvider)
 	}
 
+	profile := os.Getenv("AWS_PROFILE")
+	if profile != "" {
+		c.Profile = profile
+	}
+	if c.Profile == "" {
+		c.Profile = "default"
+	}
+
 	if opts.withEnvironmentCredentials {
 		// Add the environment credential provider
 		providers = append(providers, &credentials.EnvProvider{})
