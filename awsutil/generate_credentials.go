@@ -186,6 +186,13 @@ func (c *CredentialsConfig) GenerateCredentialChain(opt ...Option) (*credentials
 	}
 
 	if opts.withSharedCredentials {
+		profile := os.Getenv("AWS_PROFILE")
+		if profile != "" {
+			c.Profile = profile
+		}
+		if c.Profile == "" {
+			c.Profile = "default"
+		}
 		// Add the shared credentials provider
 		providers = append(providers, &credentials.SharedCredentialsProvider{
 			Filename: c.Filename,
