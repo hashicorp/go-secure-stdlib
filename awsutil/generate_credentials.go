@@ -16,6 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/hashicorp/go-cleanhttp"
 	"github.com/hashicorp/go-hclog"
 	"github.com/pkg/errors"
 )
@@ -31,6 +32,12 @@ type CredentialsConfig struct {
 
 	// The session token if it is being used
 	SessionToken string
+
+	// The IAM endpoint to use; if not set will use the default
+	IAMEndpoint string
+
+	// The STS endpoint to use; if not set will use the default
+	STSEndpoint string
 
 	// If specified, the region will be provided to the config of the
 	// EC2RoleProvider's client. This may be useful if you want to e.g. reuse
@@ -55,8 +62,51 @@ type CredentialsConfig struct {
 	// The http.Client to use, or nil for the client to use its default
 	HTTPClient *http.Client
 
+	// The max retries to set on the client. This is a pointer because the zero
+	// value has meaning. A nil pointer will use the default value.
+	MaxRetries *int
+
 	// The logger to use for credential acquisition debugging
 	Logger hclog.Logger
+}
+
+// GenerateCredentialChain uses the config to generate a credential chain
+// suitable for creating AWS sessions and clients.
+//
+// Supported options: WithAccessKey, WithSecretKey, WithLogger, WithStsEndpoint,
+// WithIamEndpoint, WithMaxRetries, WithRegion, WithHttpClient.
+func NewCredentialsConfig(opt ...Option) (*CredentialsConfig, error) {
+	opts, err := getOpts(opt...)
+	if err != nil {
+		return nil, fmt.Errorf("error reading options in NewCredentialsConfig: %w", err)
+	}
+
+	c := &CredentialsConfig{
+		AccessKey:   opts.withAccessKey,
+		SecretKey:   opts.withSecretKey,
+		Logger:      opts.withLogger,
+		STSEndpoint: opts.withStsEndpoint,
+		IAMEndpoint: opts.withIamEndpoint,
+		MaxRetries:  opts.withMaxRetries,
+	}
+
+	c.Region = opts.withRegion
+	if c.Region == "" {
+		c.Region = os.Getenv("AWS_REGION")
+		if c.Region == "" {
+			c.Region = os.Getenv("AWS_DEFAULT_REGION")
+			if c.Region == "" {
+				c.Region = "us-east-1"
+			}
+		}
+	}
+
+	c.HTTPClient = opts.withHttpClient
+	if c.HTTPClient == nil {
+		c.HTTPClient = cleanhttp.DefaultClient()
+	}
+
+	return c, nil
 }
 
 // Make sure the logger isn't nil before logging
@@ -66,7 +116,16 @@ func (c *CredentialsConfig) log(level hclog.Level, msg string, args ...interface
 	}
 }
 
-func (c *CredentialsConfig) GenerateCredentialChain() (*credentials.Credentials, error) {
+// GenerateCredentialChain uses the config to generate a credential chain
+// suitable for creating AWS sessions and clients.
+//
+// Supported options: WithEnvironmentCredentials, WithSharedCredentials
+func (c *CredentialsConfig) GenerateCredentialChain(opt ...Option) (*credentials.Credentials, error) {
+	opts, err := getOpts(opt...)
+	if err != nil {
+		return nil, fmt.Errorf("error reading options in GenerateCredentialChain: %w", err)
+	}
+
 	var providers []credentials.Provider
 
 	switch {
@@ -121,20 +180,33 @@ func (c *CredentialsConfig) GenerateCredentialChain() (*credentials.Credentials,
 		providers = append(providers, webIdentityProvider)
 	}
 
-	// Add the environment credential provider
-	providers = append(providers, &credentials.EnvProvider{})
+	if opts.withEnvironmentCredentials {
+		// Add the environment credential provider
+		providers = append(providers, &credentials.EnvProvider{})
+	}
 
-	// Add the shared credentials provider
-	providers = append(providers, &credentials.SharedCredentialsProvider{
-		Filename: c.Filename,
-		Profile:  c.Profile,
-	})
+	if opts.withSharedCredentials {
+		profile := os.Getenv("AWS_PROFILE")
+		if profile != "" {
+			c.Profile = profile
+		}
+		if c.Profile == "" {
+			c.Profile = "default"
+		}
+		// Add the shared credentials provider
+		providers = append(providers, &credentials.SharedCredentialsProvider{
+			Filename: c.Filename,
+			Profile:  c.Profile,
+		})
+	}
 
 	// Add the remote provider
 	def := defaults.Get()
 	if c.Region != "" {
 		def.Config.Region = aws.String(c.Region)
 	}
+	// We are taking care of this in the New() function but for legacy reasons
+	// we also set this here
 	if c.HTTPClient != nil {
 		def.Config.HTTPClient = c.HTTPClient
 		_, checkFullURI := os.LookupEnv("AWS_CONTAINER_CREDENTIALS_FULL_URI")
