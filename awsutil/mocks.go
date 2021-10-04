@@ -8,6 +8,13 @@ import (
 	"github.com/aws/aws-sdk-go/service/sts/stsiface"
 )
 
+// MockOptionErr provides a mock option error for use with testing.
+func MockOptionErr(withErr error) Option {
+	return func(_ *options) error {
+		return withErr
+	}
+}
+
 // MockIAM provides a way to mock the AWS IAM API.
 type MockIAM struct {
 	iamiface.IAMAPI

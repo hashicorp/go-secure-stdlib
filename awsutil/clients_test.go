@@ -15,10 +15,6 @@ import (
 const testOptionErr = "test option error"
 const testBadClientType = "badclienttype"
 
-func testWithOptionError(_ *options) error {
-	return errors.New(testOptionErr)
-}
-
 func testWithBadClientType(o *options) error {
 	o.withClientType = testBadClientType
 	return nil
@@ -35,7 +31,7 @@ func TestCredentialsConfigIAMClient(t *testing.T) {
 		{
 			name:              "options error",
 			credentialsConfig: &CredentialsConfig{},
-			opts:              []Option{testWithOptionError},
+			opts:              []Option{MockOptionErr(errors.New(testOptionErr))},
 			requireErr:        fmt.Sprintf("error reading options: %s", testOptionErr),
 		},
 		{
@@ -93,7 +89,7 @@ func TestCredentialsConfigSTSClient(t *testing.T) {
 		{
 			name:              "options error",
 			credentialsConfig: &CredentialsConfig{},
-			opts:              []Option{testWithOptionError},
+			opts:              []Option{MockOptionErr(errors.New(testOptionErr))},
 			requireErr:        fmt.Sprintf("error reading options: %s", testOptionErr),
 		},
 		{
