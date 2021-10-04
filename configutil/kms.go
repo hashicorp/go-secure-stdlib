@@ -358,7 +358,7 @@ func createPluginWrapper(plugin pluginInfo, opt ...Option) (wrapping.Wrapper, fu
 	}
 
 	// Execute the plugin
-	client, err := gkwp.NewWrapperClient(pluginPath, gkwp.WithInitFinalizeInterface(plugin.needInitFinalize), gkwp.WithLogger(opts.withLogger))
+	client, err := gkwp.NewWrapperClient(pluginPath, gkwp.WithInitFinalizerInterface(plugin.needInitFinalize), gkwp.WithLogger(opts.withLogger))
 	if err != nil {
 		return nil, cleanup, fmt.Errorf("error fetching kms plugin client: %w", err)
 	}
