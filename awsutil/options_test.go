@@ -118,4 +118,14 @@ func Test_GetOpts(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, opts.withValidityCheckTimeout, time.Second)
 	})
+	t.Run("withIAMIface", func(t *testing.T) {
+		opts, err := getOpts(WithIAMAPIFunc(NewMockIAM()))
+		require.NoError(t, err)
+		assert.NotNil(t, opts.withIAMAPIFunc)
+	})
+	t.Run("withSTSIface", func(t *testing.T) {
+		opts, err := getOpts(WithSTSAPIFunc(NewMockSTS()))
+		require.NoError(t, err)
+		assert.NotNil(t, opts.withSTSAPIFunc)
+	})
 }
