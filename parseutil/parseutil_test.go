@@ -180,8 +180,6 @@ func Test_ParseDurationSecond(t *testing.T) {
 		{in: "-5d", out: -5 * 24 * time.Hour},
 		{in: "05d", out: 5 * 24 * time.Hour},
 		{in: "500d", out: 500 * 24 * time.Hour},
-		{in: "0.5d", out: 12 * time.Hour},
-		{in: "1.5d", out: 36 * time.Hour},
 
 		// JSON Number inputs
 		{in: json.Number("4352s"), out: 4352 * time.Second},
@@ -198,7 +196,10 @@ func Test_ParseDurationSecond(t *testing.T) {
 		"s20ms",
 		"10S",
 		"ad",
+		"0.5d",
+		"1.5d",
 		"d",
+		"4世",
 	} {
 		tests = append(tests, Test{
 			in:      s,

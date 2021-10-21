@@ -123,11 +123,11 @@ func ParseDurationSecond(in interface{}) (time.Duration, error) {
 			inp = inp[:len(inp)-1]
 			fallthrough
 		default:
-			val, err := strconv.ParseFloat(inp, 64)
+			val, err := strconv.ParseInt(inp, 10, 64)
 			if err != nil {
 				return dur, err
 			}
-			dur = time.Duration(val * float64(scale))
+			dur = time.Duration(val) * scale
 		}
 	case int:
 		dur = time.Duration(inp) * time.Second
