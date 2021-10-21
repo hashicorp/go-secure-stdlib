@@ -105,29 +105,22 @@ func ParseDurationSecond(in interface{}) (time.Duration, error) {
 		if inp == "" {
 			return dur, nil
 		}
+
+		if v, err := strconv.ParseInt(inp, 10, 64); err == nil {
+			return time.Duration(v) * time.Second, nil
+		}
+
+		if strings.HasSuffix(inp, "d") {
+			v, err := strconv.ParseInt(inp[:len(inp)-1], 10, 64)
+			if err != nil {
+				return dur, err
+			}
+			return time.Duration(v) * 24 * time.Hour, nil
+		}
+
 		var err error
-
-		suffix := inp[len(inp)-1:]
-		scale := time.Second
-
-		switch suffix {
-		case "s", "m", "h":
-			// Use ParseDuration if string has a supported suffix. Note that "ms" is covered by "s".
-			dur, err = time.ParseDuration(inp)
-			if err != nil {
-				return dur, err
-			}
-		case "d":
-			// Parse days (which aren't supported by the stdlib) by stripping the suffix and adjusting the scale.
-			scale = 24 * time.Hour
-			inp = inp[:len(inp)-1]
-			fallthrough
-		default:
-			val, err := strconv.ParseInt(inp, 10, 64)
-			if err != nil {
-				return dur, err
-			}
-			dur = time.Duration(val) * scale
+		if dur, err = time.ParseDuration(inp); err != nil {
+			return dur, err
 		}
 	case int:
 		dur = time.Duration(inp) * time.Second

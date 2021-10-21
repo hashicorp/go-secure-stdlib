@@ -200,6 +200,8 @@ func Test_ParseDurationSecond(t *testing.T) {
 		"1.5d",
 		"d",
 		"4世",
+		"s",
+		"m",
 	} {
 		tests = append(tests, Test{
 			in:      s,
