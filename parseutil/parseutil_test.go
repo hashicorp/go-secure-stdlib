@@ -156,26 +156,72 @@ func Test_ParseCapacityString(t *testing.T) {
 }
 
 func Test_ParseDurationSecond(t *testing.T) {
-	outp, err := ParseDurationSecond("9876s")
-	if err != nil {
-		t.Fatal(err)
+	type Test struct {
+		in      interface{}
+		out     time.Duration
+		invalid bool
 	}
-	if outp != time.Duration(9876)*time.Second {
-		t.Fatal("not equivalent")
+
+	tests := []Test{
+		// Numeric inputs
+		{in: 9876, out: 9876 * time.Second},
+		{in: 5.5, out: 5 * time.Second},
+		{in: 0.9, out: 0 * time.Second},
+		{in: -5, out: -5 * time.Second},
+
+		// String inputs
+		{in: "9876", out: 9876 * time.Second},
+		{in: "9876s", out: 9876 * time.Second},
+		{in: "50ms", out: 50 * time.Millisecond},
+		{in: "0.5m", out: 30 * time.Second},
+		{in: "5m", out: 5 * time.Minute},
+		{in: "6h", out: 6 * time.Hour},
+		{in: "5d", out: 5 * 24 * time.Hour},
+		{in: "-5d", out: -5 * 24 * time.Hour},
+		{in: "05d", out: 5 * 24 * time.Hour},
+		{in: "500d", out: 500 * 24 * time.Hour},
+		{in: "0.5d", out: 12 * time.Hour},
+		{in: "1.5d", out: 36 * time.Hour},
+
+		// JSON Number inputs
+		{in: json.Number("4352s"), out: 4352 * time.Second},
 	}
-	outp, err = ParseDurationSecond("9876")
-	if err != nil {
-		t.Fatal(err)
+
+	// Invalid inputs
+	for _, s := range []string{
+		"5 s",
+		"5sa",
+		" 5m",
+		"5h ",
+		"5days",
+		"9876q",
+		"s20ms",
+		"10S",
+		"ad",
+		"d",
+	} {
+		tests = append(tests, Test{
+			in:      s,
+			invalid: true,
+		})
 	}
-	if outp != time.Duration(9876)*time.Second {
-		t.Fatal("not equivalent")
-	}
-	outp, err = ParseDurationSecond(json.Number("4352"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if outp != time.Duration(4352)*time.Second {
-		t.Fatal("not equivalent")
+
+	for _, test := range tests {
+		out, err := ParseDurationSecond(test.in)
+		if test.invalid {
+			if err == nil {
+				t.Fatalf("%q: expected error, got nil", test.in)
+			}
+			continue
+		}
+
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if out != test.out {
+			t.Fatalf("%q: expected: %q, got: %q", test.in, test.out, out)
+		}
 	}
 }
 
