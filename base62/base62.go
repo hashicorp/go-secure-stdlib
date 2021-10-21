@@ -14,6 +14,17 @@ const (
 	csLen   = byte(len(charset))
 )
 
+// MustRandom generates a random string using base-62 characters. Resulting
+// entropy is ~5.95 bits/character. If an error is encountered, MustRandom
+// panics.
+func MustRandom(length int) string {
+	out, err := RandomWithReader(length, rand.Reader)
+	if err != nil {
+		panic(err)
+	}
+	return out
+}
+
 // Random generates a random string using base-62 characters.
 // Resulting entropy is ~5.95 bits/character.
 func Random(length int) (string, error) {
