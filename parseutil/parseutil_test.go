@@ -166,6 +166,7 @@ func Test_ParseDurationSecond(t *testing.T) {
 		// Numeric inputs
 		{in: 9876, out: 9876 * time.Second},
 		{in: 5.5, out: 5 * time.Second},
+		{in: 5, out: 5 * time.Second},
 		{in: 0.9, out: 0 * time.Second},
 		{in: -5, out: -5 * time.Second},
 
@@ -174,6 +175,7 @@ func Test_ParseDurationSecond(t *testing.T) {
 		{in: "9876s", out: 9876 * time.Second},
 		{in: "50ms", out: 50 * time.Millisecond},
 		{in: "0.5m", out: 30 * time.Second},
+		{in: "0.5s", out: 500 * time.Millisecond},
 		{in: "5m", out: 5 * time.Minute},
 		{in: "6h", out: 6 * time.Hour},
 		{in: "5d", out: 5 * 24 * time.Hour},
