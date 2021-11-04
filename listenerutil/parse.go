@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/go-secure-stdlib/strutil"
 	"github.com/hashicorp/go-secure-stdlib/tlsutil"
 	"github.com/hashicorp/go-sockaddr"
+	"github.com/hashicorp/go-sockaddr/template"
 	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/ast"
 )
@@ -107,6 +108,16 @@ func ParseListeners(list *ast.ObjectList) ([]*ListenerConfig, error) {
 			return nil, multierror.Prefix(err, fmt.Sprintf("listeners.%d:", i))
 		}
 
+		if rendered, err := ParseSingleIPTemplate(l.Address); err != nil {
+			return nil, multierror.Prefix(err, fmt.Sprintf("listeners.%d:", i))
+		} else {
+			l.Address = rendered
+		}
+		if rendered, err := ParseSingleIPTemplate(l.ClusterAddress); err != nil {
+			return nil, multierror.Prefix(err, fmt.Sprintf("listeners.%d:", i))
+		} else {
+			l.ClusterAddress = rendered
+		}
 		// Hacky way, for now, to get the values we want for sanitizing
 		var m map[string]interface{}
 		if err := hcl.DecodeObject(&m, item.Val); err != nil {
@@ -356,4 +367,23 @@ func ParseListeners(list *ast.ObjectList) ([]*ListenerConfig, error) {
 	}
 
 	return result, nil
+}
+
+// ParseSingleIPTemplate is used as a helper function to parse out a single IP
+// address from a config parameter.
+func ParseSingleIPTemplate(ipTmpl string) (string, error) {
+	out, err := template.Parse(ipTmpl)
+	if err != nil {
+		return "", fmt.Errorf("unable to parse address template %q: %v", ipTmpl, err)
+	}
+
+	ips := strings.Split(out, " ")
+	switch len(ips) {
+	case 0:
+		return "", errors.New("no addresses found, please configure one")
+	case 1:
+		return strings.TrimSpace(ips[0]), nil
+	default:
+		return "", fmt.Errorf("multiple addresses found (%q), please configure one", out)
+	}
 }
