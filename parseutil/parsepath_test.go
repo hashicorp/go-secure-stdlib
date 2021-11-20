@@ -20,7 +20,7 @@ func TestParsePath(t *testing.T) {
 	require.NoError(t, file.Close())
 	defer os.Remove(file.Name())
 
-	require.NoError(t, os.Setenv("PATHTEST", "bar"))
+	t.Setenv("PATHTEST", "bar")
 
 	cases := []struct {
 		name             string

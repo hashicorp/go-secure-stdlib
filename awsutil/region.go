@@ -1,13 +1,13 @@
 package awsutil
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/ec2metadata"
 	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/hashicorp/errwrap"
 )
 
 // "us-east-1 is used because it's where AWS first provides support for new features,
@@ -46,7 +46,7 @@ func GetRegion(configuredRegion string) (string, error) {
 		SharedConfigState: session.SharedConfigEnable,
 	})
 	if err != nil {
-		return "", errwrap.Wrapf("got error when starting session: {{err}}", err)
+		return "", fmt.Errorf("got error when starting session: %w", err)
 	}
 
 	region := aws.StringValue(sess.Config.Region)
@@ -67,7 +67,7 @@ func GetRegion(configuredRegion string) (string, error) {
 
 	region, err = metadata.Region()
 	if err != nil {
-		return "", errwrap.Wrapf("unable to retrieve region from instance metadata: {{err}}", err)
+		return "", fmt.Errorf("unable to retrieve region from instance metadata: %w", err)
 	}
 
 	return region, nil

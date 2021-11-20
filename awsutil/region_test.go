@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/stretchr/testify/require"
 )
 
 const testConfigFile = `[default]
@@ -21,49 +22,31 @@ var (
 
 	expectedTestRegion   = "us-west-2"
 	unexpectedTestRegion = "us-east-2"
-	regionEnvKeys        = []string{"AWS_REGION", "AWS_DEFAULT_REGION"}
+	regionEnvKeys        = [...]string{"AWS_REGION", "AWS_DEFAULT_REGION"}
 )
 
 func TestGetRegion_UserConfigPreferredFirst(t *testing.T) {
 	configuredRegion := expectedTestRegion
 
-	cleanupEnv := setEnvRegion(t, unexpectedTestRegion)
-	defer cleanupEnv()
-
-	cleanupFile := setConfigFileRegion(t, unexpectedTestRegion)
-	defer cleanupFile()
-
-	cleanupMetadata := setInstanceMetadata(t, unexpectedTestRegion)
-	defer cleanupMetadata()
+	setEnvRegion(t, unexpectedTestRegion)
+	setConfigFileRegion(t, unexpectedTestRegion)
+	setInstanceMetadata(t, unexpectedTestRegion)
 
 	result, err := GetRegion(configuredRegion)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result != expectedTestRegion {
-		t.Fatalf("expected: %s; actual: %s", expectedTestRegion, result)
-	}
+	require.NoError(t, err)
+	require.Equal(t, expectedTestRegion, result)
 }
 
 func TestGetRegion_EnvVarsPreferredSecond(t *testing.T) {
 	configuredRegion := ""
 
-	cleanupEnv := setEnvRegion(t, expectedTestRegion)
-	defer cleanupEnv()
-
-	cleanupFile := setConfigFileRegion(t, unexpectedTestRegion)
-	defer cleanupFile()
-
-	cleanupMetadata := setInstanceMetadata(t, unexpectedTestRegion)
-	defer cleanupMetadata()
+	setEnvRegion(t, expectedTestRegion)
+	setConfigFileRegion(t, unexpectedTestRegion)
+	setInstanceMetadata(t, unexpectedTestRegion)
 
 	result, err := GetRegion(configuredRegion)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result != expectedTestRegion {
-		t.Fatalf("expected: %s; actual: %s", expectedTestRegion, result)
-	}
+	require.NoError(t, err)
+	require.Equal(t, expectedTestRegion, result)
 }
 
 func TestGetRegion_ConfigFilesPreferredThird(t *testing.T) {
@@ -75,49 +58,28 @@ func TestGetRegion_ConfigFilesPreferredThird(t *testing.T) {
 	}
 	configuredRegion := ""
 
-	cleanupEnv := setEnvRegion(t, "")
-	defer cleanupEnv()
-
-	cleanupFile := setConfigFileRegion(t, expectedTestRegion)
-	defer cleanupFile()
-
-	cleanupMetadata := setInstanceMetadata(t, unexpectedTestRegion)
-	defer cleanupMetadata()
+	setEnvRegion(t, "")
+	setConfigFileRegion(t, expectedTestRegion)
+	setInstanceMetadata(t, unexpectedTestRegion)
 
 	result, err := GetRegion(configuredRegion)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result != expectedTestRegion {
-		t.Fatalf("expected: %s; actual: %s", expectedTestRegion, result)
-	}
+	require.NoError(t, err)
+	require.Equal(t, expectedTestRegion, result)
 }
 
-func TestGetRegion_ConfigFileUnfound(t *testing.T) {
+func TestGetRegion_ConfigFileNotFound(t *testing.T) {
 	if enabled := os.Getenv("VAULT_ACC"); enabled == "" {
 		t.Skip()
 	}
 
 	configuredRegion := ""
-	cleanupEnv := setEnvRegion(t, "")
-	defer cleanupEnv()
+	setEnvRegion(t, "")
 
-	if err := os.Setenv("AWS_SHARED_CREDENTIALS_FILE", "foo"); err != nil {
-		t.Fatal(err)
-	}
-	defer func() {
-		if err := os.Unsetenv("AWS_SHARED_CREDENTIALS_FILE"); err != nil {
-			t.Fatal(err)
-		}
-	}()
+	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", "foo")
 
 	result, err := GetRegion(configuredRegion)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result != DefaultRegion {
-		t.Fatalf("expected: %s; actual: %s", DefaultRegion, result)
-	}
+	require.NoError(t, err)
+	require.Equal(t, DefaultRegion, result)
 }
 
 func TestGetRegion_EC2InstanceMetadataPreferredFourth(t *testing.T) {
@@ -129,22 +91,13 @@ func TestGetRegion_EC2InstanceMetadataPreferredFourth(t *testing.T) {
 	}
 	configuredRegion := ""
 
-	cleanupEnv := setEnvRegion(t, "")
-	defer cleanupEnv()
-
-	cleanupFile := setConfigFileRegion(t, "")
-	defer cleanupFile()
-
-	cleanupMetadata := setInstanceMetadata(t, expectedTestRegion)
-	defer cleanupMetadata()
+	setEnvRegion(t, "")
+	setConfigFileRegion(t, "")
+	setInstanceMetadata(t, expectedTestRegion)
 
 	result, err := GetRegion(configuredRegion)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result != expectedTestRegion {
-		t.Fatalf("expected: %s; actual: %s", expectedTestRegion, result)
-	}
+	require.NoError(t, err)
+	require.Equal(t, expectedTestRegion, result)
 }
 
 func TestGetRegion_DefaultsToDefaultRegionWhenRegionUnavailable(t *testing.T) {
@@ -154,54 +107,31 @@ func TestGetRegion_DefaultsToDefaultRegionWhenRegionUnavailable(t *testing.T) {
 
 	configuredRegion := ""
 
-	cleanupEnv := setEnvRegion(t, "")
-	defer cleanupEnv()
-
-	cleanupFile := setConfigFileRegion(t, "")
-	defer cleanupFile()
+	setEnvRegion(t, "")
+	setConfigFileRegion(t, "")
 
 	result, err := GetRegion(configuredRegion)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result != DefaultRegion {
-		t.Fatalf("expected: %s; actual: %s", DefaultRegion, result)
-	}
+	require.NoError(t, err)
+	require.Equal(t, DefaultRegion, result)
 }
 
-func setEnvRegion(t *testing.T, region string) (cleanup func()) {
+func setEnvRegion(t *testing.T, region string) {
+	t.Helper()
+
 	for _, envKey := range regionEnvKeys {
-		if err := os.Setenv(envKey, region); err != nil {
-			t.Fatal(err)
-		}
+		t.Setenv(envKey, region)
 	}
-	cleanup = func() {
-		for _, envKey := range regionEnvKeys {
-			if err := os.Unsetenv(envKey); err != nil {
-				t.Fatal(err)
-			}
-		}
-	}
-	return
 }
 
-func setConfigFileRegion(t *testing.T, region string) (cleanup func()) {
-	var cleanupFuncs []func()
-
-	cleanup = func() {
-		for _, f := range cleanupFuncs {
-			f()
-		}
-	}
+func setConfigFileRegion(t *testing.T, region string) {
+	t.Helper()
 
 	if !shouldTestFiles {
 		return
 	}
 
 	usr, err := user.Current()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	pathToAWSDir := usr.HomeDir + "/.aws"
 	pathToConfig := pathToAWSDir + "/config"
@@ -209,57 +139,35 @@ func setConfigFileRegion(t *testing.T, region string) (cleanup func()) {
 	preExistingConfig, err := ioutil.ReadFile(pathToConfig)
 	if err != nil {
 		// File simply doesn't exist.
-		if err := os.Mkdir(pathToAWSDir, os.ModeDir); err != nil {
-			t.Fatal(err)
-		}
-		cleanupFuncs = append(cleanupFuncs, func() {
-			if err := os.RemoveAll(pathToAWSDir); err != nil {
-				t.Fatal(err)
-			}
-		})
+		require.NoError(t, os.Mkdir(pathToAWSDir, os.ModeDir))
+		t.Cleanup(func() { require.NoError(t, os.RemoveAll(pathToAWSDir)) })
 	} else {
-		cleanupFuncs = append(cleanupFuncs, func() {
-			if err := ioutil.WriteFile(pathToConfig, preExistingConfig, 0o644); err != nil {
-				t.Fatal(err)
-			}
-		})
+		t.Cleanup(func() { require.NoError(t, ioutil.WriteFile(pathToConfig, preExistingConfig, 0o644)) })
 	}
 	fileBody := fmt.Sprintf(testConfigFile, region)
-	if err := ioutil.WriteFile(pathToConfig, []byte(fileBody), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, ioutil.WriteFile(pathToConfig, []byte(fileBody), 0o644))
 
-	if err := os.Setenv("AWS_SHARED_CREDENTIALS_FILE", pathToConfig); err != nil {
-		t.Fatal(err)
-	}
-	cleanupFuncs = append(cleanupFuncs, func() {
-		if err := os.Unsetenv("AWS_SHARED_CREDENTIALS_FILE"); err != nil {
-			t.Fatal(err)
-		}
-	})
-
-	return
+	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", pathToConfig)
 }
 
-func setInstanceMetadata(t *testing.T, region string) (cleanup func()) {
+func setInstanceMetadata(t *testing.T, region string) {
+	t.Helper()
+
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		reqPath := r.URL.String()
 		switch reqPath {
 		case "/latest/meta-data/instance-id":
-			w.Write([]byte("i-1234567890abcdef0"))
-			return
+			_, err := w.Write([]byte("i-1234567890abcdef0"))
+			require.NoError(t, err)
 		case "/latest/meta-data/placement/availability-zone":
 			// add a letter suffix, as a normal response is formatted like "us-east-1a"
-			w.Write([]byte(region + "a"))
-			return
-		default:
-			t.Fatalf("received unexpected request path: %s", reqPath)
+			_, err := w.Write([]byte(region + "a"))
+			require.NoError(t, err)
 		}
 	}))
 	ec2Endpoint = aws.String(ts.URL)
-	cleanup = func() {
+	t.Cleanup(func() {
 		ts.Close()
 		ec2Endpoint = nil
-	}
-	return
+	})
 }
