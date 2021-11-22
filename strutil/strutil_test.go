@@ -6,11 +6,9 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
-
-	"github.com/stretchr/testify/require"
 )
 
-func TestStrUtil_StrListDelete(t *testing.T) {
+func TestStrListDelete(t *testing.T) {
 	output := StrListDelete([]string{"item1", "item2", "item3"}, "item1")
 	if StrListContains(output, "item1") {
 		t.Fatal("bad: 'item1' should not have been present")
@@ -47,7 +45,7 @@ func TestStrUtil_StrListDelete(t *testing.T) {
 	}
 }
 
-func TestStrutil_EquivalentSlices(t *testing.T) {
+func TestEquivalentSlices(t *testing.T) {
 	slice1 := []string{"test2", "test1", "test3"}
 	slice2 := []string{"test3", "test2", "test1"}
 	if !EquivalentSlices(slice1, slice2) {
@@ -60,7 +58,7 @@ func TestStrutil_EquivalentSlices(t *testing.T) {
 	}
 }
 
-func TestStrutil_ListContainsGlob(t *testing.T) {
+func TestListContainsGlob(t *testing.T) {
 	haystack := []string{
 		"dev",
 		"ops*",
@@ -91,7 +89,7 @@ func TestStrutil_ListContainsGlob(t *testing.T) {
 	}
 }
 
-func TestStrutil_ListContains(t *testing.T) {
+func TestListContains(t *testing.T) {
 	haystack := []string{
 		"dev",
 		"ops",
@@ -106,7 +104,7 @@ func TestStrutil_ListContains(t *testing.T) {
 	}
 }
 
-func TestStrutil_ListSubset(t *testing.T) {
+func TestListSubset(t *testing.T) {
 	parent := []string{
 		"dev",
 		"ops",
@@ -137,7 +135,7 @@ func TestStrutil_ListSubset(t *testing.T) {
 	}
 }
 
-func TestStrutil_ParseKeyValues(t *testing.T) {
+func TestParseKeyValues(t *testing.T) {
 	actual := make(map[string]string)
 	expected := map[string]string{
 		"key1": "value1",
@@ -195,7 +193,7 @@ func TestStrutil_ParseKeyValues(t *testing.T) {
 	}
 }
 
-func TestStrutil_ParseArbitraryKeyValues(t *testing.T) {
+func TestParseArbitraryKeyValues(t *testing.T) {
 	actual := make(map[string]string)
 	expected := map[string]string{
 		"key1": "value1",
@@ -257,7 +255,7 @@ func TestStrutil_ParseArbitraryKeyValues(t *testing.T) {
 	}
 }
 
-func TestStrutil_ParseArbitraryStringSlice(t *testing.T) {
+func TestParseArbitraryStringSlice(t *testing.T) {
 	input := `CREATE ROLE "{{name}}" WITH LOGIN PASSWORD '{{password}}' VALID UNTIL '{{expiration}}';GRANT "foo-role" TO "{{name}}";ALTER ROLE "{{name}}" SET search_path = foo;GRANT CONNECT ON DATABASE "postgres" TO "{{name}}";`
 
 	jsonExpected := []string{
@@ -381,7 +379,7 @@ func TestRemoveEmpty(t *testing.T) {
 	}
 }
 
-func TestStrutil_AppendIfMissing(t *testing.T) {
+func TestAppendIfMissing(t *testing.T) {
 	keys := []string{}
 
 	keys = AppendIfMissing(keys, "foo")
@@ -418,7 +416,7 @@ func TestStrutil_AppendIfMissing(t *testing.T) {
 	}
 }
 
-func TestStrUtil_RemoveDuplicates(t *testing.T) {
+func TestRemoveDuplicates(t *testing.T) {
 	type tCase struct {
 		input     []string
 		expect    []string
@@ -442,7 +440,7 @@ func TestStrUtil_RemoveDuplicates(t *testing.T) {
 	}
 }
 
-func TestStrUtil_RemoveDuplicatesStable(t *testing.T) {
+func TestRemoveDuplicatesStable(t *testing.T) {
 	type tCase struct {
 		input           []string
 		expect          []string
@@ -469,7 +467,7 @@ func TestStrUtil_RemoveDuplicatesStable(t *testing.T) {
 	}
 }
 
-func TestStrUtil_ParseStringSlice(t *testing.T) {
+func TestParseStringSlice(t *testing.T) {
 	type tCase struct {
 		input  string
 		sep    string
@@ -495,7 +493,7 @@ func TestStrUtil_ParseStringSlice(t *testing.T) {
 	}
 }
 
-func TestStrUtil_MergeSlices(t *testing.T) {
+func TestMergeSlices(t *testing.T) {
 	res := MergeSlices([]string{"a", "c", "d"}, []string{}, []string{"c", "f", "a"}, nil, []string{"foo"})
 
 	expect := []string{"a", "c", "d", "f", "foo"}
@@ -561,7 +559,7 @@ func TestDifference(t *testing.T) {
 	}
 }
 
-func TestStrUtil_EqualStringMaps(t *testing.T) {
+func TestEqualStringMaps(t *testing.T) {
 	m1 := map[string]string{
 		"foo": "a",
 	}
@@ -671,31 +669,35 @@ func TestGetString(t *testing.T) {
 func TestPrintable(t *testing.T) {
 	cases := []struct {
 		input string
-		err   bool
+		exp   bool
 	}{
 		{
 			input: "/valid",
+			exp:   true,
 		},
 		{
 			input: "foobarvalid",
+			exp:   true,
 		},
 		{
 			input: "/invalid\u000A",
-			err:   true,
+			exp:   false,
 		},
 		{
 			input: "/invalid\u000D",
-			err:   true,
+			exp:   false,
 		},
 		{
 			input: "/invalid\u0000",
-			err:   true,
+			exp:   false,
 		},
 	}
 
 	for i, tc := range cases {
 		t.Run(fmt.Sprint(i), func(t *testing.T) {
-			require.True(t, Printable(tc.input) != tc.err)
+			if got, want := Printable(tc.input), tc.exp; got != want {
+				t.Errorf("expected %q printable to be %t, got %t", tc.input, want, got)
+			}
 		})
 	}
 }
@@ -717,7 +719,9 @@ func TestReverse(t *testing.T) {
 
 	for i, tc := range cases {
 		t.Run(fmt.Sprint(i), func(t *testing.T) {
-			require.Equal(t, Reverse(tc.in), tc.out)
+			if got, want := Reverse(tc.in), tc.out; got != want {
+				t.Errorf("expected %q to be %q", got, want)
+			}
 		})
 	}
 }
