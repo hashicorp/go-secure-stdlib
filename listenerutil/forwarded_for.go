@@ -15,6 +15,8 @@ type key int
 
 const (
 	remoteAddrKey key = iota
+
+	missingPortErrStr = "missing port in address"
 )
 
 // ErrResponseFn provides a func to call whenever WrapForwardedForHandler
@@ -93,6 +95,8 @@ func TrustedFromXForwardedFor(r *http.Request, l *ListenerConfig) (*Addr, error)
 		return nil, fmt.Errorf("missing x-forwarded-for header and configured to reject when not present")
 	}
 
+	// http request remote address will always have a host:port
+	// (see: https://cs.opensource.google/go/go/+/refs/tags/go1.17.3:src/net/http/request.go;l=279-286)
 	host, port, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		// If not rejecting treat it like we just don't have a valid
@@ -133,20 +137,30 @@ func TrustedFromXForwardedFor(r *http.Request, l *ListenerConfig) (*Addr, error)
 
 	// Split comma separated ones, which are common. This brings it in line
 	// to the multiple-header case.
-	var acc []string
+	var acc []Addr
 	for _, header := range headers {
 		vals := strings.Split(header, ",")
 		for _, v := range vals {
 			// validate the header contains a valid IP
 			v = strings.TrimSpace(v)
-			ip := net.ParseIP(v)
+			h, p, err := net.SplitHostPort(v)
+			switch {
+			case err != nil && strings.Contains(err.Error(), missingPortErrStr):
+				h = v
+			case err != nil && !strings.Contains(err.Error(), missingPortErrStr):
+				if !rejectNotPresent {
+					return nil, nil
+				}
+				return nil, fmt.Errorf("error parsing client address host/port (%s) from header", v)
+			}
+			ip := net.ParseIP(h)
 			if ip == nil {
 				if !rejectNotPresent {
 					return nil, nil
 				}
 				return nil, fmt.Errorf("error parsing client address (%s) from header", v)
 			}
-			acc = append(acc, v)
+			acc = append(acc, Addr{Host: h, Port: p})
 		}
 	}
 
@@ -165,7 +179,11 @@ func TrustedFromXForwardedFor(r *http.Request, l *ListenerConfig) (*Addr, error)
 		return nil, fmt.Errorf("malformed x-forwarded-for configuration or request, hops to skip (%d) would skip before earliest chain link (chain length %d)", hopSkips, len(headers))
 	}
 
-	return &Addr{acc[indexToUse], port}, nil
+	// TO-DO: using the remote address port here is not correct and still needs to be
+	// resolved.  We could return the trusted port... but it could also be
+	// empty.  Looking for some guidance from reviewers, especially on the
+	// downstream vault affects if the port returned is empty
+	return &Addr{acc[indexToUse].Host, port}, nil
 }
 
 // newOrigRemoteAddrCtx will return a context containing a value for the

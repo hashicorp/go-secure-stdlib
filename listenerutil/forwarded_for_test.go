@@ -344,6 +344,40 @@ func Test_TrustedFromXForwardedFor(t *testing.T) {
 			wantErr:         true,
 			wantErrContains: "error parsing client address",
 		},
+		{
+			name: "accept-with-x-forwaredfor-including-port",
+			listenerCfg: func() *ListenerConfig {
+				listenerConfig := cfgListener(goodAddr)
+				listenerConfig.XForwardedForRejectNotPresent = false
+				return listenerConfig
+			}(),
+			xForwardedFor: []string{"127.0.0.1:127"},
+			remoteAddr:    "127.0.0.1:22",
+			wantAddr:      &Addr{Host: "127.0.0.1", Port: "22"},
+			wantErr:       false,
+		},
+		{
+			name: "accept-with-x-forwaredfor-including-port-and-too-many-colons",
+			listenerCfg: func() *ListenerConfig {
+				listenerConfig := cfgListener(goodAddr)
+				listenerConfig.XForwardedForRejectNotPresent = false
+				return listenerConfig
+			}(),
+			xForwardedFor: []string{"127.0.0.1::::127"},
+			remoteAddr:    "127.0.0.1:22",
+			wantErr:       false,
+		},
+		{
+			name: "reject-with-x-forwaredfor-including-port-and-too-many-colons",
+			listenerCfg: func() *ListenerConfig {
+				listenerConfig := cfgListener(goodAddr)
+				listenerConfig.XForwardedForRejectNotPresent = true
+				return listenerConfig
+			}(),
+			xForwardedFor: []string{"127.0.0.1::::127"},
+			remoteAddr:    "127.0.0.1:22",
+			wantErr:       true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
