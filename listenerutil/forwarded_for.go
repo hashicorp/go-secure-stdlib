@@ -40,12 +40,12 @@ func WrapForwardedForHandler(h http.Handler, l *ListenerConfig, respErrFn ErrRes
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-		trusted, err := TrustedFromXForwardedFor(r, l)
+		trusted, remoteAddr, err := TrustedFromXForwardedFor(r, l)
 		if err != nil {
 			respErrFn(w, http.StatusBadRequest, err)
 			return
 		}
-		if trusted == nil {
+		if trusted == nil || remoteAddr == nil {
 			h.ServeHTTP(w, r)
 			return
 		}
@@ -55,7 +55,20 @@ func WrapForwardedForHandler(h http.Handler, l *ListenerConfig, respErrFn ErrRes
 			return
 		}
 		r = r.WithContext(newCtx)
-		r.RemoteAddr = net.JoinHostPort(trusted.Host, trusted.Port)
+		switch {
+		case trusted.Port != "":
+			r.RemoteAddr = net.JoinHostPort(trusted.Host, trusted.Port)
+		default:
+			// setting remote address to a combination is a bit different, but
+			// it's needed to satisfies the requirement that remote addr always
+			// have a port which is likely relied upon by downstream callers in
+			// the call chain.
+			//
+			// this is intentionally the default since it's very likely the
+			// "trusted" address will not have a port making this the most
+			// likely execution path
+			r.RemoteAddr = net.JoinHostPort(trusted.Host, remoteAddr.Port)
+		}
 		h.ServeHTTP(w, r)
 		return
 	}), nil
@@ -69,18 +82,18 @@ type Addr struct {
 
 // TrustedFromXForwardedFor will use the XForwardedFor* listener config settings
 // to determine how/if X-Forwarded-For are trusted/allowed for an inbound
-// request.  Important: return values of nil, nil are valid and simply means
-// that no "trusted" header was found and no error was raised as well.  Errors
-// can be raised for a number of conditions based on the listener config
+// request.  Important: return values of nil, nil, nil are valid and simply
+// means that no "trusted" header was found and no error was raised as well.
+// Errors can be raised for a number of conditions based on the listener config
 // settings, especially when the config setting for
 // XForwardedForRejectNotPresent is set to true which means if a "trusted"
 // header can't be found the request should be rejected.
-func TrustedFromXForwardedFor(r *http.Request, l *ListenerConfig) (*Addr, error) {
+func TrustedFromXForwardedFor(r *http.Request, l *ListenerConfig) (trustedAddress *Addr, remoteAddress *Addr, e error) {
 	if r == nil {
-		return nil, fmt.Errorf("missing http request: %w", ErrInvalidParameter)
+		return nil, nil, fmt.Errorf("missing http request: %w", ErrInvalidParameter)
 	}
 	if l == nil {
-		return nil, fmt.Errorf("missing listener config: %w", ErrInvalidParameter)
+		return nil, nil, fmt.Errorf("missing listener config: %w", ErrInvalidParameter)
 	}
 	rejectNotPresent := l.XForwardedForRejectNotPresent
 	hopSkips := l.XForwardedForHopSkips
@@ -90,31 +103,34 @@ func TrustedFromXForwardedFor(r *http.Request, l *ListenerConfig) (*Addr, error)
 	headers, headersOK := r.Header[textproto.CanonicalMIMEHeaderKey("X-Forwarded-For")]
 	if !headersOK || len(headers) == 0 {
 		if !rejectNotPresent {
-			return nil, nil
+			return nil, nil, nil
 		}
-		return nil, fmt.Errorf("missing x-forwarded-for header and configured to reject when not present")
+		return nil, nil, fmt.Errorf("missing x-forwarded-for header and configured to reject when not present")
 	}
 
-	// http request remote address will always have a host:port
-	// (see: https://cs.opensource.google/go/go/+/refs/tags/go1.17.3:src/net/http/request.go;l=279-286)
-	host, port, err := net.SplitHostPort(r.RemoteAddr)
+	// http request remote address will always have a remoteAddrHost:port
+	// (see:
+	// https://cs.opensource.google/go/go/+/refs/tags/go1.17.3:src/net/http/request.go;l=279-286)
+	var remoteAddr Addr
+	var err error
+	remoteAddr.Host, remoteAddr.Port, err = net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		// If not rejecting treat it like we just don't have a valid
 		// header because we can't do a comparison against an address we
 		// can't understand
 		if !rejectNotPresent {
-			return nil, nil
+			return nil, nil, nil
 		}
-		return nil, fmt.Errorf("error parsing client hostport: %w", err)
+		return nil, nil, fmt.Errorf("error parsing client hostport: %w", err)
 	}
 
-	addr, err := sockaddr.NewIPAddr(host)
+	addr, err := sockaddr.NewIPAddr(remoteAddr.Host)
 	if err != nil {
 		// We treat this the same as the case above
 		if !rejectNotPresent {
-			return nil, nil
+			return nil, nil, nil
 		}
-		return nil, fmt.Errorf("error parsing client address: %w", err)
+		return nil, nil, fmt.Errorf("error parsing client address: %w", err)
 	}
 
 	var found bool
@@ -128,16 +144,16 @@ func TrustedFromXForwardedFor(r *http.Request, l *ListenerConfig) (*Addr, error)
 		// If we didn't find it and aren't configured to reject, simply
 		// don't trust it
 		if !rejectNotAuthz {
-			return nil, nil
+			return nil, nil, nil
 		}
-		return nil, fmt.Errorf("client address not authorized for x-forwarded-for and configured to reject connection")
+		return nil, nil, fmt.Errorf("client address not authorized for x-forwarded-for and configured to reject connection")
 	}
 
 	// At this point we have at least one value and it's authorized
 
 	// Split comma separated ones, which are common. This brings it in line
 	// to the multiple-header case.
-	var acc []Addr
+	var acc []*Addr
 	for _, header := range headers {
 		vals := strings.Split(header, ",")
 		for _, v := range vals {
@@ -149,18 +165,18 @@ func TrustedFromXForwardedFor(r *http.Request, l *ListenerConfig) (*Addr, error)
 				h = v
 			case err != nil && !strings.Contains(err.Error(), missingPortErrStr):
 				if !rejectNotPresent {
-					return nil, nil
+					return nil, nil, nil
 				}
-				return nil, fmt.Errorf("error parsing client address host/port (%s) from header", v)
+				return nil, nil, fmt.Errorf("error parsing client address host/port (%s) from header", v)
 			}
 			ip := net.ParseIP(h)
 			if ip == nil {
 				if !rejectNotPresent {
-					return nil, nil
+					return nil, nil, nil
 				}
-				return nil, fmt.Errorf("error parsing client address (%s) from header", v)
+				return nil, nil, fmt.Errorf("error parsing client address (%s) from header", v)
 			}
-			acc = append(acc, Addr{Host: h, Port: p})
+			acc = append(acc, &Addr{Host: h, Port: p})
 		}
 	}
 
@@ -176,14 +192,10 @@ func TrustedFromXForwardedFor(r *http.Request, l *ListenerConfig) (*Addr, error)
 		// authorized (or we've turned off explicit rejection) and we
 		// should assume that what comes in should be properly
 		// formatted.
-		return nil, fmt.Errorf("malformed x-forwarded-for configuration or request, hops to skip (%d) would skip before earliest chain link (chain length %d)", hopSkips, len(headers))
+		return nil, nil, fmt.Errorf("malformed x-forwarded-for configuration or request, hops to skip (%d) would skip before earliest chain link (chain length %d)", hopSkips, len(headers))
 	}
 
-	// TO-DO: using the remote address port here is not correct and still needs to be
-	// resolved.  We could return the trusted port... but it could also be
-	// empty.  Looking for some guidance from reviewers, especially on the
-	// downstream vault affects if the port returned is empty
-	return &Addr{acc[indexToUse].Host, port}, nil
+	return acc[indexToUse], &remoteAddr, nil
 }
 
 // newOrigRemoteAddrCtx will return a context containing a value for the

@@ -353,7 +353,7 @@ func Test_TrustedFromXForwardedFor(t *testing.T) {
 			}(),
 			xForwardedFor: []string{"127.0.0.1:127"},
 			remoteAddr:    "127.0.0.1:22",
-			wantAddr:      &Addr{Host: "127.0.0.1", Port: "22"},
+			wantAddr:      &Addr{Host: "127.0.0.1", Port: "127"},
 			wantErr:       false,
 		},
 		{
@@ -398,7 +398,7 @@ func Test_TrustedFromXForwardedFor(t *testing.T) {
 					req.RemoteAddr = tt.remoteAddr
 				}
 			}
-			gotAddr, err := TrustedFromXForwardedFor(req, tt.listenerCfg)
+			gotTrusted, gotRemote, err := TrustedFromXForwardedFor(req, tt.listenerCfg)
 			if tt.wantErr {
 				require.Error(err)
 				if tt.wantErrContains != "" {
@@ -408,10 +408,14 @@ func Test_TrustedFromXForwardedFor(t *testing.T) {
 			}
 			require.NoError(err)
 			if tt.wantAddr != nil {
-				require.NotNil(gotAddr)
-				assert.Equal(tt.wantAddr, gotAddr)
+				require.NotNil(gotTrusted)
+				require.NotNil(gotRemote)
+				assert.NotEmpty(gotRemote.Host)
+				assert.NotEmpty(gotRemote.Port)
+				assert.Equal(tt.wantAddr, gotTrusted)
 			} else {
-				assert.Nil(gotAddr)
+				assert.Nil(gotTrusted)
+				assert.Nil(gotRemote)
 			}
 		})
 	}
