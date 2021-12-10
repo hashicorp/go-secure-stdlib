@@ -42,7 +42,8 @@ type ListenerConfig struct {
 	TLSDisable                       bool        `hcl:"-"`
 	TLSDisableRaw                    interface{} `hcl:"tls_disable"`
 	TLSCertFile                      string      `hcl:"tls_cert_file"`
-	TLSKeyFile                       string      `hcl:"tls_key_file"`
+	TLSKey                           string      `hcl:"tls_key"`
+	TLSKeyFile                       string      `hcl:"tls_key_file"` // Deprecated: Please use TLSKey.
 	TLSMinVersion                    string      `hcl:"tls_min_version"`
 	TLSMaxVersion                    string      `hcl:"tls_max_version"`
 	TLSCipherSuites                  []uint16    `hcl:"-"`
@@ -51,7 +52,8 @@ type ListenerConfig struct {
 	TLSPreferServerCipherSuitesRaw   interface{} `hcl:"tls_prefer_server_cipher_suites"`
 	TLSRequireAndVerifyClientCert    bool        `hcl:"-"`
 	TLSRequireAndVerifyClientCertRaw interface{} `hcl:"tls_require_and_verify_client_cert"`
-	TLSClientCAFile                  string      `hcl:"tls_client_ca_file"`
+	TLSClientCA                      string      `hcl:"tls_client_ca"`
+	TLSClientCAFile                  string      `hcl:"tls_client_ca_file"` // Deprecated: Please use TLSClientCA.
 	TLSDisableClientCerts            bool        `hcl:"-"`
 	TLSDisableClientCertsRaw         interface{} `hcl:"tls_disable_client_certs"`
 
@@ -226,6 +228,16 @@ func ParseListeners(list *ast.ObjectList) ([]*ListenerConfig, error) {
 				}
 
 				l.TLSDisableClientCertsRaw = nil
+			}
+
+			l.TLSKey, err = parseutil.ParsePath(l.TLSKey)
+			if err != nil && !errors.Is(err, parseutil.ErrNotAUrl) {
+				return nil, multierror.Prefix(fmt.Errorf("invalid value for tls_key: %w", err), fmt.Sprintf("listeners.%d", i))
+			}
+
+			l.TLSClientCA, err = parseutil.ParsePath(l.TLSClientCA)
+			if err != nil && !errors.Is(err, parseutil.ErrNotAUrl) {
+				return nil, multierror.Prefix(fmt.Errorf("invalid value for tls_client_ca: %w", err), fmt.Sprintf("listeners.%d", i))
 			}
 		}
 
