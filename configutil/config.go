@@ -1,6 +1,7 @@
 package configutil
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"time"
@@ -95,6 +96,11 @@ func ParseConfig(d string) (*SharedConfig, error) {
 			return nil, err
 		}
 		result.DisableMlockRaw = nil
+	}
+
+	result.ClusterName, err = parseutil.ParsePath(result.ClusterName)
+	if err != nil && !errors.Is(err, parseutil.ErrNotAUrl) {
+		return nil, fmt.Errorf("error parsing cluster name: %w", err)
 	}
 
 	list, ok := obj.Node.(*ast.ObjectList)
