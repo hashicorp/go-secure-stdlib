@@ -11,6 +11,7 @@ import (
 	osuser "os/user"
 	"strconv"
 
+	"github.com/hashicorp/go-secure-stdlib/parseutil"
 	"github.com/hashicorp/go-secure-stdlib/reloadutil"
 	"github.com/hashicorp/go-secure-stdlib/tlsutil"
 	"github.com/jefferai/isbadcipher"
@@ -81,24 +82,22 @@ func TLSConfig(
 		return nil, nil, nil
 	}
 
-	cg := reloadutil.NewCertificateGetter(l.TLSCertFile, l.TLSKeyFile, "")
-	if err := cg.Reload(); err != nil {
-		// We try the key without a passphrase first and if we get an incorrect
-		// passphrase response, try again after prompting for a passphrase
-		if errors.As(err, &x509.IncorrectPasswordError) {
-			var passphrase string
-			passphrase, err = ui.AskSecret(fmt.Sprintf("Enter passphrase for %s:", l.TLSKeyFile))
-			if err == nil {
-				cg = reloadutil.NewCertificateGetter(l.TLSCertFile, l.TLSKeyFile, passphrase)
-				if err = cg.Reload(); err == nil {
-					goto PASSPHRASECORRECT
-				}
-			}
+	var cg reloadutil.CertificateGetterIf
+	var err error
+	if len(l.TLSKey) != 0 {
+		cg, err = getCertFromValues(ui, l.TLSCertFile, l.TLSKey)
+		if err != nil {
+			return nil, nil, err
 		}
-		return nil, nil, fmt.Errorf("error loading TLS cert: %w", err)
+	} else if len(l.TLSKeyFile) != 0 {
+		cg, err = getCertFromFiles(ui, l.TLSCertFile, l.TLSKeyFile)
+		if err != nil {
+			return nil, nil, err
+		}
+	} else {
+		return nil, nil, fmt.Errorf("tls_key or tls_key_file must be present")
 	}
 
-PASSPHRASECORRECT:
 	tlsConf := &tls.Config{
 		GetCertificate:           cg.GetCertificate,
 		NextProtos:               []string{"h2", "http/1.1"},
@@ -185,6 +184,50 @@ Please see https://tools.ietf.org/html/rfc7540#appendix-A for further informatio
 
 	props["tls"] = "enabled"
 	return tlsConf, cg.Reload, nil
+}
+
+func getCertFromValues(ui cli.Ui, certFile, unparsedKey string) (reloadutil.CertificateGetterIf, error) {
+	parsedKey, err := parseutil.ParsePath(unparsedKey)
+	if err != nil && !errors.Is(err, parseutil.ErrNotAUrl) {
+		return nil, fmt.Errorf("failed to parse key path: %w", err)
+	}
+
+	// We try the key without a passphrase first and if we get an incorrect
+	// passphrase response, try again after prompting for a passphrase
+	cg, err := reloadutil.NewValueCertificateGetter(certFile, []byte(parsedKey), []byte(""))
+	if err == nil {
+		return cg, nil
+	}
+	if errors.As(err, &x509.IncorrectPasswordError) {
+		passphrase, err := ui.AskSecret("Enter passphrase for TLS Key:")
+		if err == nil {
+			cg, err = reloadutil.NewValueCertificateGetter(certFile, []byte(parsedKey), []byte(passphrase))
+			if err == nil {
+				return cg, nil
+			}
+		}
+	}
+
+	return nil, fmt.Errorf("failed to load tls cert: %w", err)
+}
+
+func getCertFromFiles(ui cli.Ui, certFile, keyFile string) (reloadutil.CertificateGetterIf, error) {
+	cg := reloadutil.NewCertificateGetter(certFile, keyFile, "")
+	err := cg.Reload()
+	if err == nil {
+		return cg, nil
+	}
+	if errors.As(err, &x509.IncorrectPasswordError) {
+		passphrase, err := ui.AskSecret(fmt.Sprintf("Enter passphrase for %s:", keyFile))
+		if err == nil {
+			cg = reloadutil.NewCertificateGetter(certFile, keyFile, passphrase)
+			if err = cg.Reload(); err == nil {
+				return cg, nil
+			}
+		}
+	}
+
+	return nil, fmt.Errorf("failed to load tls cert: %w", err)
 }
 
 // setFilePermissions handles configuring ownership and permissions

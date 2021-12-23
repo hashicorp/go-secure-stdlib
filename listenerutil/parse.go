@@ -229,16 +229,6 @@ func ParseListeners(list *ast.ObjectList) ([]*ListenerConfig, error) {
 
 				l.TLSDisableClientCertsRaw = nil
 			}
-
-			l.TLSKey, err = parseutil.ParsePath(l.TLSKey)
-			if err != nil && !errors.Is(err, parseutil.ErrNotAUrl) {
-				return nil, multierror.Prefix(fmt.Errorf("invalid value for tls_key: %w", err), fmt.Sprintf("listeners.%d", i))
-			}
-
-			l.TLSClientCA, err = parseutil.ParsePath(l.TLSClientCA)
-			if err != nil && !errors.Is(err, parseutil.ErrNotAUrl) {
-				return nil, multierror.Prefix(fmt.Errorf("invalid value for tls_client_ca: %w", err), fmt.Sprintf("listeners.%d", i))
-			}
 		}
 
 		// HTTP timeouts

@@ -2,19 +2,13 @@ package reloadutil
 
 import (
 	"crypto/tls"
-	"crypto/x509"
-	"encoding/pem"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"sync"
 )
 
-// ReloadFunc are functions that are called when a reload is requested
-type ReloadFunc func() error
-
 // CertificateGetter satisfies ReloadFunc and its GetCertificate method
-// satisfies the tls.GetCertificate function signature.  Currently it does not
+// satisfies the tls.GetCertificate function signature. Currently it does not
 // allow changing paths after the fact.
 type CertificateGetter struct {
 	sync.RWMutex
@@ -44,21 +38,7 @@ func (cg *CertificateGetter) Reload() error {
 		return err
 	}
 
-	// Check for encrypted pem block
-	keyBlock, _ := pem.Decode(keyPEMBlock)
-	if keyBlock == nil {
-		return errors.New("decoded PEM is blank")
-	}
-
-	if x509.IsEncryptedPEMBlock(keyBlock) {
-		keyBlock.Bytes, err = x509.DecryptPEMBlock(keyBlock, []byte(cg.passphrase))
-		if err != nil {
-			return fmt.Errorf("Decrypting PEM block failed: %w", err)
-		}
-		keyPEMBlock = pem.EncodeToMemory(keyBlock)
-	}
-
-	cert, err := tls.X509KeyPair(certPEMBlock, keyPEMBlock)
+	cert, err := parsePEM(certPEMBlock, keyPEMBlock, []byte(cg.passphrase))
 	if err != nil {
 		return err
 	}
@@ -66,8 +46,7 @@ func (cg *CertificateGetter) Reload() error {
 	cg.Lock()
 	defer cg.Unlock()
 
-	cg.cert = &cert
-
+	cg.cert = cert
 	return nil
 }
 

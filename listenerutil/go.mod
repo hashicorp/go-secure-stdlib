@@ -18,3 +18,10 @@ require (
 	github.com/stretchr/testify v1.7.0
 	golang.org/x/sys v0.0.0-20200602225109-6fdc65e7d980 // indirect
 )
+
+replace (
+	github.com/hashicorp/go-secure-stdlib/parseutil => ../parseutil
+	github.com/hashicorp/go-secure-stdlib/reloadutil => ../reloadutil
+	github.com/hashicorp/go-secure-stdlib/strutil => ../strutil
+	github.com/hashicorp/go-secure-stdlib/tlsutil => ../tlsutil
+)
