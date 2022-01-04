@@ -237,8 +237,8 @@ github.com/hashicorp/go-rootcerts v1.0.2 h1:jzhAVGtqPKbwpyCPELlgNWhE1znq+qwJtW5O
 github.com/hashicorp/go-rootcerts v1.0.2/go.mod h1:pqUvnprVnM5bf7AOirdbb01K4ccR319Vf4pU3K5EGc8=
 github.com/hashicorp/go-secure-stdlib/awsutil v0.1.2 h1:AEcLbDoaRC9JMmtZXsuCykztH53rvHsQFnwhoKtpNQM=
 github.com/hashicorp/go-secure-stdlib/awsutil v0.1.2/go.mod h1:QRJZ7siKie+SZJB9jLbfKrs0Gd0yPWMtbneg0iU1PrY=
-github.com/hashicorp/go-secure-stdlib/listenerutil v0.1.3 h1:Braw9NIiBmMMEnpetWWZ03F3uuCxjvCE8BETTB+Xx38=
-github.com/hashicorp/go-secure-stdlib/listenerutil v0.1.3/go.mod h1:myX7XYMJRIP4PLHtYJiKMTJcKOX0M5ZJNwP0iw+l3uw=
+github.com/hashicorp/go-secure-stdlib/listenerutil v0.1.4 h1:6ajbq64FhrIJZ6prrff3upVVDil4yfCrnSKwTH0HIPE=
+github.com/hashicorp/go-secure-stdlib/listenerutil v0.1.4/go.mod h1:myX7XYMJRIP4PLHtYJiKMTJcKOX0M5ZJNwP0iw+l3uw=
 github.com/hashicorp/go-secure-stdlib/parseutil v0.1.1/go.mod h1:QmrqtbKuxxSWTN3ETMPuB+VtEiBJ/A9XhoYGv8E1uD8=
 github.com/hashicorp/go-secure-stdlib/parseutil v0.1.2 h1:Tz6v3Jb2DRnDCfifRSjYKG0m8dLdNq6bcDkB41en7nw=
 github.com/hashicorp/go-secure-stdlib/parseutil v0.1.2/go.mod h1:QmrqtbKuxxSWTN3ETMPuB+VtEiBJ/A9XhoYGv8E1uD8=
