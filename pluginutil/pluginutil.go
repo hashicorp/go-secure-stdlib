@@ -32,6 +32,10 @@ func BuildPluginMap(opt ...Option) (map[string]PluginInfo, error) {
 		return nil, fmt.Errorf("error parsing plugin options: %w", err)
 	}
 
+	if len(opts.withPluginSources) == 0 {
+		return nil, fmt.Errorf("no plugins available")
+	}
+
 	pluginMap := map[string]PluginInfo{}
 	for _, sourceInfo := range opts.withPluginSources {
 		switch {
