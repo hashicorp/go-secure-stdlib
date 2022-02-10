@@ -31,7 +31,7 @@ func CreatePlugin(plugin PluginInfo, opt ...Option) (interface{}, func() error, 
 		return nil, nil, fmt.Errorf("no inmem creation func and either filename or plugin creation func not provided")
 	}
 
-	opts, err := getOpts(opt...)
+	opts, err := GetOpts(opt...)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error parsing plugin options: %w", err)
 	}

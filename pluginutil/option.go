@@ -5,8 +5,8 @@ import (
 	"io/fs"
 )
 
-// getOpts - iterate the inbound Options and return a struct
-func getOpts(opt ...Option) (*options, error) {
+// GetOpts - iterate the inbound Options and return a struct
+func GetOpts(opt ...Option) (*options, error) {
 	opts := getDefaultOptions()
 	for _, o := range opt {
 		if o != nil {
