@@ -3,8 +3,6 @@ package pluginutil
 import (
 	"errors"
 	"io/fs"
-
-	wrapping "github.com/hashicorp/go-kms-wrapping/v2"
 )
 
 // getOpts - iterate the inbound Options and return a struct
@@ -24,7 +22,7 @@ func getOpts(opt ...Option) (*options, error) {
 type Option func(*options) error
 
 type pluginSourceInfo struct {
-	pluginMap map[string]func() (wrapping.Wrapper, error)
+	pluginMap map[string]func() (interface{}, error)
 
 	pluginFs       fs.FS
 	pluginFsPrefix string
@@ -32,8 +30,8 @@ type pluginSourceInfo struct {
 
 // options = how options are represented
 type options struct {
-	withPluginsSources           []pluginSourceInfo
-	withPluginExecutionDirectory string
+	WithPluginSources            []pluginSourceInfo
+	WithPluginExecutionDirectory string
 }
 
 func getDefaultOptions() options {
@@ -50,7 +48,7 @@ func WithPluginsFilesystem(prefix string, plugins fs.FS) Option {
 		if plugins == nil {
 			return errors.New("nil plugin filesystem passed into option")
 		}
-		o.withPluginsSources = append(o.withPluginsSources,
+		o.WithPluginSources = append(o.WithPluginSources,
 			pluginSourceInfo{
 				pluginFs:       plugins,
 				pluginFsPrefix: prefix,
@@ -64,16 +62,26 @@ func WithPluginsFilesystem(prefix string, plugins fs.FS) Option {
 // provide plugins. This can be specified multiple times; all FSes will be
 // scanned. If there are conflicts, the last one wins (this property is shared
 // with WithPluginsFilesystem).
-func WithPluginsMap(plugins map[string]func() (wrapping.Wrapper, error)) Option {
+func WithPluginsMap(plugins map[string]func() (interface{}, error)) Option {
 	return func(o *options) error {
 		if len(plugins) == 0 {
 			return errors.New("no entries in plugins map passed into option")
 		}
-		o.withPluginsSources = append(o.withPluginsSources,
+		o.WithPluginSources = append(o.WithPluginSources,
 			pluginSourceInfo{
 				pluginMap: plugins,
 			},
 		)
+		return nil
+	}
+}
+
+// WithPluginExecutionDirectory allows setting a specific directory for writing
+// out and executing plugins; if not set, os.TempDir will be used to create a
+// suitable directory.
+func WithPluginExecutionDirectory(dir string) Option {
+	return func(o *options) error {
+		o.WithPluginExecutionDirectory = dir
 		return nil
 	}
 }

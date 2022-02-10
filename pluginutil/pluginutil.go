@@ -84,7 +84,7 @@ func CreatePlugin(plugin PluginInfo, opt ...Option) (interface{}, func() error, 
 	}
 
 	// Now, create a temp dir and write out the plugin bytes
-	dir := opts.withPluginExecutionDirectory
+	dir := opts.WithPluginExecutionDirectory
 	if dir == "" {
 		tmpDir, err := ioutil.TempDir("", "*")
 		if err != nil {
