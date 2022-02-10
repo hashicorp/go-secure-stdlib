@@ -1,23 +1,18 @@
 package configutil
 
 import (
-	"bytes"
-	"compress/gzip"
 	"context"
 	"crypto/rand"
 	"fmt"
 	"io"
-	"io/fs"
-	"io/ioutil"
-	"os"
-	"path/filepath"
-	"runtime"
 	"strings"
 
 	gkwp "github.com/hashicorp/go-kms-wrapping/plugin/v2"
 	wrapping "github.com/hashicorp/go-kms-wrapping/v2"
 	"github.com/hashicorp/go-multierror"
+	"github.com/hashicorp/go-plugin"
 	"github.com/hashicorp/go-secure-stdlib/parseutil"
+	"github.com/hashicorp/go-secure-stdlib/pluginutil/v2"
 	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/ast"
 )
@@ -168,13 +163,6 @@ func ParseKMSes(d string, opt ...Option) ([]*KMS, error) {
 	return result.Seals, nil
 }
 
-type pluginInfo struct {
-	containerFs      fs.FS
-	filename         string
-	creationFunc     func() (wrapping.Wrapper, error)
-	needInitFinalize bool
-}
-
 // configureWrapper takes in the KMS configuration, info values, and plugins in
 // an fs.FS and returns a wrapper, a cleanup function to execute on shutdown of
 // the enclosing program, and an error.
@@ -202,70 +190,54 @@ func configureWrapper(
 
 	opts, err := getOpts(opt...)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error parsing kms options: %w", err)
-	}
-	if len(opts.withKmsPluginsSources) == 0 {
-		return nil, nil, fmt.Errorf("no kms plugins available")
+		return nil, nil, fmt.Errorf("error parsing config options: %w", err)
 	}
 
 	// First, scan available plugins, then find the right one to use, and set
 	// the need init/finalize flag if needed
-	pluginMap := map[string]pluginInfo{}
-	var plugin pluginInfo
-	{
-		for _, sourceInfo := range opts.withKmsPluginsSources {
-			switch {
-			case sourceInfo.pluginFs != nil:
-				dirs, err := fs.ReadDir(sourceInfo.pluginFs, ".")
-				if err != nil {
-					return nil, nil, fmt.Errorf("error scanning kms plugins: %w", err)
-				}
-				// Store a match between the config type string and the expected plugin name
-				for _, entry := range dirs {
-					pluginType := strings.TrimSuffix(strings.TrimPrefix(entry.Name(), sourceInfo.pluginFsPrefix), ".gz")
-					if runtime.GOOS == "windows" {
-						pluginType = strings.TrimSuffix(pluginType, ".exe")
-					}
-					pluginMap[pluginType] = pluginInfo{
-						containerFs: sourceInfo.pluginFs,
-						filename:    entry.Name(),
-					}
-				}
-			case sourceInfo.pluginMap != nil:
-				for k, creationFunc := range sourceInfo.pluginMap {
-					pluginMap[k] = pluginInfo{creationFunc: creationFunc, filename: k}
-				}
-			}
-		}
+	pluginMap, err := pluginutil.BuildPluginMap(
+		append(
+			opts.withPluginOpts,
+			pluginutil.WithPluginCreationFunc(
+				func(pluginPath string) (*plugin.Client, error) {
+					return gkwp.NewWrapperClient(pluginPath, gkwp.WithLogger(opts.withLogger))
+				}),
+		)...)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error building plugin map: %w", err)
+	}
 
+	var plug pluginutil.PluginInfo
+	{
 		// Now, find the right plugin
 		switch kmsType {
 		case wrapping.WrapperTypeShamir.String():
 			return nil, nil, nil
-		case wrapping.WrapperTypePkcs11.String():
-			return nil, nil, fmt.Errorf("kms type 'pkcs11' is not available in this binary")
 		default:
-			plugin = pluginMap[kmsType]
-		}
-		if plugin.filename == "" && plugin.creationFunc == nil {
-			return nil, nil, fmt.Errorf("unknown kms type %q", kmsType)
+			plug = pluginMap[kmsType]
 		}
 	}
 
-	// If the source is just a func, execute it and skip ahead; otherwise it's a plugin, so instantiate it
 	{
-		switch {
-		case plugin.creationFunc != nil:
-			wrapper, err = plugin.creationFunc()
+		plugClient, cleanup, err := pluginutil.CreatePlugin(plug)
+		if err != nil {
+			return nil, cleanup, err
+		}
+		switch client := plugClient.(type) {
+		case plugin.ClientProtocol:
+			raw, err := client.Dispense("wrapping")
 			if err != nil {
-				return nil, nil, fmt.Errorf("error performing direct instantiation of wrapper with type %q: %w", plugin.filename, err)
+				return nil, cleanup, fmt.Errorf("error dispensing kms plugin: %w", err)
 			}
 
-		case plugin.containerFs != nil:
-			wrapper, cleanup, err = createPluginWrapper(plugin, opt...)
-			if err != nil {
-				return nil, cleanup, err
+			var ok bool
+			wrapper, ok = raw.(wrapping.Wrapper)
+			if !ok {
+				return nil, cleanup, fmt.Errorf("error converting rpc kms wrapper to normal wrapper: %w", err)
 			}
+
+		case wrapping.Wrapper:
+			wrapper = client
 		}
 	}
 
@@ -279,108 +251,6 @@ func configureWrapper(
 		if len(kmsInfo) > 0 {
 			populateInfo(configKMS, infoKeys, info, kmsInfo)
 		}
-	}
-
-	return wrapper, cleanup, nil
-}
-
-func createPluginWrapper(plugin pluginInfo, opt ...Option) (wrapping.Wrapper, func() error, error) {
-	opts, err := getOpts(opt...)
-	if err != nil {
-		return nil, nil, fmt.Errorf("error parsing kms options: %w", err)
-	}
-
-	// Open and basic validation
-	file, err := plugin.containerFs.Open(plugin.filename)
-	if err != nil {
-		return nil, nil, err
-	}
-	stat, err := file.Stat()
-	if err != nil {
-		return nil, nil, fmt.Errorf("error discovering kms plugin information: %w", err)
-	}
-	if stat.IsDir() {
-		return nil, nil, fmt.Errorf("kms plugin is a directory, not a file")
-	}
-
-	// Read in plugin bytes
-	expLen := stat.Size()
-	buf := make([]byte, expLen)
-	readLen, err := file.Read(buf)
-	if err != nil {
-		file.Close()
-		return nil, nil, fmt.Errorf("error reading kms plugin bytes: %w", err)
-	}
-	if err := file.Close(); err != nil {
-		return nil, nil, fmt.Errorf("error closing kms plugin file: %w", err)
-	}
-	if int64(readLen) != expLen {
-		return nil, nil, fmt.Errorf("reading KMS plugin, expected %d bytes, read %d", expLen, readLen)
-	}
-
-	// If it's compressed, uncompress it
-	if strings.HasSuffix(plugin.filename, ".gz") {
-		gzipReader, err := gzip.NewReader(bytes.NewReader(buf))
-		if err != nil {
-			return nil, nil, fmt.Errorf("error creating gzip decompression reader: %w", err)
-		}
-		uncompBuf := new(bytes.Buffer)
-		_, err = uncompBuf.ReadFrom(gzipReader)
-		gzipReader.Close()
-		if err != nil {
-			return nil, nil, fmt.Errorf("error reading gzip compressed data from reader: %w", err)
-		}
-		buf = uncompBuf.Bytes()
-	}
-
-	cleanup := func() error {
-		return nil
-	}
-
-	// Now, create a temp dir and write out the plugin bytes
-	dir := opts.withKmsPluginExecutionDirectory
-	if dir == "" {
-		tmpDir, err := ioutil.TempDir("", "*")
-		if err != nil {
-			return nil, nil, fmt.Errorf("error creating tmp dir for kms execution: %w", err)
-		}
-		cleanup = func() error {
-			return os.RemoveAll(tmpDir)
-		}
-		dir = tmpDir
-	}
-	pluginPath := filepath.Join(dir, plugin.filename)
-	if runtime.GOOS == "windows" {
-		pluginPath += ".exe"
-	}
-	if err := ioutil.WriteFile(pluginPath, buf, fs.FileMode(0700)); err != nil {
-		return nil, cleanup, fmt.Errorf("error writing out kms plugin for execution: %w", err)
-	}
-
-	// Execute the plugin
-	client, err := gkwp.NewWrapperClient(pluginPath, gkwp.WithInitFinalizerInterface(plugin.needInitFinalize), gkwp.WithLogger(opts.withLogger))
-	if err != nil {
-		return nil, cleanup, fmt.Errorf("error fetching kms plugin client: %w", err)
-	}
-	origCleanup := cleanup
-	cleanup = func() error {
-		client.Kill()
-		return origCleanup()
-	}
-	rpcClient, err := client.Client()
-	if err != nil {
-		return nil, cleanup, fmt.Errorf("error fetching kms plugin rpc client: %w", err)
-	}
-
-	raw, err := rpcClient.Dispense("wrapping")
-	if err != nil {
-		return nil, cleanup, fmt.Errorf("error dispensing kms plugin: %w", err)
-	}
-
-	var ok bool
-	wrapper, ok := raw.(wrapping.Wrapper)
-	if !ok {
-		return nil, cleanup, fmt.Errorf("error converting rpc kms wrapper to normal wrapper: %w", err)
 	}
 
 	return wrapper, cleanup, nil
