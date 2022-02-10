@@ -23,9 +23,9 @@ type Option func(*options) error
 
 // options = how options are represented
 type options struct {
-	withPluginOpts   []pluginutil.Option
-	withMaxKmsBlocks int
-	withLogger       hclog.Logger
+	withPluginOptions []pluginutil.Option
+	withMaxKmsBlocks  int
+	withLogger        hclog.Logger
 }
 
 func getDefaultOptions() options {
@@ -42,11 +42,11 @@ func WithMaxKmsBlocks(blocks int) Option {
 	}
 }
 
-// WithPluginOpts allows providing plugin-related (as opposed to
+// WithPluginOptions allows providing plugin-related (as opposed to
 // configutil-related) options
-func WithPluginOpts(opts ...pluginutil.Option) Option {
+func WithPluginOptions(opts ...pluginutil.Option) Option {
 	return func(o *options) error {
-		o.withPluginOpts = append(o.withPluginOpts, opts...)
+		o.withPluginOptions = append(o.withPluginOptions, opts...)
 		return nil
 	}
 }

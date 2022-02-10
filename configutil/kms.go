@@ -197,7 +197,7 @@ func configureWrapper(
 	// the need init/finalize flag if needed
 	pluginMap, err := pluginutil.BuildPluginMap(
 		append(
-			opts.withPluginOpts,
+			opts.withPluginOptions,
 			pluginutil.WithPluginCreationFunc(
 				func(pluginPath string) (*plugin.Client, error) {
 					return gkwp.NewWrapperClient(pluginPath, gkwp.WithLogger(opts.withLogger))
