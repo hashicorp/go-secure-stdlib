@@ -18,7 +18,7 @@ type PluginInfo struct {
 	ContainerFs        fs.FS
 	Filename           string
 	InmemCreationFunc  func() (interface{}, error)
-	PluginCreationFunc func() (*plugin.Client, error)
+	PluginCreationFunc func(string) (*plugin.Client, error)
 }
 
 func CreatePlugin(plugin PluginInfo, opt ...Option) (interface{}, func() error, error) {
@@ -104,7 +104,7 @@ func CreatePlugin(plugin PluginInfo, opt ...Option) (interface{}, func() error, 
 	}
 
 	// Execute the plugin
-	client, err := plugin.PluginCreationFunc()
+	client, err := plugin.PluginCreationFunc(pluginPath)
 	if err != nil {
 		return nil, cleanup, fmt.Errorf("error fetching kms plugin client: %w", err)
 	}
