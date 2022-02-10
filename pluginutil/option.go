@@ -22,7 +22,7 @@ func GetOpts(opt ...Option) (*options, error) {
 type Option func(*options) error
 
 type pluginSourceInfo struct {
-	pluginMap map[string]func() (interface{}, error)
+	pluginMap map[string]InmemCreationFunc
 
 	pluginFs       fs.FS
 	pluginFsPrefix string
@@ -30,8 +30,9 @@ type pluginSourceInfo struct {
 
 // options = how options are represented
 type options struct {
-	WithPluginSources            []pluginSourceInfo
-	WithPluginExecutionDirectory string
+	withPluginSources            []pluginSourceInfo
+	withPluginExecutionDirectory string
+	withPluginCreationFunc       PluginCreationFunc
 }
 
 func getDefaultOptions() options {
@@ -48,7 +49,7 @@ func WithPluginsFilesystem(prefix string, plugins fs.FS) Option {
 		if plugins == nil {
 			return errors.New("nil plugin filesystem passed into option")
 		}
-		o.WithPluginSources = append(o.WithPluginSources,
+		o.withPluginSources = append(o.withPluginSources,
 			pluginSourceInfo{
 				pluginFs:       plugins,
 				pluginFsPrefix: prefix,
@@ -62,12 +63,12 @@ func WithPluginsFilesystem(prefix string, plugins fs.FS) Option {
 // provide plugins. This can be specified multiple times; all FSes will be
 // scanned. If there are conflicts, the last one wins (this property is shared
 // with WithPluginsFilesystem).
-func WithPluginsMap(plugins map[string]func() (interface{}, error)) Option {
+func WithPluginsMap(plugins map[string]InmemCreationFunc) Option {
 	return func(o *options) error {
 		if len(plugins) == 0 {
 			return errors.New("no entries in plugins map passed into option")
 		}
-		o.WithPluginSources = append(o.WithPluginSources,
+		o.withPluginSources = append(o.withPluginSources,
 			pluginSourceInfo{
 				pluginMap: plugins,
 			},
@@ -81,7 +82,16 @@ func WithPluginsMap(plugins map[string]func() (interface{}, error)) Option {
 // suitable directory.
 func WithPluginExecutionDirectory(dir string) Option {
 	return func(o *options) error {
-		o.WithPluginExecutionDirectory = dir
+		o.withPluginExecutionDirectory = dir
+		return nil
+	}
+}
+
+// WithPluginCreationFunc allows passing in the func to use to create a plugin;
+// not necessary if only inmem functions are used, but required otherwise
+func WithPluginCreationFunc(creationFunc PluginCreationFunc) Option {
+	return func(o *options) error {
+		o.withPluginCreationFunc = creationFunc
 		return nil
 	}
 }

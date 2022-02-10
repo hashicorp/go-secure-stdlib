@@ -14,11 +14,55 @@ import (
 	"github.com/hashicorp/go-plugin"
 )
 
+type (
+	InmemCreationFunc  func() (interface{}, error)
+	PluginCreationFunc func(string) (*plugin.Client, error)
+)
+
 type PluginInfo struct {
 	ContainerFs        fs.FS
 	Filename           string
-	InmemCreationFunc  func() (interface{}, error)
-	PluginCreationFunc func(string) (*plugin.Client, error)
+	InmemCreationFunc  InmemCreationFunc
+	PluginCreationFunc PluginCreationFunc
+}
+
+func BuildPluginMap(opt ...Option) (map[string]PluginInfo, error) {
+	opts, err := GetOpts(opt...)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing plugin options: %w", err)
+	}
+
+	pluginMap := map[string]PluginInfo{}
+	for _, sourceInfo := range opts.withPluginSources {
+		switch {
+		case sourceInfo.pluginFs != nil:
+			if opts.withPluginCreationFunc == nil {
+				return nil, fmt.Errorf("non-in-memory plugin found but no creation func provided")
+			}
+			dirs, err := fs.ReadDir(sourceInfo.pluginFs, ".")
+			if err != nil {
+				return nil, fmt.Errorf("error scanning plugins: %w", err)
+			}
+			// Store a match between the config type string and the expected plugin name
+			for _, entry := range dirs {
+				pluginType := strings.TrimSuffix(strings.TrimPrefix(entry.Name(), sourceInfo.pluginFsPrefix), ".gz")
+				if runtime.GOOS == "windows" {
+					pluginType = strings.TrimSuffix(pluginType, ".exe")
+				}
+				pluginMap[pluginType] = PluginInfo{
+					ContainerFs:        sourceInfo.pluginFs,
+					Filename:           entry.Name(),
+					PluginCreationFunc: opts.withPluginCreationFunc,
+				}
+			}
+		case sourceInfo.pluginMap != nil:
+			for k, creationFunc := range sourceInfo.pluginMap {
+				pluginMap[k] = PluginInfo{InmemCreationFunc: creationFunc}
+			}
+		}
+	}
+
+	return pluginMap, nil
 }
 
 func CreatePlugin(plugin PluginInfo, opt ...Option) (interface{}, func() error, error) {
@@ -84,7 +128,7 @@ func CreatePlugin(plugin PluginInfo, opt ...Option) (interface{}, func() error, 
 	}
 
 	// Now, create a temp dir and write out the plugin bytes
-	dir := opts.WithPluginExecutionDirectory
+	dir := opts.withPluginExecutionDirectory
 	if dir == "" {
 		tmpDir, err := ioutil.TempDir("", "*")
 		if err != nil {
