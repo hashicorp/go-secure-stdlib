@@ -239,7 +239,7 @@ func configureWrapper(
 	var ok bool
 	wrapper, ok = raw.(wrapping.Wrapper)
 	if !ok {
-		return nil, cleanup, fmt.Errorf("error converting rpc kms wrapper to normal wrapper: %w", err)
+		return nil, cleanup, fmt.Errorf("error converting rpc kms wrapper of type %T to normal wrapper", raw)
 	}
 	wrapperConfigResult, err := wrapper.SetConfig(ctx, wrapping.WithKeyId(configKMS.Config["key_id"]), wrapping.WithWrapperOptions(configKMS.Config))
 	if err != nil {
