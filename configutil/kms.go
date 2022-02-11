@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"fmt"
 	"io"
-	"log"
 	"strings"
 
 	gkwp "github.com/hashicorp/go-kms-wrapping/plugin/v2"
@@ -208,8 +207,6 @@ func configureWrapper(
 		return nil, nil, fmt.Errorf("error building plugin map: %w", err)
 	}
 
-	log.Println("map", fmt.Sprintf("%#v", pluginMap))
-
 	// Now, find the right plugin
 	var plug pluginutil.PluginInfo
 	switch kmsType {
@@ -218,8 +215,6 @@ func configureWrapper(
 	default:
 		plug = pluginMap[kmsType]
 	}
-
-	log.Println("plug", fmt.Sprintf("%#v", plug))
 
 	// Create the plugin and cleanup func
 	plugClient, cleanup, err := pluginutil.CreatePlugin(plug)
