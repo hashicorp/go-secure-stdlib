@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"io"
+	"log"
 	"strings"
 
 	gkwp "github.com/hashicorp/go-kms-wrapping/plugin/v2"
@@ -173,7 +174,7 @@ func configureWrapper(
 	info *map[string]string,
 	opt ...Option,
 ) (
-	wrapper wrapping.Wrapper,
+	raw interface{},
 	cleanup func() error,
 	retErr error,
 ) {
@@ -207,53 +208,53 @@ func configureWrapper(
 		return nil, nil, fmt.Errorf("error building plugin map: %w", err)
 	}
 
+	log.Println("map", fmt.Sprintf("%#v", pluginMap))
+
+	// Now, find the right plugin
 	var plug pluginutil.PluginInfo
-	{
-		// Now, find the right plugin
-		switch kmsType {
-		case wrapping.WrapperTypeShamir.String():
-			return nil, nil, nil
-		default:
-			plug = pluginMap[kmsType]
-		}
+	switch kmsType {
+	case wrapping.WrapperTypeShamir.String():
+		return nil, nil, nil
+	default:
+		plug = pluginMap[kmsType]
 	}
 
-	{
-		plugClient, cleanup, err := pluginutil.CreatePlugin(plug)
+	log.Println("plug", fmt.Sprintf("%#v", plug))
+
+	// Create the plugin and cleanup func
+	plugClient, cleanup, err := pluginutil.CreatePlugin(plug)
+	if err != nil {
+		return nil, cleanup, err
+	}
+
+	switch client := plugClient.(type) {
+	case plugin.ClientProtocol:
+		raw, err = client.Dispense("wrapping")
 		if err != nil {
-			return nil, cleanup, err
+			return nil, cleanup, fmt.Errorf("error dispensing kms plugin: %w", err)
 		}
-		switch client := plugClient.(type) {
-		case plugin.ClientProtocol:
-			raw, err := client.Dispense("wrapping")
-			if err != nil {
-				return nil, cleanup, fmt.Errorf("error dispensing kms plugin: %w", err)
-			}
-
-			var ok bool
-			wrapper, ok = raw.(wrapping.Wrapper)
-			if !ok {
-				return nil, cleanup, fmt.Errorf("error converting rpc kms wrapper to normal wrapper: %w", err)
-			}
-
-		case wrapping.Wrapper:
-			wrapper = client
-		}
+	case wrapping.Wrapper:
+		raw = client
+	default:
+		return nil, cleanup, fmt.Errorf("unable to understand type %T of raw plugin", raw)
 	}
 
 	// Set configuration and parse info to be friendlier
-	{
-		wrapperConfigResult, err := wrapper.SetConfig(ctx, wrapping.WithKeyId(configKMS.Config["key_id"]), wrapping.WithWrapperOptions(configKMS.Config))
-		if err != nil {
-			return nil, cleanup, fmt.Errorf("error setting configuration on the kms plugin: %w", err)
-		}
-		kmsInfo := wrapperConfigResult.GetMetadata()
-		if len(kmsInfo) > 0 {
-			populateInfo(configKMS, infoKeys, info, kmsInfo)
-		}
+	var ok bool
+	wrapper, ok := raw.(wrapping.Wrapper)
+	if !ok {
+		return nil, cleanup, fmt.Errorf("error converting rpc kms wrapper to normal wrapper: %w", err)
+	}
+	wrapperConfigResult, err := wrapper.SetConfig(ctx, wrapping.WithKeyId(configKMS.Config["key_id"]), wrapping.WithWrapperOptions(configKMS.Config))
+	if err != nil {
+		return nil, cleanup, fmt.Errorf("error setting configuration on the kms plugin: %w", err)
+	}
+	kmsInfo := wrapperConfigResult.GetMetadata()
+	if len(kmsInfo) > 0 {
+		populateInfo(configKMS, infoKeys, info, kmsInfo)
 	}
 
-	return wrapper, cleanup, nil
+	return raw, cleanup, nil
 }
 
 func populateInfo(kms *KMS, infoKeys *[]string, info *map[string]string, kmsInfo map[string]string) {
