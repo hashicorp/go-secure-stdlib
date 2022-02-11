@@ -174,7 +174,7 @@ func configureWrapper(
 	info *map[string]string,
 	opt ...Option,
 ) (
-	raw interface{},
+	wrapper wrapping.Wrapper,
 	cleanup func() error,
 	retErr error,
 ) {
@@ -227,6 +227,7 @@ func configureWrapper(
 		return nil, cleanup, err
 	}
 
+	var raw interface{}
 	switch client := plugClient.(type) {
 	case plugin.ClientProtocol:
 		raw, err = client.Dispense("wrapping")
@@ -241,7 +242,7 @@ func configureWrapper(
 
 	// Set configuration and parse info to be friendlier
 	var ok bool
-	wrapper, ok := raw.(wrapping.Wrapper)
+	wrapper, ok = raw.(wrapping.Wrapper)
 	if !ok {
 		return nil, cleanup, fmt.Errorf("error converting rpc kms wrapper to normal wrapper: %w", err)
 	}
@@ -254,7 +255,7 @@ func configureWrapper(
 		populateInfo(configKMS, infoKeys, info, kmsInfo)
 	}
 
-	return raw, cleanup, nil
+	return wrapper, cleanup, nil
 }
 
 func populateInfo(kms *KMS, infoKeys *[]string, info *map[string]string, kmsInfo map[string]string) {
