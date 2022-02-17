@@ -333,3 +333,157 @@ func Test_ParseBool(t *testing.T) {
 		t.Fatal("wrong output")
 	}
 }
+
+func equalInt64Slice(a, b []int64) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+
+	return true
+}
+
+func Test_ParseIntSlice(t *testing.T) {
+	// Handles testing of ParseInt, ParseDirectIntSlice, and ParseIntSlice.
+	testCases := []struct {
+		inp      interface{}
+		valid    bool
+		expected []int64
+	}{
+		// ParseInt
+		{
+			int(-1),
+			true,
+			[]int64{-1},
+		},
+		{
+			int32(-1),
+			true,
+			[]int64{-1},
+		},
+		{
+			int64(-1),
+			true,
+			[]int64{-1},
+		},
+		{
+			uint(1),
+			true,
+			[]int64{1},
+		},
+		{
+			uint32(1),
+			true,
+			[]int64{1},
+		},
+		{
+			uint64(1),
+			true,
+			[]int64{1},
+		},
+		{
+			json.Number("1"),
+			true,
+			[]int64{1},
+		},
+		{
+			"1",
+			true,
+			[]int64{1},
+		},
+		// ParseDirectIntSlice
+		{
+			[]int{1, -2, 3},
+			true,
+			[]int64{1, -2, 3},
+		},
+		{
+			[]int32{1, -2, 3},
+			true,
+			[]int64{1, -2, 3},
+		},
+		{
+			[]int64{1, -2, 3},
+			true,
+			[]int64{1, -2, 3},
+		},
+		{
+			[]uint{1, 2, 3},
+			true,
+			[]int64{1, 2, 3},
+		},
+		{
+			[]uint32{1, 2, 3},
+			true,
+			[]int64{1, 2, 3},
+		},
+		{
+			[]uint64{1, 2, 3},
+			true,
+			[]int64{1, 2, 3},
+		},
+		{
+			[]json.Number{json.Number("1"), json.Number("2"), json.Number("3")},
+			true,
+			[]int64{1, 2, 3},
+		},
+		{
+			[]string{"1", "2", "3"},
+			true,
+			[]int64{1, 2, 3},
+		},
+		// Comma separated list
+		{
+			"1",
+			true,
+			[]int64{1},
+		},
+		{
+			"1,",
+			true,
+			[]int64{1},
+		},
+		{
+			",1",
+			true,
+			[]int64{1},
+		},
+		{
+			",1,",
+			true,
+			[]int64{1},
+		},
+		{
+			"1,2",
+			true,
+			[]int64{1,2},
+		},
+		{
+			"1,2,3",
+			true,
+			[]int64{1,2,3},
+		},
+	}
+
+	for _, tc := range testCases {
+		outp, err := ParseIntSlice(tc.inp)
+		if err != nil {
+			if tc.valid {
+				t.Errorf("failed to parse: %v", tc.inp)
+			}
+			continue
+		}
+		if err == nil && !tc.valid {
+			t.Errorf("no error for: %v", tc.inp)
+			continue
+		}
+		if !equalInt64Slice(outp, tc.expected) {
+			t.Errorf("input %v parsed as %v, expected %v", tc.inp, outp, tc.expected)
+		}
+	}
+}
