@@ -487,3 +487,85 @@ func Test_ParseIntSlice(t *testing.T) {
 		}
 	}
 }
+
+func equalStringSlice(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+
+	return true
+}
+
+func Test_ParseCommaStringSlice(t *testing.T) {
+	cases := []struct{
+		name     string
+		inp       interface{}
+		expected []string
+		valid    bool
+	}{
+		{
+			"empty string",
+			"",
+			[]string{},
+			true,
+		},
+		{
+			"single value",
+			"foo",
+			[]string{"foo"},
+			true,
+		},
+		{
+			"multiple values",
+			"foo,bar,baz",
+			[]string{"foo", "bar", "baz"},
+			true,
+		},
+		{
+			"multiple values with trim",
+			"  foo ,    bar   ,baz  ",
+			[]string{"foo", "bar", "baz"},
+			true,
+		},
+		{
+			"json number",
+			json.Number("123"),
+			nil,
+			false,
+		},
+		{
+			"string slice",
+			[]string{"foo", "bar", "baz"},
+			nil,
+			false,
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			outp, err := ParseCommaStringSlice(tc.inp)
+			if tc.valid && err != nil {
+				t.Errorf("failed to parse: %v. err: %v", tc.inp, err)
+			}
+
+			if !tc.valid && err == nil {
+				t.Errorf("no error for: %v", tc.inp)
+			}
+
+			if !equalStringSlice(outp, tc.expected) {
+				t.Errorf("input %v parsed as %v, expected %v", tc.inp, outp, tc.expected)
+			}
+
+		})
+	}
+}
