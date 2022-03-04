@@ -571,8 +571,20 @@ func Test_ParseCommaStringSlice(t *testing.T) {
 			true,
 		},
 		{
+			"byte",
+			byte(10),
+			[]string{"10"},
+			true,
+		},
+		{
 			"complex",
 			cmplx.Sqrt(-1),
+			nil,
+			false,
+		},
+		{
+			"time",
+			time.Now(),
 			nil,
 			false,
 		},
