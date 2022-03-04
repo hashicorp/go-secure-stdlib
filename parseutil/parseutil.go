@@ -337,10 +337,12 @@ func ParseString(in interface{}) (string, error) {
 }
 
 func ParseCommaStringSlice(in interface{}) ([]string, error) {
-	rawString, ok := in.(string)
-	if !ok {
-		return nil, fmt.Errorf("error parsing %v as string", rawString)
+	jsonIn, ok := in.(json.Number)
+	if ok {
+		in = jsonIn.String()
 	}
+
+	rawString, ok := in.(string)
 
 	if ok && rawString == "" {
 		return []string{}, nil
