@@ -11,22 +11,26 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/hashicorp/go-plugin"
+	gp "github.com/hashicorp/go-plugin"
 )
 
 type (
-	InmemCreationFunc  func() (interface{}, error)
-	PluginCreationFunc func(string) (*plugin.Client, error)
+	InmemCreationFunc        func() (interface{}, error)
+	PluginClientCreationFunc func(string, ...Option) (*gp.Client, error)
 )
 
 type PluginInfo struct {
-	ContainerFs        fs.FS
-	Filename           string
-	InmemCreationFunc  InmemCreationFunc
-	PluginCreationFunc PluginCreationFunc
+	ContainerFs              fs.FS
+	Filename                 string
+	InmemCreationFunc        InmemCreationFunc
+	PluginClientCreationFunc PluginClientCreationFunc
 }
 
-func BuildPluginMap(opt ...Option) (map[string]PluginInfo, error) {
+// BuildPluginMap takes in options that contain one or more sets of plugin maps
+// or filesystems and builds an overall mapping of a plugin name to its
+// information. The desired plugin can then be sent to CreatePlugin to actually
+// instantiate it.
+func BuildPluginMap(opt ...Option) (map[string]*PluginInfo, error) {
 	opts, err := GetOpts(opt...)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing plugin options: %w", err)
@@ -36,11 +40,11 @@ func BuildPluginMap(opt ...Option) (map[string]PluginInfo, error) {
 		return nil, fmt.Errorf("no plugins available")
 	}
 
-	pluginMap := map[string]PluginInfo{}
+	pluginMap := map[string]*PluginInfo{}
 	for _, sourceInfo := range opts.withPluginSources {
 		switch {
 		case sourceInfo.pluginFs != nil:
-			if opts.withPluginCreationFunc == nil {
+			if opts.withPluginClientCreationFunc == nil {
 				return nil, fmt.Errorf("non-in-memory plugin found but no creation func provided")
 			}
 			dirs, err := fs.ReadDir(sourceInfo.pluginFs, ".")
@@ -53,15 +57,15 @@ func BuildPluginMap(opt ...Option) (map[string]PluginInfo, error) {
 				if runtime.GOOS == "windows" {
 					pluginType = strings.TrimSuffix(pluginType, ".exe")
 				}
-				pluginMap[pluginType] = PluginInfo{
-					ContainerFs:        sourceInfo.pluginFs,
-					Filename:           entry.Name(),
-					PluginCreationFunc: opts.withPluginCreationFunc,
+				pluginMap[pluginType] = &PluginInfo{
+					ContainerFs:              sourceInfo.pluginFs,
+					Filename:                 entry.Name(),
+					PluginClientCreationFunc: opts.withPluginClientCreationFunc,
 				}
 			}
 		case sourceInfo.pluginMap != nil:
 			for k, creationFunc := range sourceInfo.pluginMap {
-				pluginMap[k] = PluginInfo{InmemCreationFunc: creationFunc}
+				pluginMap[k] = &PluginInfo{InmemCreationFunc: creationFunc}
 			}
 		}
 	}
@@ -69,13 +73,23 @@ func BuildPluginMap(opt ...Option) (map[string]PluginInfo, error) {
 	return pluginMap, nil
 }
 
-func CreatePlugin(plugin PluginInfo, opt ...Option) (interface{}, func() error, error) {
+// CreatePlugin instantiates a given plugin either via an in-memory function or
+// by executing a go-plugin plugin. The interface returned will either be a
+// *<go-plugin>.Client or the value returned from an in-memory function. A type
+// switch should be used by the calling code to determine this, and the
+// appropriate service should be Dispensed if what is returned is a go-plugin
+// plugin.
+//
+// If the WithSecureConfig option is passed, this will be round-tripped into the
+// PluginClientCreationFunction from the given *PluginInfo, where it can be sent
+// into the go-plugin client configuration.
+func CreatePlugin(plugin *PluginInfo, opt ...Option) (interface{}, func() error, error) {
 	switch {
 	case plugin.InmemCreationFunc != nil:
 		raw, err := plugin.InmemCreationFunc()
 		return raw, nil, err
 
-	case plugin.Filename == "" || plugin.PluginCreationFunc == nil:
+	case plugin.Filename == "" || plugin.PluginClientCreationFunc == nil:
 		return nil, nil, fmt.Errorf("no inmem creation func and either filename or plugin creation func not provided")
 	}
 
@@ -147,12 +161,12 @@ func CreatePlugin(plugin PluginInfo, opt ...Option) (interface{}, func() error, 
 	if runtime.GOOS == "windows" {
 		pluginPath += ".exe"
 	}
-	if err := ioutil.WriteFile(pluginPath, buf, fs.FileMode(0700)); err != nil {
+	if err := ioutil.WriteFile(pluginPath, buf, fs.FileMode(0o700)); err != nil {
 		return nil, cleanup, fmt.Errorf("error writing out plugin for execution: %w", err)
 	}
 
 	// Execute the plugin
-	client, err := plugin.PluginCreationFunc(pluginPath)
+	client, err := plugin.PluginClientCreationFunc(pluginPath, opt...)
 	if err != nil {
 		return nil, cleanup, fmt.Errorf("error fetching kms plugin client: %w", err)
 	}

@@ -3,6 +3,8 @@ package pluginutil
 import (
 	"errors"
 	"io/fs"
+
+	gp "github.com/hashicorp/go-plugin"
 )
 
 // GetOpts - iterate the inbound Options and return a struct
@@ -21,6 +23,9 @@ func GetOpts(opt ...Option) (*options, error) {
 // Option - how Options are passed as arguments
 type Option func(*options) error
 
+// pluginSourceInfo contains possibilities for plugin creation -- a map that can
+// be used to directly create instances, or an FS that can be used to source
+// plugin instances.
 type pluginSourceInfo struct {
 	pluginMap map[string]InmemCreationFunc
 
@@ -32,7 +37,8 @@ type pluginSourceInfo struct {
 type options struct {
 	withPluginSources            []pluginSourceInfo
 	withPluginExecutionDirectory string
-	withPluginCreationFunc       PluginCreationFunc
+	withPluginClientCreationFunc PluginClientCreationFunc
+	WithSecureConfig             *gp.SecureConfig
 }
 
 func getDefaultOptions() options {
@@ -44,15 +50,15 @@ func getDefaultOptions() options {
 // FSes will be scanned. If there are conflicts, the last one wins (this
 // property is shared with WithPluginsMap). The prefix will be stripped from
 // each entry when determining the plugin type.
-func WithPluginsFilesystem(prefix string, plugins fs.FS) Option {
+func WithPluginsFilesystem(withPrefix string, withPlugins fs.FS) Option {
 	return func(o *options) error {
-		if plugins == nil {
+		if withPlugins == nil {
 			return errors.New("nil plugin filesystem passed into option")
 		}
 		o.withPluginSources = append(o.withPluginSources,
 			pluginSourceInfo{
-				pluginFs:       plugins,
-				pluginFsPrefix: prefix,
+				pluginFs:       withPlugins,
+				pluginFsPrefix: withPrefix,
 			},
 		)
 		return nil
@@ -60,17 +66,17 @@ func WithPluginsFilesystem(prefix string, plugins fs.FS) Option {
 }
 
 // WithPluginsMap provides a map containing functions that can be called to
-// provide plugins. This can be specified multiple times; all FSes will be
-// scanned. If there are conflicts, the last one wins (this property is shared
-// with WithPluginsFilesystem).
-func WithPluginsMap(plugins map[string]InmemCreationFunc) Option {
+// instantiate plugins directly. This can be specified multiple times; all maps
+// will be scanned. If there are conflicts, the last one wins (this property is
+// shared with WithPluginsFilesystem).
+func WithPluginsMap(with map[string]InmemCreationFunc) Option {
 	return func(o *options) error {
-		if len(plugins) == 0 {
+		if len(with) == 0 {
 			return errors.New("no entries in plugins map passed into option")
 		}
 		o.withPluginSources = append(o.withPluginSources,
 			pluginSourceInfo{
-				pluginMap: plugins,
+				pluginMap: with,
 			},
 		)
 		return nil
@@ -79,19 +85,30 @@ func WithPluginsMap(plugins map[string]InmemCreationFunc) Option {
 
 // WithPluginExecutionDirectory allows setting a specific directory for writing
 // out and executing plugins; if not set, os.TempDir will be used to create a
-// suitable directory.
-func WithPluginExecutionDirectory(dir string) Option {
+// suitable directory
+func WithPluginExecutionDirectory(with string) Option {
 	return func(o *options) error {
-		o.withPluginExecutionDirectory = dir
+		o.withPluginExecutionDirectory = with
 		return nil
 	}
 }
 
-// WithPluginCreationFunc allows passing in the func to use to create a plugin;
-// not necessary if only inmem functions are used, but required otherwise
-func WithPluginCreationFunc(creationFunc PluginCreationFunc) Option {
+// WithPluginClientCreationFunc allows passing in the func to use to create a plugin
+// client on the host side. Not necessary if only inmem functions are used, but
+// required otherwise.
+func WithPluginClientCreationFunc(with PluginClientCreationFunc) Option {
 	return func(o *options) error {
-		o.withPluginCreationFunc = creationFunc
+		o.withPluginClientCreationFunc = with
+		return nil
+	}
+}
+
+// WithSecureConfig allows passing in the go-plugin secure config struct for
+// validating a plugin prior to execution. Generally not needed if the plugin is
+// being spun out of the binary at runtime.
+func WithSecureConfig(with *gp.SecureConfig) Option {
+	return func(o *options) error {
+		o.WithSecureConfig = with
 		return nil
 	}
 }
