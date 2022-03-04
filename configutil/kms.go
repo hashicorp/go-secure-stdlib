@@ -198,9 +198,16 @@ func configureWrapper(
 	pluginMap, err := pluginutil.BuildPluginMap(
 		append(
 			opts.withPluginOptions,
-			pluginutil.WithPluginCreationFunc(
-				func(pluginPath string) (*plugin.Client, error) {
-					return gkwp.NewWrapperClient(pluginPath, gkwp.WithLogger(opts.withLogger))
+			pluginutil.WithPluginClientCreationFunc(
+				func(pluginPath string, rtOpt ...pluginutil.Option) (*plugin.Client, error) {
+					rtOpts, err := pluginutil.GetOpts(rtOpt...)
+					if err != nil {
+						return nil, fmt.Errorf("error parsing round-tripped plugin client options: %w", err)
+					}
+					return gkwp.NewWrapperClient(pluginPath,
+						gkwp.WithLogger(opts.withLogger),
+						gkwp.WithSecureConfig(rtOpts.WithSecureConfig),
+					)
 				}),
 		)...)
 	if err != nil {
@@ -208,7 +215,7 @@ func configureWrapper(
 	}
 
 	// Now, find the right plugin
-	var plug pluginutil.PluginInfo
+	var plug *pluginutil.PluginInfo
 	switch kmsType {
 	case wrapping.WrapperTypeShamir.String():
 		return nil, nil, nil
@@ -241,7 +248,9 @@ func configureWrapper(
 	if !ok {
 		return nil, cleanup, fmt.Errorf("error converting rpc kms wrapper of type %T to normal wrapper", raw)
 	}
-	wrapperConfigResult, err := wrapper.SetConfig(ctx, wrapping.WithKeyId(configKMS.Config["key_id"]), wrapping.WithWrapperOptions(configKMS.Config))
+	wrapperConfigResult, err := wrapper.SetConfig(ctx,
+		wrapping.WithKeyId(configKMS.Config["key_id"]),
+		wrapping.WithConfigMap(configKMS.Config))
 	if err != nil {
 		return nil, cleanup, fmt.Errorf("error setting configuration on the kms plugin: %w", err)
 	}
