@@ -47,9 +47,11 @@ func getDefaultOptions() options {
 
 // WithPluginsFilesystem provides an fs.FS containing plugins that can be
 // executed to provide functionality. This can be specified multiple times; all
-// FSes will be scanned. If there are conflicts, the last one wins (this
-// property is shared with WithPluginsMap). The prefix will be stripped from
-// each entry when determining the plugin type.
+// FSes will be scanned. Any conflicts will be resolved later (e.g. in
+// BuildPluginsMap, the behavior will be last scanned plugin with the same name
+// wins).If there are conflicts, the last one wins, a property shared with
+// WithPluginsMap). The prefix will be stripped from each entry when determining
+// the plugin type.
 func WithPluginsFilesystem(withPrefix string, withPlugins fs.FS) Option {
 	return func(o *options) error {
 		if withPlugins == nil {
@@ -67,8 +69,10 @@ func WithPluginsFilesystem(withPrefix string, withPlugins fs.FS) Option {
 
 // WithPluginsMap provides a map containing functions that can be called to
 // instantiate plugins directly. This can be specified multiple times; all maps
-// will be scanned. If there are conflicts, the last one wins (this property is
-// shared with WithPluginsFilesystem).
+// will be scanned. Any conflicts will be resolved later (e.g. in
+// BuildPluginsMap, the behavior will be last scanned plugin with the same name
+// wins).If there are conflicts, the last one wins, a property shared with
+// WithPluginsFilesystem).
 func WithPluginsMap(with map[string]InmemCreationFunc) Option {
 	return func(o *options) error {
 		if len(with) == 0 {

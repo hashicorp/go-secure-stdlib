@@ -19,6 +19,9 @@ type (
 	PluginClientCreationFunc func(string, ...Option) (*gp.Client, error)
 )
 
+// PluginInfo contains plugin instantiation information for a single plugin,
+// parsed from the various maps and FSes that can be input to the BuildPluginMap
+// function.
 type PluginInfo struct {
 	ContainerFs              fs.FS
 	Filename                 string
@@ -29,7 +32,8 @@ type PluginInfo struct {
 // BuildPluginMap takes in options that contain one or more sets of plugin maps
 // or filesystems and builds an overall mapping of a plugin name to its
 // information. The desired plugin can then be sent to CreatePlugin to actually
-// instantiate it.
+// instantiate it. If a plugin is specified by name multiple times in option,
+// the last one wins.
 func BuildPluginMap(opt ...Option) (map[string]*PluginInfo, error) {
 	opts, err := GetOpts(opt...)
 	if err != nil {
