@@ -2,6 +2,7 @@ package parseutil
 
 import (
 	"encoding/json"
+	"math/cmplx"
 	"testing"
 	"time"
 )
@@ -461,12 +462,12 @@ func Test_ParseIntSlice(t *testing.T) {
 		{
 			"1,2",
 			true,
-			[]int64{1,2},
+			[]int64{1, 2},
 		},
 		{
 			"1,2,3",
 			true,
-			[]int64{1,2,3},
+			[]int64{1, 2, 3},
 		},
 	}
 
@@ -503,12 +504,18 @@ func equalStringSlice(a, b []string) bool {
 }
 
 func Test_ParseCommaStringSlice(t *testing.T) {
-	cases := []struct{
+	cases := []struct {
 		name     string
-		inp       interface{}
+		inp      interface{}
 		expected []string
 		valid    bool
 	}{
+		{
+			"nil",
+			nil,
+			[]string{},
+			true,
+		},
 		{
 			"empty string",
 			"",
@@ -516,19 +523,19 @@ func Test_ParseCommaStringSlice(t *testing.T) {
 			true,
 		},
 		{
-			"single value",
+			"string without commas",
 			"foo",
 			[]string{"foo"},
 			true,
 		},
 		{
-			"multiple values",
+			"comma-separated string",
 			"foo,bar,baz",
 			[]string{"foo", "bar", "baz"},
 			true,
 		},
 		{
-			"multiple values with trim",
+			"comma-separated string with trim",
 			"  foo ,    bar   ,baz  ",
 			[]string{"foo", "bar", "baz"},
 			true,
@@ -536,12 +543,90 @@ func Test_ParseCommaStringSlice(t *testing.T) {
 		{
 			"json number",
 			json.Number("123"),
+			[]string{"123"},
+			true,
+		},
+		{
+			"int",
+			1,
+			[]string{"1"},
+			true,
+		},
+		{
+			"float",
+			5.5,
+			[]string{"5.5"},
+			true,
+		},
+		{
+			"rune",
+			'a',
+			[]string{"97"},
+			true,
+		},
+		{
+			"bool",
+			true,
+			[]string{"1"},
+			true,
+		},
+		{
+			"complex",
+			cmplx.Sqrt(-1),
 			nil,
 			false,
 		},
 		{
 			"string slice",
 			[]string{"foo", "bar", "baz"},
+			[]string{"foo", "bar", "baz"},
+			true,
+		},
+		{
+			"json number slice",
+			[]json.Number{json.Number("1"), json.Number("2")},
+			[]string{"1", "2"},
+			true,
+		},
+		{
+			"int slice",
+			[]int{1, 2, 3},
+			[]string{"1", "2", "3"},
+			true,
+		},
+		{
+			"float slice",
+			[]float64{1.1, 1.2, 1.3},
+			[]string{"1.1", "1.2", "1.3"},
+			true,
+		},
+		{
+			"rune slice",
+			[]rune{'a', 'b', 'c'},
+			[]string{"97", "98", "99"},
+			true,
+		},
+		{
+			"bool slice",
+			[]bool{true, false, true},
+			[]string{"1", "0", "1"},
+			true,
+		},
+		{
+			"complex slice",
+			[]complex128{cmplx.Sqrt(-1)},
+			nil,
+			false,
+		},
+		{
+			"map",
+			map[string]interface{}{"foo": "bar"},
+			nil,
+			false,
+		},
+		{
+			"struct",
+			struct{ name string }{"foo"},
 			nil,
 			false,
 		},
@@ -565,7 +650,6 @@ func Test_ParseCommaStringSlice(t *testing.T) {
 			if !equalStringSlice(outp, tc.expected) {
 				t.Errorf("input %v parsed as %v, expected %v", tc.inp, outp, tc.expected)
 			}
-
 		})
 	}
 }
