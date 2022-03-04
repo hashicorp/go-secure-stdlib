@@ -343,7 +343,6 @@ func ParseCommaStringSlice(in interface{}) ([]string, error) {
 	}
 
 	rawString, ok := in.(string)
-
 	if ok && rawString == "" {
 		return []string{}, nil
 	}
