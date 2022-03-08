@@ -15,7 +15,16 @@ import (
 )
 
 type (
-	InmemCreationFunc        func() (interface{}, error)
+	// InmemCreationFunc is a function that, when run, returns the thing you
+	// want created (almost certainly an interface that is also supported by a
+	// go-plugin plugin implementation)
+	InmemCreationFunc func() (interface{}, error)
+
+	// PluginClientCreationFunc is a function that, when run, returns a client
+	// corresponding to a spun out go-plugin plugin. The string argument is the
+	// filename. WithSecureConfig is supported as an option that will be round
+	// tripped to the given function if provided to this package so that it can
+	// be given to go-plugin.
 	PluginClientCreationFunc func(string, ...Option) (*gp.Client, error)
 )
 
