@@ -148,24 +148,39 @@ func ParseKMSes(d string, opt ...Option) ([]*KMS, error) {
 		return nil, fmt.Errorf("error parsing: file doesn't contain a root object")
 	}
 
-	if o := list.Filter("seal"); len(o.Items) > 0 {
-		if err := parseKMS(&result.Seals, o, "seal", append(opt, WithMaxKmsBlocks(3))...); err != nil {
+	return filterKMSes(list, opt...)
+}
+
+// filterKMSes unifies the logic formerly in ParseConfig and ParseKMSes to
+// populate the actual KMSes once the HCL decoding has been performed
+func filterKMSes(list *ast.ObjectList, opt ...Option) ([]*KMS, error) {
+	seals := new([]*KMS)
+
+	// opt is used after the WithMaxKmsBlocks option so that what a user passes
+	// in can override the defaults here
+	if o := list.Filter("hsm"); len(o.Items) > 0 {
+		if err := parseKMS(seals, o, "hsm", append([]Option{WithMaxKmsBlocks(2)}, opt...)...); err != nil {
 			return nil, fmt.Errorf("error parsing 'seal': %w", err)
 		}
 	}
-
+	if o := list.Filter("seal"); len(o.Items) > 0 {
+		if err := parseKMS(seals, o, "seal", append([]Option{WithMaxKmsBlocks(3)}, opt...)...); err != nil {
+			return nil, fmt.Errorf("error parsing 'seal': %w", err)
+		}
+	}
 	if o := list.Filter("kms"); len(o.Items) > 0 {
-		if err := parseKMS(&result.Seals, o, "kms", append(opt, WithMaxKmsBlocks(4))...); err != nil {
+		if err := parseKMS(seals, o, "kms", append([]Option{WithMaxKmsBlocks(5)}, opt...)...); err != nil {
 			return nil, fmt.Errorf("error parsing 'kms': %w", err)
 		}
 	}
 
-	return result.Seals, nil
+	return *seals, nil
 }
 
 // configureWrapper takes in the KMS configuration, info values, and plugins in
-// an fs.FS and returns a wrapper, a cleanup function to execute on shutdown of
-// the enclosing program, and an error.
+// an fs.FS (for external plugins) or an instantiation map (for internal
+// functions) and returns a wrapper, a cleanup function to execute on shutdown
+// of the enclosing program, and an error.
 func configureWrapper(
 	ctx context.Context,
 	configKMS *KMS,
@@ -193,8 +208,7 @@ func configureWrapper(
 		return nil, nil, fmt.Errorf("error parsing config options: %w", err)
 	}
 
-	// First, scan available plugins, then find the right one to use, and set
-	// the need init/finalize flag if needed
+	// First, scan available plugins and build info
 	pluginMap, err := pluginutil.BuildPluginMap(
 		append(
 			opts.withPluginOptions,
@@ -229,6 +243,8 @@ func configureWrapper(
 		return nil, cleanup, err
 	}
 
+	// Figure out whether it was internal and directly handles that interface or
+	// if we need to dispense a plugin instance
 	var raw interface{}
 	switch client := plugClient.(type) {
 	case plugin.ClientProtocol:
@@ -262,6 +278,7 @@ func configureWrapper(
 	return wrapper, cleanup, nil
 }
 
+// populateInfo is a shared function to populate some common information
 func populateInfo(kms *KMS, infoKeys *[]string, info *map[string]string, kmsInfo map[string]string) {
 	parsedInfo := make(map[string]string)
 	switch kms.Type {

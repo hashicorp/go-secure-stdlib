@@ -51,7 +51,8 @@ func WithPluginOptions(opts ...pluginutil.Option) Option {
 	}
 }
 
-// WithLogger provides a way to override default logger for some purposes (e.g. kms plugins)
+// WithLogger provides a way to override default logger for some purposes (e.g.
+// kms plugins)
 func WithLogger(logger hclog.Logger) Option {
 	return func(o *options) error {
 		o.withLogger = logger

@@ -72,11 +72,6 @@ func LoadConfigKMSes(path string, opt ...Option) ([]*KMS, error) {
 }
 
 func ParseConfig(d string, opt ...Option) (*SharedConfig, error) {
-	opts, err := getOpts(opt...)
-	if err != nil {
-		return nil, err
-	}
-
 	// Parse!
 	obj, err := hcl.Parse(d)
 	if err != nil {
@@ -113,34 +108,8 @@ func ParseConfig(d string, opt ...Option) (*SharedConfig, error) {
 		return nil, fmt.Errorf("error parsing: file doesn't contain a root object")
 	}
 
-	if o := list.Filter("hsm"); len(o.Items) > 0 {
-		maxBlocks := opts.withMaxKmsBlocks
-		if maxBlocks == 0 {
-			maxBlocks = 2
-		}
-		if err := parseKMS(&result.Seals, o, "hsm", append(opt, WithMaxKmsBlocks(maxBlocks))...); err != nil {
-			return nil, fmt.Errorf("error parsing 'hsm': %w", err)
-		}
-	}
-
-	if o := list.Filter("seal"); len(o.Items) > 0 {
-		maxBlocks := opts.withMaxKmsBlocks
-		if maxBlocks == 0 {
-			maxBlocks = 3
-		}
-		if err := parseKMS(&result.Seals, o, "seal", append(opt, WithMaxKmsBlocks(maxBlocks))...); err != nil {
-			return nil, fmt.Errorf("error parsing 'seal': %w", err)
-		}
-	}
-
-	if o := list.Filter("kms"); len(o.Items) > 0 {
-		maxBlocks := opts.withMaxKmsBlocks
-		if maxBlocks == 0 {
-			maxBlocks = 5
-		}
-		if err := parseKMS(&result.Seals, o, "kms", append(opt, WithMaxKmsBlocks(maxBlocks))...); err != nil {
-			return nil, fmt.Errorf("error parsing 'kms': %w", err)
-		}
+	if result.Seals, err = filterKMSes(list, opt...); err != nil {
+		return nil, fmt.Errorf("error parsing kms information: %w", err)
 	}
 
 	if o := list.Filter("entropy"); len(o.Items) > 0 {
