@@ -96,11 +96,21 @@ func BuildPluginMap(opt ...Option) (map[string]*PluginInfo, error) {
 // If the WithSecureConfig option is passed, this will be round-tripped into the
 // PluginClientCreationFunction from the given *PluginInfo, where it can be sent
 // into the go-plugin client configuration.
+//
+// The caller should ensure that cleanup() is executed when they are done using
+// the plugin. In the case of an in-memory plugin it will be nil, however, if
+// the plugin is via RPC it will ensure that it is torn down properly.
 func CreatePlugin(plugin *PluginInfo, opt ...Option) (interface{}, func() error, error) {
 	switch {
+	case plugin == nil:
+		return nil, nil, fmt.Errorf("plugin is nil")
+
 	case plugin.InmemCreationFunc != nil:
 		raw, err := plugin.InmemCreationFunc()
 		return raw, nil, err
+
+	case plugin.ContainerFs == nil:
+		return nil, nil, fmt.Errorf("plugin container filesystem is nil")
 
 	case plugin.Filename == "" || plugin.PluginClientCreationFunc == nil:
 		return nil, nil, fmt.Errorf("no inmem creation func and either filename or plugin creation func not provided")
@@ -116,6 +126,7 @@ func CreatePlugin(plugin *PluginInfo, opt ...Option) (interface{}, func() error,
 	if err != nil {
 		return nil, nil, err
 	}
+	defer file.Close()
 	stat, err := file.Stat()
 	if err != nil {
 		return nil, nil, fmt.Errorf("error discovering plugin information: %w", err)
@@ -129,11 +140,7 @@ func CreatePlugin(plugin *PluginInfo, opt ...Option) (interface{}, func() error,
 	buf := make([]byte, expLen)
 	readLen, err := file.Read(buf)
 	if err != nil {
-		file.Close()
 		return nil, nil, fmt.Errorf("error reading plugin bytes: %w", err)
-	}
-	if err := file.Close(); err != nil {
-		return nil, nil, fmt.Errorf("error closing plugin file: %w", err)
 	}
 	if int64(readLen) != expLen {
 		return nil, nil, fmt.Errorf("reading plugin, expected %d bytes, read %d", expLen, readLen)
