@@ -1,22 +1,18 @@
 package configutil
 
 import (
+	"context"
 	"crypto/rand"
 	"fmt"
 	"io"
 	"strings"
 
-	"github.com/hashicorp/go-hclog"
-	wrapping "github.com/hashicorp/go-kms-wrapping"
-	aeadwrapper "github.com/hashicorp/go-kms-wrapping/wrappers/aead"
-	"github.com/hashicorp/go-kms-wrapping/wrappers/alicloudkms"
-	"github.com/hashicorp/go-kms-wrapping/wrappers/awskms"
-	"github.com/hashicorp/go-kms-wrapping/wrappers/azurekeyvault"
-	"github.com/hashicorp/go-kms-wrapping/wrappers/gcpckms"
-	"github.com/hashicorp/go-kms-wrapping/wrappers/ocikms"
-	"github.com/hashicorp/go-kms-wrapping/wrappers/transit"
+	gkwp "github.com/hashicorp/go-kms-wrapping/plugin/v2"
+	wrapping "github.com/hashicorp/go-kms-wrapping/v2"
 	"github.com/hashicorp/go-multierror"
+	"github.com/hashicorp/go-plugin"
 	"github.com/hashicorp/go-secure-stdlib/parseutil"
+	"github.com/hashicorp/go-secure-stdlib/pluginutil/v2"
 	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/ast"
 )
@@ -54,9 +50,19 @@ func (k *KMS) GoString() string {
 	return fmt.Sprintf("*%#v", *k)
 }
 
-func parseKMS(result *[]*KMS, list *ast.ObjectList, blockName string, maxKMS int) error {
-	if len(list.Items) > maxKMS {
-		return fmt.Errorf("only %d or less %q blocks are permitted", maxKMS, blockName)
+func parseKMS(result *[]*KMS, list *ast.ObjectList, blockName string, opt ...Option) error {
+	opts, err := getOpts(opt...)
+	if err != nil {
+		return err
+	}
+
+	switch {
+	case opts.withMaxKmsBlocks > 0:
+		if len(list.Items) > int(opts.withMaxKmsBlocks) {
+			return fmt.Errorf("only %d or less %q blocks are permitted", opts.withMaxKmsBlocks, blockName)
+		}
+	default:
+		// Allow unlimited
 	}
 
 	seals := make([]*KMS, 0, len(list.Items))
@@ -112,6 +118,7 @@ func parseKMS(result *[]*KMS, list *ast.ObjectList, blockName string, maxKMS int
 		if len(strMap) > 0 {
 			seal.Config = strMap
 		}
+
 		seals = append(seals, seal)
 	}
 
@@ -120,7 +127,7 @@ func parseKMS(result *[]*KMS, list *ast.ObjectList, blockName string, maxKMS int
 	return nil
 }
 
-func ParseKMSes(d string) ([]*KMS, error) {
+func ParseKMSes(d string, opt ...Option) ([]*KMS, error) {
 	// Parse!
 	obj, err := hcl.Parse(d)
 	if err != nil {
@@ -141,190 +148,193 @@ func ParseKMSes(d string) ([]*KMS, error) {
 		return nil, fmt.Errorf("error parsing: file doesn't contain a root object")
 	}
 
-	if o := list.Filter("seal"); len(o.Items) > 0 {
-		if err := parseKMS(&result.Seals, o, "seal", 3); err != nil {
+	return filterKMSes(list, opt...)
+}
+
+// filterKMSes unifies the logic formerly in ParseConfig and ParseKMSes to
+// populate the actual KMSes once the HCL decoding has been performed
+func filterKMSes(list *ast.ObjectList, opt ...Option) ([]*KMS, error) {
+	seals := new([]*KMS)
+
+	// opt is used after the WithMaxKmsBlocks option so that what a user passes
+	// in can override the defaults here
+	if o := list.Filter("hsm"); len(o.Items) > 0 {
+		if err := parseKMS(seals, o, "hsm", append([]Option{WithMaxKmsBlocks(2)}, opt...)...); err != nil {
 			return nil, fmt.Errorf("error parsing 'seal': %w", err)
 		}
 	}
-
+	if o := list.Filter("seal"); len(o.Items) > 0 {
+		if err := parseKMS(seals, o, "seal", append([]Option{WithMaxKmsBlocks(3)}, opt...)...); err != nil {
+			return nil, fmt.Errorf("error parsing 'seal': %w", err)
+		}
+	}
 	if o := list.Filter("kms"); len(o.Items) > 0 {
-		if err := parseKMS(&result.Seals, o, "kms", 4); err != nil {
+		if err := parseKMS(seals, o, "kms", append([]Option{WithMaxKmsBlocks(5)}, opt...)...); err != nil {
 			return nil, fmt.Errorf("error parsing 'kms': %w", err)
 		}
 	}
 
-	return result.Seals, nil
+	return *seals, nil
 }
 
-func configureWrapper(configKMS *KMS, infoKeys *[]string, info *map[string]string, logger hclog.Logger) (wrapping.Wrapper, error) {
-	var wrapper wrapping.Wrapper
-	var kmsInfo map[string]string
-	var err error
-
-	opts := &wrapping.WrapperOptions{
-		Logger: logger,
-	}
-
-	switch configKMS.Type {
-	case wrapping.Shamir:
-		return nil, nil
-
-	case wrapping.AEAD:
-		wrapper, kmsInfo, err = GetAEADKMSFunc(opts, configKMS)
-
-	case wrapping.AliCloudKMS:
-		wrapper, kmsInfo, err = GetAliCloudKMSFunc(opts, configKMS)
-
-	case wrapping.AWSKMS:
-		wrapper, kmsInfo, err = GetAWSKMSFunc(opts, configKMS)
-
-	case wrapping.AzureKeyVault:
-		wrapper, kmsInfo, err = GetAzureKeyVaultKMSFunc(opts, configKMS)
-
-	case wrapping.GCPCKMS:
-		wrapper, kmsInfo, err = GetGCPCKMSKMSFunc(opts, configKMS)
-
-	case wrapping.OCIKMS:
-		wrapper, kmsInfo, err = GetOCIKMSKMSFunc(opts, configKMS)
-
-	case wrapping.Transit:
-		wrapper, kmsInfo, err = GetTransitKMSFunc(opts, configKMS)
-
-	case wrapping.PKCS11:
-		return nil, fmt.Errorf("KMS type 'pkcs11' requires the Vault Enterprise HSM binary")
-
-	default:
-		return nil, fmt.Errorf("Unknown KMS type %q", configKMS.Type)
-	}
-
-	if err != nil {
-		return nil, err
-	}
-
-	if infoKeys != nil && info != nil {
-		for k, v := range kmsInfo {
-			*infoKeys = append(*infoKeys, k)
-			(*info)[k] = v
+// configureWrapper takes in the KMS configuration, info values, and plugins in
+// an fs.FS (for external plugins) or an instantiation map (for internal
+// functions) and returns a wrapper, a cleanup function to execute on shutdown
+// of the enclosing program, and an error.
+func configureWrapper(
+	ctx context.Context,
+	configKMS *KMS,
+	infoKeys *[]string,
+	info *map[string]string,
+	opt ...Option,
+) (
+	wrapper wrapping.Wrapper,
+	cleanup func() error,
+	retErr error,
+) {
+	defer func() {
+		if retErr != nil && cleanup != nil {
+			_ = cleanup()
 		}
+	}()
+
+	if configKMS == nil {
+		return nil, nil, fmt.Errorf("nil kms configuration passed in")
+	}
+	kmsType := strings.ToLower(configKMS.Type)
+
+	opts, err := getOpts(opt...)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error parsing config options: %w", err)
 	}
 
-	return wrapper, nil
+	// First, scan available plugins and build info
+	pluginMap, err := pluginutil.BuildPluginMap(
+		append(
+			opts.withPluginOptions,
+			pluginutil.WithPluginClientCreationFunc(
+				func(pluginPath string, rtOpt ...pluginutil.Option) (*plugin.Client, error) {
+					rtOpts, err := pluginutil.GetOpts(rtOpt...)
+					if err != nil {
+						return nil, fmt.Errorf("error parsing round-tripped plugin client options: %w", err)
+					}
+					return gkwp.NewWrapperClient(pluginPath,
+						gkwp.WithLogger(opts.withLogger),
+						gkwp.WithSecureConfig(rtOpts.WithSecureConfig),
+					)
+				}),
+		)...)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error building plugin map: %w", err)
+	}
+
+	// Now, find the right plugin
+	var plug *pluginutil.PluginInfo
+	switch kmsType {
+	case wrapping.WrapperTypeShamir.String():
+		return nil, nil, nil
+	default:
+		plug = pluginMap[kmsType]
+	}
+
+	// Create the plugin and cleanup func
+	plugClient, cleanup, err := pluginutil.CreatePlugin(plug)
+	if err != nil {
+		return nil, cleanup, err
+	}
+
+	// Figure out whether it was internal and directly handles that interface or
+	// if we need to dispense a plugin instance
+	var raw interface{}
+	switch client := plugClient.(type) {
+	case plugin.ClientProtocol:
+		raw, err = client.Dispense("wrapping")
+		if err != nil {
+			return nil, cleanup, fmt.Errorf("error dispensing kms plugin: %w", err)
+		}
+	case wrapping.Wrapper:
+		raw = client
+	default:
+		return nil, cleanup, fmt.Errorf("unable to understand type %T of raw plugin", raw)
+	}
+
+	// Set configuration and parse info to be friendlier
+	var ok bool
+	wrapper, ok = raw.(wrapping.Wrapper)
+	if !ok {
+		return nil, cleanup, fmt.Errorf("error converting rpc kms wrapper of type %T to normal wrapper", raw)
+	}
+	wrapperConfigResult, err := wrapper.SetConfig(ctx,
+		wrapping.WithKeyId(configKMS.Config["key_id"]),
+		wrapping.WithConfigMap(configKMS.Config))
+	if err != nil {
+		return nil, cleanup, fmt.Errorf("error setting configuration on the kms plugin: %w", err)
+	}
+	kmsInfo := wrapperConfigResult.GetMetadata()
+	if len(kmsInfo) > 0 {
+		populateInfo(configKMS, infoKeys, info, kmsInfo)
+	}
+
+	return wrapper, cleanup, nil
 }
 
-func GetAEADKMSFunc(opts *wrapping.WrapperOptions, kms *KMS) (wrapping.Wrapper, map[string]string, error) {
-	wrapper := aeadwrapper.NewWrapper(opts)
-	wrapperInfo, err := wrapper.SetConfig(kms.Config)
-	if err != nil {
-		return nil, nil, err
-	}
-	info := make(map[string]string)
-	if wrapperInfo != nil {
+// populateInfo is a shared function to populate some common information
+func populateInfo(kms *KMS, infoKeys *[]string, info *map[string]string, kmsInfo map[string]string) {
+	parsedInfo := make(map[string]string)
+	switch kms.Type {
+	case wrapping.WrapperTypeAead.String():
 		str := "AEAD Type"
 		if len(kms.Purpose) > 0 {
 			str = fmt.Sprintf("%v %s", kms.Purpose, str)
 		}
-		info[str] = wrapperInfo["aead_type"]
-	}
-	return wrapper, info, nil
-}
+		parsedInfo[str] = kmsInfo["aead_type"]
 
-func GetAliCloudKMSFunc(opts *wrapping.WrapperOptions, kms *KMS) (wrapping.Wrapper, map[string]string, error) {
-	wrapper := alicloudkms.NewWrapper(opts)
-	wrapperInfo, err := wrapper.SetConfig(kms.Config)
-	if err != nil {
-		return nil, nil, err
-	}
-	info := make(map[string]string)
-	if wrapperInfo != nil {
-		info["AliCloud KMS Region"] = wrapperInfo["region"]
-		info["AliCloud KMS KeyID"] = wrapperInfo["kms_key_id"]
-		if domain, ok := wrapperInfo["domain"]; ok {
-			info["AliCloud KMS Domain"] = domain
+	case wrapping.WrapperTypeAliCloudKms.String():
+		parsedInfo["AliCloud KMS Region"] = kmsInfo["region"]
+		parsedInfo["AliCloud KMS KeyID"] = kmsInfo["kms_key_id"]
+		if domain, ok := kmsInfo["domain"]; ok {
+			parsedInfo["AliCloud KMS Domain"] = domain
+		}
+
+	case wrapping.WrapperTypeAwsKms.String():
+		parsedInfo["AWS KMS Region"] = kmsInfo["region"]
+		parsedInfo["AWS KMS KeyID"] = kmsInfo["kms_key_id"]
+		if endpoint, ok := kmsInfo["endpoint"]; ok {
+			parsedInfo["AWS KMS Endpoint"] = endpoint
+		}
+
+	case wrapping.WrapperTypeAzureKeyVault.String():
+		parsedInfo["Azure Environment"] = kmsInfo["environment"]
+		parsedInfo["Azure Vault Name"] = kmsInfo["vault_name"]
+		parsedInfo["Azure Key Name"] = kmsInfo["key_name"]
+
+	case wrapping.WrapperTypeGcpCkms.String():
+		parsedInfo["GCP KMS Project"] = kmsInfo["project"]
+		parsedInfo["GCP KMS Region"] = kmsInfo["region"]
+		parsedInfo["GCP KMS Key Ring"] = kmsInfo["key_ring"]
+		parsedInfo["GCP KMS Crypto Key"] = kmsInfo["crypto_key"]
+
+	case wrapping.WrapperTypeOciKms.String():
+		parsedInfo["OCI KMS KeyID"] = kmsInfo["key_id"]
+		parsedInfo["OCI KMS Crypto Endpoint"] = kmsInfo["crypto_endpoint"]
+		parsedInfo["OCI KMS Management Endpoint"] = kmsInfo["management_endpoint"]
+		parsedInfo["OCI KMS Principal Type"] = kmsInfo["principal_type"]
+
+	case wrapping.WrapperTypeTransit.String():
+		parsedInfo["Transit Address"] = kmsInfo["address"]
+		parsedInfo["Transit Mount Path"] = kmsInfo["mount_path"]
+		parsedInfo["Transit Key Name"] = kmsInfo["key_name"]
+		if namespace, ok := kmsInfo["namespace"]; ok {
+			parsedInfo["Transit Namespace"] = namespace
 		}
 	}
-	return wrapper, info, nil
-}
 
-var GetAWSKMSFunc = func(opts *wrapping.WrapperOptions, kms *KMS) (wrapping.Wrapper, map[string]string, error) {
-	wrapper := awskms.NewWrapper(opts)
-	wrapperInfo, err := wrapper.SetConfig(kms.Config)
-	if err != nil {
-		return nil, nil, err
-	}
-	info := make(map[string]string)
-	if wrapperInfo != nil {
-		info["AWS KMS Region"] = wrapperInfo["region"]
-		info["AWS KMS KeyID"] = wrapperInfo["kms_key_id"]
-		if endpoint, ok := wrapperInfo["endpoint"]; ok {
-			info["AWS KMS Endpoint"] = endpoint
+	if infoKeys != nil && info != nil {
+		for k, v := range parsedInfo {
+			*infoKeys = append(*infoKeys, k)
+			(*info)[k] = v
 		}
 	}
-	return wrapper, info, nil
-}
-
-func GetAzureKeyVaultKMSFunc(opts *wrapping.WrapperOptions, kms *KMS) (wrapping.Wrapper, map[string]string, error) {
-	wrapper := azurekeyvault.NewWrapper(opts)
-	wrapperInfo, err := wrapper.SetConfig(kms.Config)
-	if err != nil {
-		return nil, nil, err
-	}
-	info := make(map[string]string)
-	if wrapperInfo != nil {
-		info["Azure Environment"] = wrapperInfo["environment"]
-		info["Azure Vault Name"] = wrapperInfo["vault_name"]
-		info["Azure Key Name"] = wrapperInfo["key_name"]
-	}
-	return wrapper, info, nil
-}
-
-func GetGCPCKMSKMSFunc(opts *wrapping.WrapperOptions, kms *KMS) (wrapping.Wrapper, map[string]string, error) {
-	wrapper := gcpckms.NewWrapper(opts)
-	wrapperInfo, err := wrapper.SetConfig(kms.Config)
-	if err != nil {
-		return nil, nil, err
-	}
-	info := make(map[string]string)
-	if wrapperInfo != nil {
-		info["GCP KMS Project"] = wrapperInfo["project"]
-		info["GCP KMS Region"] = wrapperInfo["region"]
-		info["GCP KMS Key Ring"] = wrapperInfo["key_ring"]
-		info["GCP KMS Crypto Key"] = wrapperInfo["crypto_key"]
-	}
-	return wrapper, info, nil
-}
-
-func GetOCIKMSKMSFunc(opts *wrapping.WrapperOptions, kms *KMS) (wrapping.Wrapper, map[string]string, error) {
-	wrapper := ocikms.NewWrapper(opts)
-	wrapperInfo, err := wrapper.SetConfig(kms.Config)
-	if err != nil {
-		return nil, nil, err
-	}
-	info := make(map[string]string)
-	if wrapperInfo != nil {
-		info["OCI KMS KeyID"] = wrapperInfo[ocikms.KMSConfigKeyID]
-		info["OCI KMS Crypto Endpoint"] = wrapperInfo[ocikms.KMSConfigCryptoEndpoint]
-		info["OCI KMS Management Endpoint"] = wrapperInfo[ocikms.KMSConfigManagementEndpoint]
-		info["OCI KMS Principal Type"] = wrapperInfo["principal_type"]
-	}
-	return wrapper, info, nil
-}
-
-var GetTransitKMSFunc = func(opts *wrapping.WrapperOptions, kms *KMS) (wrapping.Wrapper, map[string]string, error) {
-	wrapper := transit.NewWrapper(opts)
-	wrapperInfo, err := wrapper.SetConfig(kms.Config)
-	if err != nil {
-		return nil, nil, err
-	}
-	info := make(map[string]string)
-	if wrapperInfo != nil {
-		info["Transit Address"] = wrapperInfo["address"]
-		info["Transit Mount Path"] = wrapperInfo["mount_path"]
-		info["Transit Key Name"] = wrapperInfo["key_name"]
-		if namespace, ok := wrapperInfo["namespace"]; ok {
-			info["Transit Namespace"] = namespace
-		}
-	}
-	return wrapper, info, nil
 }
 
 func createSecureRandomReader(conf *SharedConfig, wrapper wrapping.Wrapper) (io.Reader, error) {
