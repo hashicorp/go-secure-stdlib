@@ -50,10 +50,10 @@ type CredentialsConfig struct {
 	// The profile for the shared credentials provider, if being used
 	Profile string
 
-	// The role ARN to use if using the web identity token provider
+	// The role ARN to assume
 	RoleARN string
 
-	// The role session name to use if using the web identity token provider
+	// The role session name to use when assuming another role
 	RoleSessionName string
 
 	// The web identity token file to use if using the web identity token provider
@@ -160,24 +160,46 @@ func (c *CredentialsConfig) GenerateCredentialChain(opt ...Option) (*credentials
 	if roleSessionName == "" {
 		roleSessionName = os.Getenv("AWS_ROLE_SESSION_NAME")
 	}
-	if roleARN != "" && tokenPath != "" {
-		// this session is only created to create the WebIdentityRoleProvider, as the env variables are already there
-		// this automatically assumes the role, but the provider needs to be added to the chain
-		c.log(hclog.Debug, "adding web identity provider", "roleARN", roleARN)
-		sess, err := session.NewSession()
-		if err != nil {
-			return nil, errors.Wrap(err, "error creating a new session to create a WebIdentityRoleProvider")
-		}
-		webIdentityProvider := stscreds.NewWebIdentityRoleProvider(sts.New(sess), roleARN, roleSessionName, tokenPath)
+	if roleARN != "" {
+		if  tokenPath != "" {
+			// this session is only created to create the WebIdentityRoleProvider, as the env variables are already there
+			// this automatically assumes the role, but the provider needs to be added to the chain
+			c.log(hclog.Debug, "adding web identity provider", "roleARN", roleARN)
+			sess, err := session.NewSession()
+			if err != nil {
+				return nil, errors.Wrap(err, "error creating a new session to create a WebIdentityRoleProvider")
+			}
+			webIdentityProvider := stscreds.NewWebIdentityRoleProvider(sts.New(sess), roleARN, roleSessionName, tokenPath)
 
-		// Check if the webIdentityProvider can successfully retrieve
-		// credentials (via sts:AssumeRole), and warn if there's a problem.
-		if _, err := webIdentityProvider.Retrieve(); err != nil {
-			c.log(hclog.Warn, "error assuming role", "roleARN", roleARN, "tokenPath", tokenPath, "sessionName", roleSessionName, "err", err)
-		}
+			// Check if the webIdentityProvider can successfully retrieve
+			// credentials (via sts:AssumeRole), and warn if there's a problem.
+			if _, err := webIdentityProvider.Retrieve(); err != nil {
+				c.log(hclog.Warn, "error assuming role", "roleARN", roleARN, "tokenPath", tokenPath, "sessionName", roleSessionName, "err", err)
+			}
 
-		// Add the web identity role credential provider
-		providers = append(providers, webIdentityProvider)
+			// Add the web identity role credential provider
+			providers = append(providers, webIdentityProvider)
+		}
+		else {
+			// this session is only created to create the instanceRoleProvider, as the env variables are already there
+			// this automatically assumes the role, but the provider needs to be added to the chain
+			c.log(hclog.Debug, "adding ec2-instance role provider", "roleARN", roleARN)
+			sess, err := session.NewSession()
+			if err != nil {
+				return nil, errors.Wrap(err, "error creating a new session for ec2 instance role credentials")
+			}
+			instanceRoleProvider := stscreds.NewCredentials(sess, roleARN, func(p *stscreds.AssumeRoleProvider) {
+				p.RoleSessionName = roleSessionName
+			})
+
+			// Check if the provider can successfully retrieve credentials (via sts:AssumeRole), and warn if there's a problem.
+			if _, err := instanceRoleProvider.Retrieve(); err != nil {
+				c.log(hclog.Warn, "error assuming role", "roleARN", roleARN, "sessionName", roleSessionName, "err", err)
+			}
+
+			// Add the instance role credential provider
+			providers = append(providers, instanceRoleProvider)
+		}
 	}
 
 	if opts.withEnvironmentCredentials {
