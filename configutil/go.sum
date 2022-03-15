@@ -70,10 +70,10 @@ github.com/hashicorp/errwrap v1.1.0/go.mod h1:YH+1FKiLXxHSkmPseP+kNlulaMuP3n2brv
 github.com/hashicorp/go-hclog v0.14.1/go.mod h1:whpDNt7SSdeAju8AWKIWsul05p54N/39EeqMAyrmvFQ=
 github.com/hashicorp/go-hclog v1.1.0 h1:QsGcniKx5/LuX2eYoeL+Np3UKYPNaN7YKpTh29h8rbw=
 github.com/hashicorp/go-hclog v1.1.0/go.mod h1:whpDNt7SSdeAju8AWKIWsul05p54N/39EeqMAyrmvFQ=
-github.com/hashicorp/go-kms-wrapping/plugin/v2 v2.0.1 h1:Ju7ESxBnhjCK9PTOb5jmG7ySLJwqguxg4cg8nBRXxgc=
-github.com/hashicorp/go-kms-wrapping/plugin/v2 v2.0.1/go.mod h1:oiFUOOBkL+sUMdv5UszfaoSjQW0x8/N1Sz2/5sdYYhM=
-github.com/hashicorp/go-kms-wrapping/v2 v2.0.1 h1:ktrFhOtcRRXuW3os8/Raqn+6XetfYaGLJ3DfTh25nGs=
-github.com/hashicorp/go-kms-wrapping/v2 v2.0.1/go.mod h1:9hlMEpnScgVjT7ZckErAsz90ieyDcHSuP+KmjvMysqw=
+github.com/hashicorp/go-kms-wrapping/plugin/v2 v2.0.2 h1:it114Kjpk79JVh6AfxFMP5oi1gb+RPzcSLiG3zF/J0w=
+github.com/hashicorp/go-kms-wrapping/plugin/v2 v2.0.2/go.mod h1:b9mq0bG5xJ10ZcTEQJLZ22O9y71hIt2MGTLqROA/SAM=
+github.com/hashicorp/go-kms-wrapping/v2 v2.0.4 h1:7BSAm60AqJom/TRb73wmaCzwco9A+Qolr/wCi0PORmY=
+github.com/hashicorp/go-kms-wrapping/v2 v2.0.4/go.mod h1:sDQAfwJGv25uGPZA04x87ERglCG6avnRcBT9wYoMII8=
 github.com/hashicorp/go-multierror v1.0.0/go.mod h1:dHtQlpGsu+cZNNAkkCN/P3hoUDHhCYQXV3UM06sGGrk=
 github.com/hashicorp/go-multierror v1.1.1 h1:H5DkEtf6CXdFp0N0Em5UCwQpXMWke8IA0+lD48awMYo=
 github.com/hashicorp/go-multierror v1.1.1/go.mod h1:iw975J/qwKPdAO1clOe2L8331t/9/fmwbPZ6JB6eMoM=
@@ -137,6 +137,7 @@ github.com/mitchellh/mapstructure v1.4.1 h1:CpVNEelQCZBooIPDn+AR3NpivK/TIKU8bDxd
 github.com/mitchellh/mapstructure v1.4.1/go.mod h1:bFUtVrKA4DC2yAKiSyO/QUcy7e+RRV2QTWOzhPopBRo=
 github.com/mitchellh/reflectwalk v1.0.0 h1:9D+8oIskB4VJBN5SFlmc27fSlIBZaov1Wpk/IfikLNY=
 github.com/mitchellh/reflectwalk v1.0.0/go.mod h1:mSTlrgnPZtwu0c4WaC2kGObEpuNDbx0jmZXqmk4esnw=
+github.com/mr-tron/base58 v1.2.0/go.mod h1:BinMc/sQntlIE1frQmRFPUoPA1Zkr8VRgBdjWI2mNwc=
 github.com/oklog/run v1.0.0 h1:Ru7dDtJNOyC66gQ5dQmaCa0qIsAUFY3sFpK1Xk8igrw=
 github.com/oklog/run v1.0.0/go.mod h1:dlhp/R75TPv97u0XWUtDeV/lRKWPKSdTuV0TZvrmrQA=
 github.com/pkg/diff v0.0.0-20210226163009-20ebb0f2a09e/go.mod h1:pJLUxLENpZxwdsKMEsNbx1VGcRFpLqf3715MtcvvzbA=
