@@ -2,7 +2,9 @@ package pluginutil
 
 import (
 	"errors"
+	"fmt"
 	"io/fs"
+	"os"
 
 	gp "github.com/hashicorp/go-plugin"
 )
@@ -31,6 +33,8 @@ type pluginSourceInfo struct {
 
 	pluginFs       fs.FS
 	pluginFsPrefix string
+
+	pluginFileInfo *PluginFileInfo
 }
 
 // options = how options are represented
@@ -50,8 +54,12 @@ func getDefaultOptions() options {
 // FSes will be scanned. Any conflicts will be resolved later (e.g. in
 // BuildPluginsMap, the behavior will be last scanned plugin with the same name
 // wins).If there are conflicts, the last one wins, a property shared with
-// WithPluginsMap). The prefix will be stripped from each entry when determining
-// the plugin type.
+// WithPluginsMap and WithPluginFile). The prefix will be stripped from each
+// entry when determining the plugin type.
+//
+// This doesn't currently support any kind of secure config and is meant for
+// cases where you can build up this FS securely. See WithPluginFile for adding
+// individual files with checksumming.
 func WithPluginsFilesystem(withPrefix string, withPlugins fs.FS) Option {
 	return func(o *options) error {
 		if withPlugins == nil {
@@ -72,7 +80,7 @@ func WithPluginsFilesystem(withPrefix string, withPlugins fs.FS) Option {
 // will be scanned. Any conflicts will be resolved later (e.g. in
 // BuildPluginsMap, the behavior will be last scanned plugin with the same name
 // wins).If there are conflicts, the last one wins, a property shared with
-// WithPluginsFilesystem).
+// WithPluginsFilesystem and WithPluginFile).
 func WithPluginsMap(with map[string]InmemCreationFunc) Option {
 	return func(o *options) error {
 		if len(with) == 0 {
@@ -81,6 +89,49 @@ func WithPluginsMap(with map[string]InmemCreationFunc) Option {
 		o.withPluginSources = append(o.withPluginSources,
 			pluginSourceInfo{
 				pluginMap: with,
+			},
+		)
+		return nil
+	}
+}
+
+// WithPluginFile provides source information for a file on disk (rather than an
+// fs.FS abstraction or an in-memory function). Secure hash info _must_ be
+// provided in this case. If there are conflicts with the name, the last one
+// wins, a property shared with WithPluginsFilesystem and WithPluginsMap).
+func WithPluginFile(with PluginFileInfo) Option {
+	return func(o *options) error {
+		// Start with validating that the file exists
+		switch {
+		case with.Name == "":
+			return errors.New("plugin file name is empty")
+		case with.Path == "":
+			return errors.New("plugin file path is empty")
+		case len(with.Checksum) == 0:
+			return errors.New("plugin file checksum is empty")
+		}
+
+		switch with.HashType {
+		case HashTypeSha2256,
+			HashTypeSha2384,
+			HashTypeSha2512,
+			HashTypeSha3256,
+			HashTypeSha3384,
+			HashTypeSha3512:
+		default:
+			return fmt.Errorf("unsupported hash type %q", string(with.HashType))
+		}
+		info, err := os.Stat(with.Path)
+		if err != nil {
+			return fmt.Errorf("plugin at %q not found on filesystem: %w", with.Path, err)
+		}
+		if info.IsDir() {
+			return fmt.Errorf("plugin at path %q is a directory", with.Path)
+		}
+
+		o.withPluginSources = append(o.withPluginSources,
+			pluginSourceInfo{
+				pluginFileInfo: &with,
 			},
 		)
 		return nil

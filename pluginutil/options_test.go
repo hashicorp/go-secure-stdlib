@@ -1,6 +1,7 @@
 package pluginutil
 
 import (
+	"os"
 	"testing"
 	"testing/fstest"
 
@@ -97,5 +98,104 @@ func Test_GetOpts(t *testing.T) {
 		opts, err = GetOpts(WithSecureConfig(new(gp.SecureConfig)))
 		require.NoError(err)
 		require.NotNil(opts.WithSecureConfig)
+	})
+	t.Run("with-plugin-file", func(t *testing.T) {
+		file, err := os.CreateTemp("", "")
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			os.Remove(file.Name())
+		})
+		currDir, err := os.Getwd()
+		require.NoError(t, err)
+		testCases := []struct {
+			name            string
+			plugin          PluginFileInfo
+			wantErrContains string
+			wantHashType    HashType
+		}{
+			{
+				name:            "no name",
+				plugin:          PluginFileInfo{},
+				wantErrContains: "name is empty",
+			},
+			{
+				name: "no path",
+				plugin: PluginFileInfo{
+					Name: "testing",
+				},
+				wantErrContains: "path is empty",
+			},
+			{
+				name: "no checksum",
+				plugin: PluginFileInfo{
+					Name: "testing",
+					Path: file.Name(),
+				},
+				wantErrContains: "checksum is empty",
+			},
+			{
+				name: "bad hash type",
+				plugin: PluginFileInfo{
+					Name:     "testing",
+					Path:     file.Name(),
+					Checksum: []byte("foobar"),
+					HashType: "foobar",
+				},
+				wantErrContains: "unsupported hash type",
+			},
+			{
+				name: "invalid path - missing",
+				plugin: PluginFileInfo{
+					Name:     "testing",
+					Path:     file.Name() + ".foobar",
+					Checksum: []byte("foobar"),
+					HashType: HashTypeSha2384,
+				},
+				wantErrContains: "not found on filesystem",
+			},
+			{
+				name: "invalid path - dir",
+				plugin: PluginFileInfo{
+					Name:     "testing",
+					Path:     currDir,
+					Checksum: []byte("foobar"),
+					HashType: HashTypeSha2384,
+				},
+				wantErrContains: "is a directory",
+			},
+			{
+				name: "unspecified hash type",
+				plugin: PluginFileInfo{
+					Name:     "testing",
+					Path:     file.Name(),
+					Checksum: []byte("foobar"),
+					HashType: HashTypeSha2384,
+				},
+				wantHashType: HashTypeSha2256,
+			},
+			{
+				name: "specified hash type",
+				plugin: PluginFileInfo{
+					Name:     "testing",
+					Path:     file.Name(),
+					Checksum: []byte("foobar"),
+					HashType: HashTypeSha3384,
+				},
+				wantHashType: HashTypeSha3384,
+			},
+		}
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				assert, require := assert.New(t), require.New(t)
+				opts, err := GetOpts(WithPluginFile(tc.plugin))
+				if tc.wantErrContains != "" {
+					assert.Contains(err.Error(), tc.wantErrContains)
+					return
+				}
+				require.NoError(err)
+				require.NotNil(opts)
+				assert.NotNil(opts.withPluginSources)
+			})
+		}
 	})
 }

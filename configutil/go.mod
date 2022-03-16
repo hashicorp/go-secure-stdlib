@@ -10,9 +10,11 @@ require (
 	github.com/hashicorp/go-plugin v1.4.3
 	github.com/hashicorp/go-secure-stdlib/listenerutil v0.1.4
 	github.com/hashicorp/go-secure-stdlib/parseutil v0.1.2
-	github.com/hashicorp/go-secure-stdlib/pluginutil/v2 v2.0.0
+	github.com/hashicorp/go-secure-stdlib/pluginutil/v2 v2.0.1-0.20220317202442-3050f509c668
 	github.com/hashicorp/hcl v1.0.0
+	github.com/kr/pretty v0.3.0
 	github.com/stretchr/testify v1.7.0
+	golang.org/x/crypto v0.0.0-20220313003712-b769efc7c000
 	google.golang.org/protobuf v1.27.1
 )
 
@@ -36,6 +38,7 @@ require (
 	github.com/huandu/xstrings v1.3.2 // indirect
 	github.com/imdario/mergo v0.3.11 // indirect
 	github.com/jefferai/isbadcipher v0.0.0-20190226160619-51d2077c035f // indirect
+	github.com/kr/text v0.2.0 // indirect
 	github.com/mattn/go-colorable v0.1.6 // indirect
 	github.com/mattn/go-isatty v0.0.12 // indirect
 	github.com/mitchellh/cli v1.1.2 // indirect
@@ -48,7 +51,6 @@ require (
 	github.com/posener/complete v1.1.1 // indirect
 	github.com/rogpeppe/go-internal v1.8.1 // indirect
 	github.com/ryanuber/go-glob v1.0.0 // indirect
-	golang.org/x/crypto v0.0.0-20220313003712-b769efc7c000 // indirect
 	golang.org/x/net v0.0.0-20220127200216-cd36cc0744dd // indirect
 	golang.org/x/sys v0.0.0-20220204135822-1c1b9b1eba6a // indirect
 	golang.org/x/text v0.3.7 // indirect

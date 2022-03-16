@@ -3,7 +3,10 @@ package pluginutil
 import (
 	"bytes"
 	"compress/gzip"
+	"crypto/sha256"
+	"crypto/sha512"
 	"fmt"
+	"hash"
 	"io/fs"
 	"io/ioutil"
 	"os"
@@ -12,7 +15,31 @@ import (
 	"strings"
 
 	gp "github.com/hashicorp/go-plugin"
+	"golang.org/x/crypto/sha3"
 )
+
+// HashType is a string representation of a hash type
+type HashType string
+
+const (
+	HashTypeSha2256 HashType = "sha2-256"
+	HashTypeSha2384 HashType = "sha2-384"
+	HashTypeSha2512 HashType = "sha2-512"
+	HashTypeSha3256 HashType = "sha3-256"
+	HashTypeSha3384 HashType = "sha3-384"
+	HashTypeSha3512 HashType = "sha3-512"
+)
+
+// PluginFileInfo represents user-specified on-disk file information. Note that
+// testing for how this works in go-plugin, e.g. passing it into SecureConfig,
+// is in configutil to avoid pulling in go-kms-wrapping as a dep of this
+// package.
+type PluginFileInfo struct {
+	Name     string
+	Path     string
+	Checksum []byte
+	HashType HashType
+}
 
 type (
 	// InmemCreationFunc is a function that, when run, returns the thing you
@@ -33,7 +60,8 @@ type (
 // function.
 type PluginInfo struct {
 	ContainerFs              fs.FS
-	Filename                 string
+	Path                     string
+	SecureConfig             *gp.SecureConfig
 	InmemCreationFunc        InmemCreationFunc
 	PluginClientCreationFunc PluginClientCreationFunc
 }
@@ -72,13 +100,39 @@ func BuildPluginMap(opt ...Option) (map[string]*PluginInfo, error) {
 				}
 				pluginMap[pluginType] = &PluginInfo{
 					ContainerFs:              sourceInfo.pluginFs,
-					Filename:                 entry.Name(),
+					Path:                     entry.Name(),
 					PluginClientCreationFunc: opts.withPluginClientCreationFunc,
 				}
 			}
 		case sourceInfo.pluginMap != nil:
 			for k, creationFunc := range sourceInfo.pluginMap {
 				pluginMap[k] = &PluginInfo{InmemCreationFunc: creationFunc}
+			}
+
+		case sourceInfo.pluginFileInfo != nil:
+			fileInfo := sourceInfo.pluginFileInfo
+			var h hash.Hash
+			switch fileInfo.HashType {
+			case HashTypeSha2256:
+				h = sha256.New()
+			case HashTypeSha2384:
+				h = sha512.New384()
+			case HashTypeSha2512:
+				h = sha512.New()
+			case HashTypeSha3256:
+				h = sha3.New256()
+			case HashTypeSha3384:
+				h = sha3.New384()
+			case HashTypeSha3512:
+				h = sha3.New512()
+			}
+			pluginMap[fileInfo.Name] = &PluginInfo{
+				Path:                     fileInfo.Path,
+				PluginClientCreationFunc: opts.withPluginClientCreationFunc,
+				SecureConfig: &gp.SecureConfig{
+					Checksum: fileInfo.Checksum,
+					Hash:     h,
+				},
 			}
 		}
 	}
@@ -101,28 +155,50 @@ func BuildPluginMap(opt ...Option) (map[string]*PluginInfo, error) {
 // the plugin. In the case of an in-memory plugin it will be nil, however, if
 // the plugin is via RPC it will ensure that it is torn down properly.
 func CreatePlugin(plugin *PluginInfo, opt ...Option) (interface{}, func() error, error) {
-	switch {
-	case plugin == nil:
-		return nil, nil, fmt.Errorf("plugin is nil")
-
-	case plugin.InmemCreationFunc != nil:
-		raw, err := plugin.InmemCreationFunc()
-		return raw, nil, err
-
-	case plugin.ContainerFs == nil:
-		return nil, nil, fmt.Errorf("plugin container filesystem is nil")
-
-	case plugin.Filename == "" || plugin.PluginClientCreationFunc == nil:
-		return nil, nil, fmt.Errorf("no inmem creation func and either filename or plugin creation func not provided")
-	}
-
 	opts, err := GetOpts(opt...)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error parsing plugin options: %w", err)
 	}
 
-	// Open and basic validation
-	file, err := plugin.ContainerFs.Open(plugin.Filename)
+	var file fs.File
+	var name string
+
+	switch {
+	case plugin == nil:
+		return nil, nil, fmt.Errorf("plugin is nil")
+
+	// Prioritize in-memory functions
+	case plugin.InmemCreationFunc != nil:
+		raw, err := plugin.InmemCreationFunc()
+		return raw, nil, err
+
+	// If not in-memory we need a filename, whether direct on disk or from a container FS
+	case plugin.Path == "":
+		return nil, nil, fmt.Errorf("no inmem creation func and file path not provided")
+
+	// We need the client creation func to use once we've spun out the plugin
+	case plugin.PluginClientCreationFunc == nil:
+		return nil, nil, fmt.Errorf("plugin creation func not provided")
+
+	// Either we need to have either a validated FS to read from or secure config
+	case plugin.ContainerFs == nil && plugin.SecureConfig == nil:
+		return nil, nil, fmt.Errorf("plugin container filesystem and secure config are both nil")
+
+	// If we have a constructed filesystem, read from there
+	case plugin.ContainerFs != nil:
+		file, err = plugin.ContainerFs.Open(plugin.Path)
+		name = plugin.Path
+
+	// If we have secure config, read from disk
+	case plugin.SecureConfig != nil:
+		file, err = os.Open(plugin.Path)
+		name = filepath.Base(plugin.Path)
+
+	default:
+		return nil, nil, fmt.Errorf("unhandled path in create plugin switch")
+	}
+
+	// This is the error from opening the file
 	if err != nil {
 		return nil, nil, err
 	}
@@ -147,7 +223,7 @@ func CreatePlugin(plugin *PluginInfo, opt ...Option) (interface{}, func() error,
 	}
 
 	// If it's compressed, uncompress it
-	if strings.HasSuffix(plugin.Filename, ".gz") {
+	if strings.HasSuffix(name, ".gz") {
 		gzipReader, err := gzip.NewReader(bytes.NewReader(buf))
 		if err != nil {
 			return nil, nil, fmt.Errorf("error creating gzip decompression reader: %w", err)
@@ -177,7 +253,7 @@ func CreatePlugin(plugin *PluginInfo, opt ...Option) (interface{}, func() error,
 		}
 		dir = tmpDir
 	}
-	pluginPath := filepath.Join(dir, plugin.Filename)
+	pluginPath := filepath.Join(dir, name)
 	if runtime.GOOS == "windows" {
 		pluginPath += ".exe"
 	}
@@ -185,8 +261,12 @@ func CreatePlugin(plugin *PluginInfo, opt ...Option) (interface{}, func() error,
 		return nil, cleanup, fmt.Errorf("error writing out plugin for execution: %w", err)
 	}
 
-	// Execute the plugin
-	client, err := plugin.PluginClientCreationFunc(pluginPath, opt...)
+	// Execute the plugin, passing in secure config if available
+	creationFuncOpts := opt
+	if plugin.SecureConfig != nil {
+		creationFuncOpts = append(creationFuncOpts, WithSecureConfig(plugin.SecureConfig))
+	}
+	client, err := plugin.PluginClientCreationFunc(pluginPath, creationFuncOpts...)
 	if err != nil {
 		return nil, cleanup, fmt.Errorf("error fetching kms plugin client: %w", err)
 	}

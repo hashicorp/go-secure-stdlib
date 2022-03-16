@@ -271,7 +271,7 @@ func configureWrapper(
 		return nil, cleanup, fmt.Errorf("error setting configuration on the kms plugin: %w", err)
 	}
 	kmsInfo := wrapperConfigResult.GetMetadata()
-	if len(kmsInfo) > 0 {
+	if len(kmsInfo) > 0 && infoKeys != nil && info != nil && *info != nil {
 		populateInfo(configKMS, infoKeys, info, kmsInfo)
 	}
 
