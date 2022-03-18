@@ -3,6 +3,8 @@ package configutil
 import (
 	"context"
 	"crypto/rand"
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -42,8 +44,28 @@ type KMS struct {
 	// one KMS to be specified
 	Purpose []string `hcl:"-"`
 
+	// Disabled can be used by an application to understand intent. This was
+	// mostly for Vault to enable seal migration and should be considered
+	// deprecated in favor of using purposes.
 	Disabled bool
-	Config   map[string]string
+
+	// PluginPath can be used, if using a file on disk as a wrapper plugin, to
+	// specify a path to the file. This can also be specified via pluginutil
+	// options from the application.
+	PluginPath string `hcl:"plugin_path"`
+	// PluginChecksum is a hex-encoded checksum using the specified
+	// PluginHashMethod. Required when specifying a file path. It's hex-encoded
+	// since most command-line tools output e.g. SHA sums as hex so it's
+	// generally easier for the user to specify.
+	PluginChecksum      string `hcl:"plugin_checksum"`
+	pluginChecksumBytes []byte `hcl:"-"` // To store decoded checksum bytes
+	// PluginHashMethod specifies the hash algorithm to use. See pluginutil
+	// for currently-supported hash mechanisms and their string representations.
+	// Empty will default to "sha2-256".
+	PluginHashMethod string `hcl:"plugin_hash_method"`
+
+	// Config is passed to the underlying wrappers
+	Config map[string]string
 }
 
 func (k *KMS) GoString() string {
@@ -101,6 +123,50 @@ func parseKMS(result *[]*KMS, list *ast.ObjectList, blockName string, opt ...Opt
 			delete(m, "disabled")
 		}
 
+		seal := &KMS{
+			Type:     strings.ToLower(key),
+			Purpose:  purpose,
+			Disabled: disabled,
+		}
+
+		const (
+			pluginPath       = "plugin_path"
+			pluginChecksum   = "plugin_checksum"
+			pluginHashMethod = "plugin_hash_method"
+		)
+		for _, v := range []string{pluginPath, pluginChecksum, pluginHashMethod} {
+			currVal := m[v]
+			if currVal == nil {
+				continue
+			}
+			s, err := parseutil.ParseString(currVal)
+			if err != nil {
+				return multierror.Prefix(err, fmt.Sprintf("%s.%s:", blockName, key))
+			}
+			switch v {
+			case pluginPath:
+				seal.PluginPath = s
+				delete(m, pluginPath)
+			case pluginChecksum:
+				seal.PluginChecksum = s
+				delete(m, pluginChecksum)
+				seal.pluginChecksumBytes, err = hex.DecodeString(seal.PluginChecksum)
+				if err != nil {
+					return multierror.Prefix(fmt.Errorf("error parsing %s as hex: %w", pluginChecksum, err), fmt.Sprintf("%s.%s:", blockName, key))
+				}
+			case pluginHashMethod:
+				seal.PluginHashMethod = s
+				delete(m, pluginHashMethod)
+			}
+		}
+		switch {
+		case seal.PluginPath != "" && seal.PluginChecksum == "":
+			return multierror.Prefix(fmt.Errorf("%s specified but %s empty", pluginPath, pluginChecksum), fmt.Sprintf("%s.%s:", blockName, key))
+		case seal.PluginPath == "" && seal.PluginChecksum != "":
+			return multierror.Prefix(fmt.Errorf("%s specified but %s empty", pluginChecksum, pluginPath), fmt.Sprintf("%s.%s:", blockName, key))
+		}
+
+		// Put the rest into config
 		strMap := make(map[string]string, len(m))
 		for k, v := range m {
 			s, err := parseutil.ParseString(v)
@@ -108,12 +174,6 @@ func parseKMS(result *[]*KMS, list *ast.ObjectList, blockName string, opt ...Opt
 				return multierror.Prefix(err, fmt.Sprintf("%s.%s:", blockName, key))
 			}
 			strMap[k] = s
-		}
-
-		seal := &KMS{
-			Type:     strings.ToLower(key),
-			Purpose:  purpose,
-			Disabled: disabled,
 		}
 		if len(strMap) > 0 {
 			seal.Config = strMap
@@ -208,10 +268,35 @@ func configureWrapper(
 		return nil, nil, fmt.Errorf("error parsing config options: %w", err)
 	}
 
+	// If the KMS block contained plugin file information, add it
+	pluginOpts := opts.withPluginOptions
+	switch {
+	case configKMS.PluginPath == "" && configKMS.PluginChecksum == "":
+	case configKMS.PluginPath == "" && configKMS.PluginChecksum != "":
+		return nil, nil, errors.New("plugin checksum specified in kms but plugin path empty")
+	case configKMS.PluginPath != "" && configKMS.PluginChecksum == "" && len(configKMS.pluginChecksumBytes) == 0:
+		return nil, nil, errors.New("plugin path specified in kms but plugin checksum empty")
+	default:
+		if len(configKMS.pluginChecksumBytes) == 0 {
+			configKMS.pluginChecksumBytes, err = hex.DecodeString(configKMS.PluginChecksum)
+			if err != nil {
+				return nil, nil, fmt.Errorf("error parsing plugin checksum as hex: %w", err)
+			}
+		}
+		pluginOpts = append(pluginOpts, pluginutil.WithPluginFile(
+			pluginutil.PluginFileInfo{
+				Name:       configKMS.Type,
+				Path:       configKMS.PluginPath,
+				Checksum:   configKMS.pluginChecksumBytes,
+				HashMethod: pluginutil.HashMethod(configKMS.PluginHashMethod),
+			},
+		))
+	}
+
 	// First, scan available plugins and build info
 	pluginMap, err := pluginutil.BuildPluginMap(
 		append(
-			opts.withPluginOptions,
+			pluginOpts,
 			pluginutil.WithPluginClientCreationFunc(
 				func(pluginPath string, rtOpt ...pluginutil.Option) (*plugin.Client, error) {
 					rtOpts, err := pluginutil.GetOpts(rtOpt...)
