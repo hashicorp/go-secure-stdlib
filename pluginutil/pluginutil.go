@@ -18,16 +18,17 @@ import (
 	"golang.org/x/crypto/sha3"
 )
 
-// HashType is a string representation of a hash type
-type HashType string
+// HashMethod is a string representation of a hash method
+type HashMethod string
 
 const (
-	HashTypeSha2256 HashType = "sha2-256"
-	HashTypeSha2384 HashType = "sha2-384"
-	HashTypeSha2512 HashType = "sha2-512"
-	HashTypeSha3256 HashType = "sha3-256"
-	HashTypeSha3384 HashType = "sha3-384"
-	HashTypeSha3512 HashType = "sha3-512"
+	HashMethodUnspecified HashMethod = ""
+	HashMethodSha2256     HashMethod = "sha2-256"
+	HashMethodSha2384     HashMethod = "sha2-384"
+	HashMethodSha2512     HashMethod = "sha2-512"
+	HashMethodSha3256     HashMethod = "sha3-256"
+	HashMethodSha3384     HashMethod = "sha3-384"
+	HashMethodSha3512     HashMethod = "sha3-512"
 )
 
 // PluginFileInfo represents user-specified on-disk file information. Note that
@@ -35,10 +36,10 @@ const (
 // is in configutil to avoid pulling in go-kms-wrapping as a dep of this
 // package.
 type PluginFileInfo struct {
-	Name     string
-	Path     string
-	Checksum []byte
-	HashType HashType
+	Name       string
+	Path       string
+	Checksum   []byte
+	HashMethod HashMethod
 }
 
 type (
@@ -112,18 +113,18 @@ func BuildPluginMap(opt ...Option) (map[string]*PluginInfo, error) {
 		case sourceInfo.pluginFileInfo != nil:
 			fileInfo := sourceInfo.pluginFileInfo
 			var h hash.Hash
-			switch fileInfo.HashType {
-			case HashTypeSha2256:
+			switch fileInfo.HashMethod {
+			case HashMethodSha2256:
 				h = sha256.New()
-			case HashTypeSha2384:
+			case HashMethodSha2384:
 				h = sha512.New384()
-			case HashTypeSha2512:
+			case HashMethodSha2512:
 				h = sha512.New()
-			case HashTypeSha3256:
+			case HashMethodSha3256:
 				h = sha3.New256()
-			case HashTypeSha3384:
+			case HashMethodSha3384:
 				h = sha3.New384()
-			case HashTypeSha3512:
+			case HashMethodSha3512:
 				h = sha3.New512()
 			}
 			pluginMap[fileInfo.Name] = &PluginInfo{

@@ -111,7 +111,7 @@ func Test_GetOpts(t *testing.T) {
 			name            string
 			plugin          PluginFileInfo
 			wantErrContains string
-			wantHashType    HashType
+			wantHashMethod  HashMethod
 		}{
 			{
 				name:            "no name",
@@ -136,52 +136,52 @@ func Test_GetOpts(t *testing.T) {
 			{
 				name: "bad hash type",
 				plugin: PluginFileInfo{
-					Name:     "testing",
-					Path:     file.Name(),
-					Checksum: []byte("foobar"),
-					HashType: "foobar",
+					Name:       "testing",
+					Path:       file.Name(),
+					Checksum:   []byte("foobar"),
+					HashMethod: "foobar",
 				},
-				wantErrContains: "unsupported hash type",
+				wantErrContains: "unsupported hash method",
 			},
 			{
 				name: "invalid path - missing",
 				plugin: PluginFileInfo{
-					Name:     "testing",
-					Path:     file.Name() + ".foobar",
-					Checksum: []byte("foobar"),
-					HashType: HashTypeSha2384,
+					Name:       "testing",
+					Path:       file.Name() + ".foobar",
+					Checksum:   []byte("foobar"),
+					HashMethod: HashMethodSha2384,
 				},
 				wantErrContains: "not found on filesystem",
 			},
 			{
 				name: "invalid path - dir",
 				plugin: PluginFileInfo{
-					Name:     "testing",
-					Path:     currDir,
-					Checksum: []byte("foobar"),
-					HashType: HashTypeSha2384,
+					Name:       "testing",
+					Path:       currDir,
+					Checksum:   []byte("foobar"),
+					HashMethod: HashMethodSha2384,
 				},
 				wantErrContains: "is a directory",
 			},
 			{
 				name: "unspecified hash type",
 				plugin: PluginFileInfo{
-					Name:     "testing",
-					Path:     file.Name(),
-					Checksum: []byte("foobar"),
-					HashType: HashTypeSha2384,
+					Name:       "testing",
+					Path:       file.Name(),
+					Checksum:   []byte("foobar"),
+					HashMethod: HashMethodSha2384,
 				},
-				wantHashType: HashTypeSha2256,
+				wantHashMethod: HashMethodSha2256,
 			},
 			{
 				name: "specified hash type",
 				plugin: PluginFileInfo{
-					Name:     "testing",
-					Path:     file.Name(),
-					Checksum: []byte("foobar"),
-					HashType: HashTypeSha3384,
+					Name:       "testing",
+					Path:       file.Name(),
+					Checksum:   []byte("foobar"),
+					HashMethod: HashMethodSha3384,
 				},
-				wantHashType: HashTypeSha3384,
+				wantHashMethod: HashMethodSha3384,
 			},
 		}
 		for _, tc := range testCases {

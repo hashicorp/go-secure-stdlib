@@ -111,15 +111,17 @@ func WithPluginFile(with PluginFileInfo) Option {
 			return errors.New("plugin file checksum is empty")
 		}
 
-		switch with.HashType {
-		case HashTypeSha2256,
-			HashTypeSha2384,
-			HashTypeSha2512,
-			HashTypeSha3256,
-			HashTypeSha3384,
-			HashTypeSha3512:
+		switch with.HashMethod {
+		case HashMethodUnspecified:
+			with.HashMethod = HashMethodSha2256
+		case HashMethodSha2256,
+			HashMethodSha2384,
+			HashMethodSha2512,
+			HashMethodSha3256,
+			HashMethodSha3384,
+			HashMethodSha3512:
 		default:
-			return fmt.Errorf("unsupported hash type %q", string(with.HashType))
+			return fmt.Errorf("unsupported hash method %q", string(with.HashMethod))
 		}
 		info, err := os.Stat(with.Path)
 		if err != nil {
