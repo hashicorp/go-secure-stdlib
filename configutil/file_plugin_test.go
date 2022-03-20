@@ -1,7 +1,7 @@
 package configutil
 
 import (
-	context "context"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
