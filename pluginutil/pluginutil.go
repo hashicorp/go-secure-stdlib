@@ -181,7 +181,7 @@ func CreatePlugin(plugin *PluginInfo, opt ...Option) (interface{}, func() error,
 	case plugin.PluginClientCreationFunc == nil:
 		return nil, nil, fmt.Errorf("plugin creation func not provided")
 
-	// Either we need to have either a validated FS to read from or secure config
+	// Either we need to have a validated FS to read from or a secure config
 	case plugin.ContainerFs == nil && plugin.SecureConfig == nil:
 		return nil, nil, fmt.Errorf("plugin container filesystem and secure config are both nil")
 
