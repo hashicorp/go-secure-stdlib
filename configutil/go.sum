@@ -84,8 +84,8 @@ github.com/hashicorp/go-secure-stdlib/listenerutil v0.1.4/go.mod h1:myX7XYMJRIP4
 github.com/hashicorp/go-secure-stdlib/parseutil v0.1.1/go.mod h1:QmrqtbKuxxSWTN3ETMPuB+VtEiBJ/A9XhoYGv8E1uD8=
 github.com/hashicorp/go-secure-stdlib/parseutil v0.1.2 h1:Tz6v3Jb2DRnDCfifRSjYKG0m8dLdNq6bcDkB41en7nw=
 github.com/hashicorp/go-secure-stdlib/parseutil v0.1.2/go.mod h1:QmrqtbKuxxSWTN3ETMPuB+VtEiBJ/A9XhoYGv8E1uD8=
-github.com/hashicorp/go-secure-stdlib/pluginutil/v2 v2.0.1-0.20220318133345-4b0c6b19f281 h1:Yp+M74XOcvLcpIF1yQXjEJq4lbG3F7F2fUmpNSZ/+Bo=
-github.com/hashicorp/go-secure-stdlib/pluginutil/v2 v2.0.1-0.20220318133345-4b0c6b19f281/go.mod h1:Mh8pP9IH9qnBQSSH3PYtSkGq3+KlIuw5kAS9W8++BLc=
+github.com/hashicorp/go-secure-stdlib/pluginutil/v2 v2.0.1 h1:s47ax4xEIStj1YV7TRz6zS8LlNrTU86aEhL8pfSOG4U=
+github.com/hashicorp/go-secure-stdlib/pluginutil/v2 v2.0.1/go.mod h1:Mh8pP9IH9qnBQSSH3PYtSkGq3+KlIuw5kAS9W8++BLc=
 github.com/hashicorp/go-secure-stdlib/reloadutil v0.1.1 h1:SMGUnbpAcat8rIKHkBPjfv81yC46a8eCNZ2hsR2l1EI=
 github.com/hashicorp/go-secure-stdlib/reloadutil v0.1.1/go.mod h1:Ch/bf00Qnx77MZd49JRgHYqHQjtEmTgGU2faufpVZb0=
 github.com/hashicorp/go-secure-stdlib/strutil v0.1.1 h1:nd0HIW15E6FG1MsnArYaHfuw9C2zgzM8LxkG5Ty/788=

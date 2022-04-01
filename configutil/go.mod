@@ -10,7 +10,7 @@ require (
 	github.com/hashicorp/go-plugin v1.4.3
 	github.com/hashicorp/go-secure-stdlib/listenerutil v0.1.4
 	github.com/hashicorp/go-secure-stdlib/parseutil v0.1.2
-	github.com/hashicorp/go-secure-stdlib/pluginutil/v2 v2.0.1-0.20220318133345-4b0c6b19f281
+	github.com/hashicorp/go-secure-stdlib/pluginutil/v2 v2.0.1
 	github.com/hashicorp/hcl v1.0.0
 	github.com/stretchr/testify v1.7.0
 	golang.org/x/crypto v0.0.0-20220313003712-b769efc7c000
