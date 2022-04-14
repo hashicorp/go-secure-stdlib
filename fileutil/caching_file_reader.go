@@ -61,7 +61,7 @@ func (r *CachingFileReader) ReadFile() (string, error) {
 	}
 	r.cache = cachedFile{
 		buf:    string(buf),
-		expiry: now.Add(r.ttl),
+		expiry: r.currentTime().Add(r.ttl),
 	}
 
 	return r.cache.buf, nil
