@@ -1,7 +1,7 @@
 package fileutil
 
 import (
-	"io/ioutil"
+	"os"
 	"sync"
 	"time"
 )
@@ -55,7 +55,7 @@ func (r *CachingFileReader) ReadFile() (string, error) {
 	r.l.Lock()
 	defer r.l.Unlock()
 
-	buf, err := ioutil.ReadFile(r.path)
+	buf, err := os.ReadFile(r.path)
 	if err != nil {
 		return "", err
 	}
