@@ -33,11 +33,11 @@ type cachedFile struct {
 	expiry time.Time
 }
 
-func NewCachingFileReader(path string, ttl time.Duration, currentTime func() time.Time) *CachingFileReader {
+func NewCachingFileReader(path string, ttl time.Duration) *CachingFileReader {
 	return &CachingFileReader{
 		path:        path,
 		ttl:         ttl,
-		currentTime: currentTime,
+		currentTime: time.Now,
 	}
 }
 
@@ -65,4 +65,12 @@ func (r *CachingFileReader) ReadFile() (string, error) {
 	}
 
 	return r.cache.buf, nil
+}
+
+func (r *CachingFileReader) setStaticTime(staticTime time.Time) {
+	r.l.Lock()
+	defer r.l.Unlock()
+	r.currentTime = func() time.Time {
+		return staticTime
+	}
 }
