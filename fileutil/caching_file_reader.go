@@ -27,7 +27,7 @@ type CachingFileReader struct {
 
 type cachedFile struct {
 	// buf is the buffer holding the in-memory copy of the file.
-	buf string
+	buf []byte
 
 	// expiry is the time when the cached copy is considered stale and must be re-read.
 	expiry time.Time
@@ -41,14 +41,16 @@ func NewCachingFileReader(path string, ttl time.Duration) *CachingFileReader {
 	}
 }
 
-func (r *CachingFileReader) ReadFile() (string, error) {
+func (r *CachingFileReader) ReadFile() ([]byte, error) {
 	// Fast path requiring read lock only: file is already in memory and not stale.
 	r.l.RLock()
 	now := r.currentTime()
 	cache := r.cache
 	r.l.RUnlock()
 	if now.Before(cache.expiry) {
-		return cache.buf, nil
+		newBuf := make([]byte, len(cache.buf))
+		copy(newBuf, cache.buf)
+		return newBuf, nil
 	}
 
 	// Slow path: read the file from disk.
@@ -57,14 +59,16 @@ func (r *CachingFileReader) ReadFile() (string, error) {
 
 	buf, err := os.ReadFile(r.path)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	r.cache = cachedFile{
-		buf:    string(buf),
+		buf:    buf,
 		expiry: r.currentTime().Add(r.ttl),
 	}
 
-	return r.cache.buf, nil
+	newBuf := make([]byte, len(r.cache.buf))
+	copy(newBuf, r.cache.buf)
+	return newBuf, nil
 }
 
 func (r *CachingFileReader) setStaticTime(staticTime time.Time) {

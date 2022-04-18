@@ -7,8 +7,8 @@ import (
 )
 
 func TestCachingFileReader(t *testing.T) {
-	content1 := "before"
-	content2 := "after"
+	content1 := []byte("before")
+	content2 := []byte("after")
 
 	// Create temporary file.
 	f, err := os.CreateTemp("", "testfile")
@@ -28,7 +28,7 @@ func TestCachingFileReader(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if got != content1 {
+	if string(got) != string(content1) {
 		t.Errorf("got '%s', expected '%s'", got, content1)
 	}
 
@@ -44,7 +44,7 @@ func TestCachingFileReader(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if got != content1 {
+	if string(got) != string(content1) {
 		t.Errorf("got '%s', expected '%s'", got, content1)
 	}
 
@@ -57,7 +57,7 @@ func TestCachingFileReader(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if got != content2 {
+	if string(got) != string(content2) {
 		t.Errorf("got '%s', expected '%s'", got, content2)
 	}
 }
