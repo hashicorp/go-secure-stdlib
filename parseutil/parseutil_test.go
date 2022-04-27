@@ -354,46 +354,55 @@ func Test_ParseIntSlice(t *testing.T) {
 	testCases := []struct {
 		inp      interface{}
 		valid    bool
+		ranged   bool
 		expected []int64
 	}{
 		// ParseInt
 		{
 			int(-1),
 			true,
+			false,
 			[]int64{-1},
 		},
 		{
 			int32(-1),
 			true,
+			false,
 			[]int64{-1},
 		},
 		{
 			int64(-1),
 			true,
+			false,
 			[]int64{-1},
 		},
 		{
 			uint(1),
+			true,
 			true,
 			[]int64{1},
 		},
 		{
 			uint32(1),
 			true,
+			true,
 			[]int64{1},
 		},
 		{
 			uint64(1),
+			true,
 			true,
 			[]int64{1},
 		},
 		{
 			json.Number("1"),
 			true,
+			true,
 			[]int64{1},
 		},
 		{
 			"1",
+			true,
 			true,
 			[]int64{1},
 		},
@@ -401,40 +410,48 @@ func Test_ParseIntSlice(t *testing.T) {
 		{
 			[]int{1, -2, 3},
 			true,
+			false,
 			[]int64{1, -2, 3},
 		},
 		{
 			[]int32{1, -2, 3},
 			true,
+			false,
 			[]int64{1, -2, 3},
 		},
 		{
 			[]int64{1, -2, 3},
 			true,
+			false,
 			[]int64{1, -2, 3},
 		},
 		{
 			[]uint{1, 2, 3},
+			true,
 			true,
 			[]int64{1, 2, 3},
 		},
 		{
 			[]uint32{1, 2, 3},
 			true,
+			true,
 			[]int64{1, 2, 3},
 		},
 		{
 			[]uint64{1, 2, 3},
+			true,
 			true,
 			[]int64{1, 2, 3},
 		},
 		{
 			[]json.Number{json.Number("1"), json.Number("2"), json.Number("3")},
 			true,
+			true,
 			[]int64{1, 2, 3},
 		},
 		{
 			[]string{"1", "2", "3"},
+			true,
 			true,
 			[]int64{1, 2, 3},
 		},
@@ -442,32 +459,68 @@ func Test_ParseIntSlice(t *testing.T) {
 		{
 			"1",
 			true,
+			true,
 			[]int64{1},
 		},
 		{
 			"1,",
+			true,
 			true,
 			[]int64{1},
 		},
 		{
 			",1",
 			true,
+			true,
 			[]int64{1},
 		},
 		{
 			",1,",
+			true,
 			true,
 			[]int64{1},
 		},
 		{
 			"1,2",
 			true,
+			true,
 			[]int64{1, 2},
 		},
 		{
 			"1,2,3",
 			true,
+			true,
 			[]int64{1, 2, 3},
+		},
+		{
+			"1,3,5",
+			true,
+			true,
+			[]int64{1, 3, 5},
+		},
+		{
+			"1,3,5,7",
+			true,
+			false,
+			[]int64{1, 3, 5, 7},
+		},
+		{
+			"1,2,3,4,5,6,7,8,9,0",
+			true,
+			false,
+			[]int64{1, 2, 3, 4, 5, 6, 7, 8, 9, 0},
+		},
+		{
+			"1,1,1,1,1,1,1,1,1,1,1",
+			true,
+			false,
+			[]int64{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+		},
+		{
+			"1,1,1,1,1,1,1,1,1,1",
+			true,
+			true,
+			[]int64{1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
 		},
 	}
 
@@ -485,6 +538,12 @@ func Test_ParseIntSlice(t *testing.T) {
 		}
 		if !equalInt64Slice(outp, tc.expected) {
 			t.Errorf("input %v parsed as %v, expected %v", tc.inp, outp, tc.expected)
+			continue
+		}
+		_, err = SafeParseIntSliceRange(tc.inp, 0 /* min */, 5 /* max */, 10 /* num elements */)
+		if err == nil != tc.ranged {
+			t.Errorf("no ranged slice error for %v", tc.inp)
+			continue
 		}
 	}
 }
