@@ -540,10 +540,26 @@ func Test_ParseIntSlice(t *testing.T) {
 			t.Errorf("input %v parsed as %v, expected %v", tc.inp, outp, tc.expected)
 			continue
 		}
-		_, err = SafeParseIntSliceRange(tc.inp, 0 /* min */, 5 /* max */, 10 /* num elements */)
+		expected, err := SafeParseIntSliceRange(tc.inp, 0 /* min */, 5 /* max */, 10 /* num elements */)
 		if err == nil != tc.ranged {
 			t.Errorf("no ranged slice error for %v", tc.inp)
 			continue
+		}
+		if err == nil {
+			actual, err := SafeParseIntSlice(tc.inp, 10 /* num elements */)
+			if err != nil {
+				t.Errorf("got unexpected err from SafeParseIntSlice: %v", err)
+			}
+
+			if len(expected) != len(actual) {
+				t.Errorf("for input %v, expected %v but got %v in SafeParseIntSliceRange<->SafeParseIntSlice compat test; different number of elements", tc.inp, expected, actual)
+			}
+
+			for index, elem := range expected {
+				if elem != int64(actual[index]) {
+					t.Errorf("for input %v, expected %v but got %v in SafeParseIntSliceRange<->SafeParseIntSlice compat test; differs at index %d: %v", tc.inp, expected, actual, elem, actual[index])
+				}
+			}
 		}
 	}
 }
