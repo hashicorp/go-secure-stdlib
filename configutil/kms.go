@@ -323,7 +323,7 @@ func configureWrapper(
 	}
 
 	// Create the plugin and cleanup func
-	plugClient, cleanup, err := pluginutil.CreatePlugin(plug)
+	plugClient, cleanup, err := pluginutil.CreatePlugin(plug, pluginOpts...)
 	if err != nil {
 		return nil, cleanup, err
 	}
