@@ -58,7 +58,7 @@ func parsePath(path string, mustParse bool) (string, error) {
 		return strings.TrimSpace(os.Getenv(strings.TrimPrefix(path, "env://"))), nil
 	default:
 		if mustParse {
-			return path, ErrNotParsed
+			return "", ErrNotParsed
 		}
 		return path, nil
 	}

@@ -103,7 +103,7 @@ func TestParsePath(t *testing.T) {
 			if tt.notParsed {
 				require.Error(err)
 				assert.True(errors.Is(err, ErrNotParsed))
-				assert.Equal(tt.inPath, out)
+				assert.Empty(out)
 				return
 			}
 			require.NoError(err)
