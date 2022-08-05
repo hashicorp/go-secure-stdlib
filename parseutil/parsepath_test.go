@@ -27,6 +27,7 @@ func TestParsePath(t *testing.T) {
 		inPath           string
 		outStr           string
 		notAUrl          bool
+		must             bool
 		expErrorContains string
 	}{
 		{
@@ -35,14 +36,33 @@ func TestParsePath(t *testing.T) {
 			outStr: "foo",
 		},
 		{
+			name:   "file-mustparse",
+			inPath: fmt.Sprintf("file://%s", file.Name()),
+			outStr: "foo",
+			must:   true,
+		},
+		{
 			name:   "env",
 			inPath: "env://PATHTEST",
 			outStr: "bar",
 		},
 		{
+			name:   "env-mustparse",
+			inPath: "env://PATHTEST",
+			outStr: "bar",
+			must:   true,
+		},
+		{
 			name:   "plain",
 			inPath: "zipzap",
 			outStr: "zipzap",
+		},
+		{
+			name:    "plain-mustparse",
+			inPath:  "zipzap",
+			outStr:  "zipzap",
+			must:    true,
+			notAUrl: true,
 		},
 		{
 			name:             "no file",
@@ -60,7 +80,14 @@ func TestParsePath(t *testing.T) {
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
 			assert, require := assert.New(t), require.New(t)
-			out, err := ParsePath(tt.inPath)
+			var out string
+			var err error
+			switch tt.must {
+			case false:
+				out, err = ParsePath(tt.inPath)
+			default:
+				out, err = MustParsePath(tt.inPath)
+			}
 			if tt.expErrorContains != "" {
 				require.Error(err)
 				assert.Contains(err.Error(), tt.expErrorContains)
