@@ -9,7 +9,10 @@ import (
 	"strings"
 )
 
-var ErrNotAUrl = errors.New("not a url")
+var (
+	ErrNotAUrl   = errors.New("not a url")
+	ErrNotParsed = errors.New("not a parsed value")
+)
 
 // ParsePath parses a URL with schemes file://, env://, or any other. Depending
 // on the scheme it will return specific types of data:
@@ -55,7 +58,7 @@ func parsePath(path string, mustParse bool) (string, error) {
 		return strings.TrimSpace(os.Getenv(strings.TrimPrefix(path, "env://"))), nil
 	default:
 		if mustParse {
-			return path, ErrNotAUrl
+			return path, ErrNotParsed
 		}
 		return path, nil
 	}

@@ -28,6 +28,7 @@ func TestParsePath(t *testing.T) {
 		outStr           string
 		notAUrl          bool
 		must             bool
+		notParsed        bool
 		expErrorContains string
 	}{
 		{
@@ -58,11 +59,11 @@ func TestParsePath(t *testing.T) {
 			outStr: "zipzap",
 		},
 		{
-			name:    "plain-mustparse",
-			inPath:  "zipzap",
-			outStr:  "zipzap",
-			must:    true,
-			notAUrl: true,
+			name:      "plain-mustparse",
+			inPath:    "zipzap",
+			outStr:    "zipzap",
+			must:      true,
+			notParsed: true,
 		},
 		{
 			name:             "no file",
@@ -96,6 +97,12 @@ func TestParsePath(t *testing.T) {
 			if tt.notAUrl {
 				require.Error(err)
 				assert.True(errors.Is(err, ErrNotAUrl))
+				assert.Equal(tt.inPath, out)
+				return
+			}
+			if tt.notParsed {
+				require.Error(err)
+				assert.True(errors.Is(err, ErrNotParsed))
 				assert.Equal(tt.inPath, out)
 				return
 			}
