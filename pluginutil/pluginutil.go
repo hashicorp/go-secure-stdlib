@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	gp "github.com/hashicorp/go-plugin"
+	"github.com/hashicorp/go-secure-stdlib/base62"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -236,6 +237,7 @@ func CreatePlugin(plugin *PluginInfo, opt ...Option) (interface{}, func() error,
 			return nil, nil, fmt.Errorf("error reading gzip compressed data from reader: %w", err)
 		}
 		buf = uncompBuf.Bytes()
+		name = strings.TrimSuffix(name, ".gz")
 	}
 
 	cleanup := func() error {
@@ -255,8 +257,13 @@ func CreatePlugin(plugin *PluginInfo, opt ...Option) (interface{}, func() error,
 		dir = tmpDir
 	}
 	pluginPath := filepath.Join(dir, name)
+	randSuffix, err := base62.Random(5)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error generating random suffix for plugin execution: %w", err)
+	}
+	pluginPath = fmt.Sprintf("%s-%s", pluginPath, randSuffix)
 	if runtime.GOOS == "windows" {
-		pluginPath += ".exe"
+		pluginPath = fmt.Sprintf("%s.exe", pluginPath)
 	}
 	if err := ioutil.WriteFile(pluginPath, buf, fs.FileMode(0o700)); err != nil {
 		return nil, cleanup, fmt.Errorf("error writing out plugin for execution: %w", err)
