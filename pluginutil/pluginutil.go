@@ -237,6 +237,7 @@ func CreatePlugin(plugin *PluginInfo, opt ...Option) (interface{}, func() error,
 			return nil, nil, fmt.Errorf("error reading gzip compressed data from reader: %w", err)
 		}
 		buf = uncompBuf.Bytes()
+		name = strings.TrimSuffix(name, ".gz")
 	}
 
 	cleanup := func() error {
