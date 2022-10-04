@@ -240,12 +240,17 @@ func CreatePlugin(plugin *PluginInfo, opt ...Option) (interface{}, func() error,
 		name = strings.TrimSuffix(name, ".gz")
 	}
 
-	cleanup := func() error {
-		return nil
-	}
-
 	// Now, create a temp dir and write out the plugin bytes
+	randSuffix, err := base62.Random(5)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error generating random suffix for plugin execution: %w", err)
+	}
+	name = fmt.Sprintf("%s-%s", name, randSuffix)
 	dir := opts.withPluginExecutionDirectory
+
+	cleanup := func() error {
+		return os.Remove(filepath.Join(dir, name))
+	}
 	if dir == "" {
 		tmpDir, err := ioutil.TempDir("", "*")
 		if err != nil {
@@ -257,11 +262,6 @@ func CreatePlugin(plugin *PluginInfo, opt ...Option) (interface{}, func() error,
 		dir = tmpDir
 	}
 	pluginPath := filepath.Join(dir, name)
-	randSuffix, err := base62.Random(5)
-	if err != nil {
-		return nil, nil, fmt.Errorf("error generating random suffix for plugin execution: %w", err)
-	}
-	pluginPath = fmt.Sprintf("%s-%s", pluginPath, randSuffix)
 	if runtime.GOOS == "windows" {
 		pluginPath = fmt.Sprintf("%s.exe", pluginPath)
 	}
