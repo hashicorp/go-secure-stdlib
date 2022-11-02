@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/textproto"
+	"strconv"
 	"strings"
 	"time"
 
@@ -93,6 +94,12 @@ type ListenerConfig struct {
 	CorsAllowedOrigins                       []string    `hcl:"cors_allowed_origins"`
 	CorsAllowedHeaders                       []string    `hcl:"-"`
 	CorsAllowedHeadersRaw                    []string    `hcl:"cors_allowed_headers"`
+
+	// Custom Http response headers
+	CustomApiResponseHeaders    map[string]map[string]string `hcl:"-"`
+	CustomApiResponseHeadersRaw interface{}                  `hcl:"custom_api_response_headers"`
+	CustomUiResponseHeaders     map[string]map[string]string `hcl:"-"`
+	CustomUiResponseHeadersRaw  interface{}                  `hcl:"custom_ui_response_headers"`
 }
 
 func (l *ListenerConfig) GoString() string {
@@ -363,6 +370,25 @@ func ParseListeners(list *ast.ObjectList) ([]*ListenerConfig, error) {
 			}
 		}
 
+		// HTTP Headers
+		{
+			// if CustomApiResponseHeadersRaw is nil, we still need to set the default headers
+			customApiHeadersMap, err := parseCustomResponseHeaders(l.CustomApiResponseHeadersRaw)
+			if err != nil {
+				return nil, multierror.Prefix(fmt.Errorf("failed to parse custom_api_response_headers: %w", err), fmt.Sprintf("listeners.%d", i))
+			}
+			l.CustomApiResponseHeaders = customApiHeadersMap
+			l.CustomApiResponseHeadersRaw = nil
+
+			// if CustomUiResponseHeadersRaw is nil, we still need to set the default headers
+			customUiHeadersMap, err := parseCustomResponseHeaders(l.CustomUiResponseHeadersRaw)
+			if err != nil {
+				return nil, multierror.Prefix(fmt.Errorf("failed to parse custom_ui_response_headers: %w", err), fmt.Sprintf("listeners.%d", i))
+			}
+			l.CustomUiResponseHeaders = customUiHeadersMap
+			l.CustomUiResponseHeadersRaw = nil
+		}
+
 		result = append(result, &l)
 	}
 
@@ -386,4 +412,123 @@ func ParseSingleIPTemplate(ipTmpl string) (string, error) {
 	default:
 		return "", fmt.Errorf("multiple addresses found (%q), please configure one", out)
 	}
+}
+
+var validCustomStatusCodeCollection = []string{
+	"default",
+	"1xx",
+	"2xx",
+	"3xx",
+	"4xx",
+	"5xx",
+}
+
+const strictTransportSecurity = "max-age=31536000; includeSubDomains"
+
+// parseCustomResponseHeaders takes a raw config values for the
+// "custom_response_headers". It makes sure the config entry is passed in
+// as a map of status code to a map of header name and header values. It
+// verifies the validity of the status codes, and header values. It also
+// adds the default headers values.
+func parseCustomResponseHeaders(responseHeaders interface{}) (map[string]map[string]string, error) {
+	h := make(map[string]map[string]string)
+	// if r is nil, we still should set the default custom headers
+	if responseHeaders == nil {
+		h["default"] = map[string]string{"Strict-Transport-Security": strictTransportSecurity}
+		return h, nil
+	}
+
+	customResponseHeader, ok := responseHeaders.([]map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("response headers were not configured correctly. please make sure they're in a slice of maps")
+	}
+
+	for _, crh := range customResponseHeader {
+		for statusCode, responseHeader := range crh {
+			headerValList, ok := responseHeader.([]map[string]interface{})
+			if !ok {
+				return nil, fmt.Errorf("response headers were not configured correctly. please make sure they're in a slice of maps")
+			}
+
+			if !isValidStatusCode(statusCode) {
+				return nil, fmt.Errorf("invalid status code found in the server configuration: %v", statusCode)
+			}
+
+			if len(headerValList) != 1 {
+				return nil, fmt.Errorf("invalid number of response headers exist")
+			}
+			headerValMap := headerValList[0]
+			headerVal, err := parseHeaders(headerValMap)
+			if err != nil {
+				return nil, err
+			}
+
+			h[statusCode] = headerVal
+		}
+	}
+
+	// setting Strict-Transport-Security as a default header
+	if h["default"] == nil {
+		h["default"] = make(map[string]string)
+	}
+	if _, ok := h["default"]["Strict-Transport-Security"]; !ok {
+		h["default"]["Strict-Transport-Security"] = strictTransportSecurity
+	}
+
+	return h, nil
+}
+
+// isValidStatusCode checking for status codes outside the boundary
+func isValidStatusCode(sc string) bool {
+	if strutil.StrListContains(validCustomStatusCodeCollection, sc) {
+		return true
+	}
+
+	i, err := strconv.Atoi(sc)
+	if err != nil {
+		return false
+	}
+
+	if i >= 600 || i < 100 {
+		return false
+	}
+
+	return true
+}
+
+func parseHeaders(in map[string]interface{}) (map[string]string, error) {
+	hvMap := make(map[string]string)
+	for k, v := range in {
+		// parsing header name
+		headerName := textproto.CanonicalMIMEHeaderKey(k)
+		// parsing header values
+		s, err := parseHeaderValues(v)
+		if err != nil {
+			return nil, err
+		}
+		hvMap[headerName] = s
+	}
+	return hvMap, nil
+}
+
+func parseHeaderValues(header interface{}) (string, error) {
+	var sl []string
+	if _, ok := header.([]interface{}); !ok {
+		return "", fmt.Errorf("headers must be given in a list of strings")
+	}
+	headerValList := header.([]interface{})
+	for _, vh := range headerValList {
+		if _, ok := vh.(string); !ok {
+			return "", fmt.Errorf("found a non-string header value: %v", vh)
+		}
+		headerVal := strings.TrimSpace(vh.(string))
+		if headerVal == "" {
+			continue
+		}
+		sl = append(sl, headerVal)
+
+	}
+	s := strings.Join(sl, "; ")
+
+	return s, nil
 }

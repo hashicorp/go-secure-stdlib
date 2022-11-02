@@ -146,6 +146,7 @@ PASSPHRASECORRECT:
 				badCiphers = append(badCiphers, cipherStr)
 			}
 		}
+		// TODO: change this to not use a vault-specific error
 		if len(badCiphers) == len(l.TLSCipherSuites) {
 			ui.Warn(`WARNING! All cipher suites defined by 'tls_cipher_suites' are blacklisted by the
 HTTP/2 specification. HTTP/2 communication with TLS 1.2 will not work as intended
