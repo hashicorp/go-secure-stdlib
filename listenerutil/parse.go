@@ -373,7 +373,7 @@ func ParseListeners(list *ast.ObjectList) ([]*ListenerConfig, error) {
 		// HTTP Headers
 		{
 			// if CustomApiResponseHeadersRaw is nil, we still need to set the default headers
-			customApiHeadersMap, err := parseCustomResponseHeaders(l.CustomApiResponseHeadersRaw)
+			customApiHeadersMap, err := parseCustomResponseHeaders(l.CustomApiResponseHeadersRaw, false)
 			if err != nil {
 				return nil, multierror.Prefix(fmt.Errorf("failed to parse custom_api_response_headers: %w", err), fmt.Sprintf("listeners.%d", i))
 			}
@@ -381,7 +381,7 @@ func ParseListeners(list *ast.ObjectList) ([]*ListenerConfig, error) {
 			l.CustomApiResponseHeadersRaw = nil
 
 			// if CustomUiResponseHeadersRaw is nil, we still need to set the default headers
-			customUiHeadersMap, err := parseCustomResponseHeaders(l.CustomUiResponseHeadersRaw)
+			customUiHeadersMap, err := parseCustomResponseHeaders(l.CustomUiResponseHeadersRaw, true)
 			if err != nil {
 				return nil, multierror.Prefix(fmt.Errorf("failed to parse custom_ui_response_headers: %w", err), fmt.Sprintf("listeners.%d", i))
 			}
@@ -424,13 +424,17 @@ var validCustomStatusCodeCollection = []string{
 }
 
 const strictTransportSecurity = "max-age=31536000; includeSubDomains"
+const xContentTypeOptions = "nosniff"
+const cacheControl = "no-store"
+const apiContentSecurityPolicy = "default-src 'none'"
+const uiContentSecurityPolicy = "default-src 'none'; script-src 'self'; frame-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data:*; style-src 'self'; media-src 'self'; manifest-src 'self'; style-src-attr 'self'; frame-ancestors 'self'"
 
-// parseCustomResponseHeaders takes a raw config values for the
-// "custom_response_headers". It makes sure the config entry is passed in
-// as a map of status code to a map of header name and header values. It
-// verifies the validity of the status codes, and header values. It also
-// adds the default headers values.
-func parseCustomResponseHeaders(responseHeaders interface{}) (map[string]map[string]string, error) {
+// parseCustomResponseHeaders takes raw config values for the "custom_ui_response_headers"
+// and "custom_api_response_headers". It makes sure the config entry is passed in as a map
+// of status code to a map of header name and header values. It verifies the validity of the
+// status codes, and header values. It also adds the default headers values for "Cache-Control",
+// "Strict-Transport-Security", "X-Content-Type-Options", and "Content-Security-Policy".
+func parseCustomResponseHeaders(responseHeaders interface{}, uiHeaders bool) (map[string]map[string]string, error) {
 	h := make(map[string]map[string]string)
 	// if r is nil, we still should set the default custom headers
 	if responseHeaders == nil {
@@ -473,6 +477,19 @@ func parseCustomResponseHeaders(responseHeaders interface{}) (map[string]map[str
 	}
 	if _, ok := h["default"]["Strict-Transport-Security"]; !ok {
 		h["default"]["Strict-Transport-Security"] = strictTransportSecurity
+	}
+	if _, ok := h["default"]["X-Content-Type-Options"]; !ok {
+		h["default"]["X-Content-Type-Options"] = xContentTypeOptions
+	}
+	if _, ok := h["default"]["Cache-Control"]; !ok {
+		h["default"]["Cache-Control"] = cacheControl
+	}
+	if _, ok := h["default"]["Content-Security-Policy"]; !ok {
+		if uiHeaders {
+			h["default"]["Content-Security-Policy"] = uiContentSecurityPolicy
+		} else {
+			h["default"]["Content-Security-Policy"] = apiContentSecurityPolicy
+		}
 	}
 
 	return h, nil

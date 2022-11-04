@@ -4,6 +4,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/hashicorp/go-secure-stdlib/listenerutil"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -44,6 +46,104 @@ func TestParseConfig(t *testing.T) {
 			expSharedConfig: nil,
 			expErr:          true,
 			expErrIs:        os.ErrNotExist,
+		},
+		{
+			name: "custom headers parsed and set correctly",
+			in: `
+			listener "tcp" {
+				custom_api_response_headers {
+					"default" = {
+						"test" = ["default value", "default value 2"]
+					}
+					"200" = {
+						"test" = ["200 value"]
+					}
+					"401" = {
+						"test" = ["401 value"]
+					}
+				}
+				custom_ui_response_headers {
+					"default" = {
+						"test" =          ["ui default value"]
+						"cache-control" = ["max-age=604800"]
+					}
+					"200" = {
+						"test" = ["ui 200 value"]
+					}
+					"401" = {
+						"test" = ["ui 401 value"]
+					}
+				}
+			}`,
+			expSharedConfig: &SharedConfig{
+				Listeners: []*listenerutil.ListenerConfig{
+					{
+						Type: "tcp",
+						RawConfig: map[string]interface{}{
+							"custom_api_response_headers": []map[string]interface{}{
+								{
+									"default": []map[string]interface{}{
+										{"test": []interface{}{"default value", "default value 2"}},
+									},
+									"200": []map[string]interface{}{
+										{"test": []interface{}{"200 value"}},
+									},
+									"401": []map[string]interface{}{
+										{"test": []interface{}{"401 value"}},
+									},
+								},
+							},
+							"custom_ui_response_headers": []map[string]interface{}{
+								{
+									"default": []map[string]interface{}{
+										{
+											"test":          []interface{}{"ui default value"},
+											"cache-control": []interface{}{"max-age=604800"},
+										},
+									},
+									"200": []map[string]interface{}{
+										{"test": []interface{}{"ui 200 value"}},
+									},
+									"401": []map[string]interface{}{
+										{"test": []interface{}{"ui 401 value"}},
+									},
+								},
+							},
+						},
+						CustomApiResponseHeaders: map[string]map[string]string{
+							"default": {
+								"Test":                      "default value; default value 2",
+								"Content-Security-Policy":   "default-src 'none'",
+								"X-Content-Type-Options":    "nosniff",
+								"Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+								"Cache-Control":             "no-store",
+							},
+							"200": {
+								"Test": "200 value",
+							},
+							"401": {
+								"Test": "401 value",
+							},
+						},
+						CustomUiResponseHeaders: map[string]map[string]string{
+							"default": {
+								"Test":                      "ui default value",
+								"Content-Security-Policy":   "default-src 'none'; script-src 'self'; frame-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data:*; style-src 'self'; media-src 'self'; manifest-src 'self'; style-src-attr 'self'; frame-ancestors 'self'",
+								"X-Content-Type-Options":    "nosniff",
+								"Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+								"Cache-Control":             "max-age=604800",
+							},
+							"200": {
+								"Test": "ui 200 value",
+							},
+							"401": {
+								"Test": "ui 401 value",
+							},
+						},
+					},
+				},
+			},
+			expErr: false,
 		},
 	}
 
