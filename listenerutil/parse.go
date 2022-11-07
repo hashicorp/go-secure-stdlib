@@ -444,14 +444,14 @@ func parseCustomResponseHeaders(responseHeaders interface{}, uiHeaders bool) (ma
 
 	customResponseHeader, ok := responseHeaders.([]map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("response headers were not configured correctly. please make sure they're in a slice of maps")
+		return nil, fmt.Errorf("response headers were not configured correctly. Please make sure they're in a list of maps")
 	}
 
 	for _, crh := range customResponseHeader {
 		for statusCode, responseHeader := range crh {
 			headerValList, ok := responseHeader.([]map[string]interface{})
 			if !ok {
-				return nil, fmt.Errorf("response headers were not configured correctly. please make sure they're in a slice of maps")
+				return nil, fmt.Errorf("response headers were not configured correctly. Please make sure they're in a list of maps")
 			}
 
 			if !isValidStatusCode(statusCode) {
@@ -495,7 +495,7 @@ func parseCustomResponseHeaders(responseHeaders interface{}, uiHeaders bool) (ma
 	return h, nil
 }
 
-// isValidStatusCode checking for status codes outside the boundary
+// isValidStatusCode checks for status codes outside the allowed range
 func isValidStatusCode(sc string) bool {
 	if strutil.StrListContains(validCustomStatusCodeCollection, sc) {
 		return true
