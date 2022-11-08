@@ -1,9 +1,7 @@
 package listenerutil
 
 import (
-	"fmt"
 	"net/http"
-	"strconv"
 )
 
 type ResponseWriter struct {
@@ -75,57 +73,12 @@ type uiRequestFunc func(*http.Request) bool
 // WrapCustomHeadersHandler wraps the handler to pass a custom ResponseWriter struct to all
 // later wrappers and handlers to assign custom headers by status code. This wrapper must
 // be the outermost wrapper to function correctly.
-func WrapCustomHeadersHandler(h http.Handler, config *ListenerConfig, isUiRequest uiRequestFunc) (http.Handler, error) {
+func WrapCustomHeadersHandler(h http.Handler, config *ListenerConfig, isUiRequest uiRequestFunc) http.Handler {
 	// TODO: maybe we should perform some preparsing here on the headers? check for duplicates,
 	// headers that aren't allowed, etc.
 
-	// Perform some basic parsing to convert status codes from strings to int to avoid costly string
-	// comparisons for every request.
-	uiHeaders := map[int]map[string]string{}
-
-	for status, headers := range config.CustomUiResponseHeaders {
-		if status == "default" {
-			uiHeaders[0] = headers
-			continue
-		}
-
-		intStatus, err := strconv.Atoi(status)
-		if err != nil {
-			if _, err = fmt.Sscanf(status, "%dxx", &intStatus); err != nil {
-				return nil, fmt.Errorf("status does not match expected format. should be a valid status code or formatted \"%%dxx\". was: %s", status)
-			}
-			if intStatus > 5 || intStatus < 1 {
-				return nil, fmt.Errorf("status is not within valid range, must be between 1xx and 5xx. was: %s", status)
-			}
-		}
-		if intStatus >= 600 || intStatus < 100 {
-			return nil, fmt.Errorf("status is not within valid range, must be between 100 and 599. was: %s", status)
-		}
-		uiHeaders[intStatus] = headers
-	}
-
-	apiHeaders := map[int]map[string]string{}
-
-	for status, headers := range config.CustomApiResponseHeaders {
-		if status == "default" {
-			apiHeaders[0] = headers
-			continue
-		}
-
-		intStatus, err := strconv.Atoi(status)
-		if err != nil {
-			if _, err = fmt.Sscanf(status, "%dxx", &intStatus); err != nil {
-				return nil, fmt.Errorf("status does not match expected format. should be a valid status code or formatted \"%%dxx\". was: %s", status)
-			}
-			if intStatus > 5 || intStatus < 1 {
-				return nil, fmt.Errorf("status is not within valid range, must be between 1xx and 5xx. was: %s", status)
-			}
-		}
-		if intStatus >= 600 || intStatus < 100 {
-			return nil, fmt.Errorf("status is not within valid range, must be between 100 and 599. was: %s", status)
-		}
-		apiHeaders[intStatus] = headers
-	}
+	uiHeaders := config.CustomUiResponseHeaders
+	apiHeaders := config.CustomApiResponseHeaders
 
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		// this function is extremely generic as all we want to do is wrap the http.ResponseWriter
@@ -144,5 +97,5 @@ func WrapCustomHeadersHandler(h http.Handler, config *ListenerConfig, isUiReques
 			headers: headers,
 		}
 		h.ServeHTTP(wrappedWriter, req)
-	}), nil
+	})
 }
