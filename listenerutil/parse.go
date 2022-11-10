@@ -414,15 +414,6 @@ func ParseSingleIPTemplate(ipTmpl string) (string, error) {
 	}
 }
 
-var validCustomStatusCodeCollection = []string{
-	"default",
-	"1xx",
-	"2xx",
-	"3xx",
-	"4xx",
-	"5xx",
-}
-
 const strictTransportSecurity = "max-age=31536000; includeSubDomains"
 const xContentTypeOptions = "nosniff"
 const cacheControl = "no-store"
@@ -436,7 +427,7 @@ const uiContentSecurityPolicy = "default-src 'none'; script-src 'self'; frame-sr
 // "Strict-Transport-Security", "X-Content-Type-Options", and "Content-Security-Policy".
 func parseCustomResponseHeaders(responseHeaders interface{}, uiHeaders bool) (map[int]map[string]string, error) {
 	h := make(map[int]map[string]string)
-	// if r is nil, we still should set the default custom headers
+	// if responseHeaders is nil, we still should set the default custom headers
 	if responseHeaders == nil {
 		h[0] = map[string]string{
 			"Strict-Transport-Security": strictTransportSecurity,

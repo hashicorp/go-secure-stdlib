@@ -58,6 +58,7 @@ func (w *ResponseWriter) setCustomResponseHeaders(statusCode int) {
 	}
 
 	// Then setting the generic hundred-level headers
+	// Note: integer division always rounds down, so 499/100 = 4
 	if val, ok := sch[statusCode/100]; ok {
 		setter(val)
 	}

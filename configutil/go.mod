@@ -2,6 +2,9 @@ module github.com/hashicorp/go-secure-stdlib/configutil/v2
 
 go 1.17
 
+// TODO: remove
+replace github.com/hashicorp/go-secure-stdlib/listenerutil => ../listenerutil
+
 require (
 	github.com/hashicorp/go-hclog v1.1.0
 	github.com/hashicorp/go-kms-wrapping/plugin/v2 v2.0.2
