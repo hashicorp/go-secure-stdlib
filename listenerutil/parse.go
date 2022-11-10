@@ -96,10 +96,10 @@ type ListenerConfig struct {
 	CorsAllowedHeadersRaw                    []string    `hcl:"cors_allowed_headers"`
 
 	// Custom Http response headers
-	CustomApiResponseHeaders    map[int]map[string]string `hcl:"-"`
-	CustomApiResponseHeadersRaw interface{}               `hcl:"custom_api_response_headers"`
-	CustomUiResponseHeaders     map[int]map[string]string `hcl:"-"`
-	CustomUiResponseHeadersRaw  interface{}               `hcl:"custom_ui_response_headers"`
+	CustomApiResponseHeaders    map[int]map[string][]string `hcl:"-"`
+	CustomApiResponseHeadersRaw interface{}                 `hcl:"custom_api_response_headers"`
+	CustomUiResponseHeaders     map[int]map[string][]string `hcl:"-"`
+	CustomUiResponseHeadersRaw  interface{}                 `hcl:"custom_ui_response_headers"`
 }
 
 func (l *ListenerConfig) GoString() string {
@@ -425,19 +425,19 @@ const uiContentSecurityPolicy = "default-src 'none'; script-src 'self'; frame-sr
 // of status code to a map of header name and header values. It verifies the validity of the
 // status codes, and header values. It also adds the default headers values for "Cache-Control",
 // "Strict-Transport-Security", "X-Content-Type-Options", and "Content-Security-Policy".
-func parseCustomResponseHeaders(responseHeaders interface{}, uiHeaders bool) (map[int]map[string]string, error) {
-	h := make(map[int]map[string]string)
+func parseCustomResponseHeaders(responseHeaders interface{}, uiHeaders bool) (map[int]map[string][]string, error) {
+	h := make(map[int]map[string][]string)
 	// if responseHeaders is nil, we still should set the default custom headers
 	if responseHeaders == nil {
-		h[0] = map[string]string{
-			"Strict-Transport-Security": strictTransportSecurity,
-			"X-Content-Type-Options":    xContentTypeOptions,
-			"Cache-Control":             cacheControl,
+		h[0] = map[string][]string{
+			"Strict-Transport-Security": {strictTransportSecurity},
+			"X-Content-Type-Options":    {xContentTypeOptions},
+			"Cache-Control":             {cacheControl},
 		}
 		if uiHeaders {
-			h[0]["Content-Security-Policy"] = uiContentSecurityPolicy
+			h[0]["Content-Security-Policy"] = []string{uiContentSecurityPolicy}
 		} else {
-			h[0]["Content-Security-Policy"] = apiContentSecurityPolicy
+			h[0]["Content-Security-Policy"] = []string{apiContentSecurityPolicy}
 		}
 		return h, nil
 	}
@@ -474,22 +474,22 @@ func parseCustomResponseHeaders(responseHeaders interface{}, uiHeaders bool) (ma
 
 	// setting default headers
 	if h[0] == nil {
-		h[0] = make(map[string]string)
+		h[0] = make(map[string][]string)
 	}
 	if _, ok := h[0]["Strict-Transport-Security"]; !ok {
-		h[0]["Strict-Transport-Security"] = strictTransportSecurity
+		h[0]["Strict-Transport-Security"] = []string{strictTransportSecurity}
 	}
 	if _, ok := h[0]["X-Content-Type-Options"]; !ok {
-		h[0]["X-Content-Type-Options"] = xContentTypeOptions
+		h[0]["X-Content-Type-Options"] = []string{xContentTypeOptions}
 	}
 	if _, ok := h[0]["Cache-Control"]; !ok {
-		h[0]["Cache-Control"] = cacheControl
+		h[0]["Cache-Control"] = []string{cacheControl}
 	}
 	if _, ok := h[0]["Content-Security-Policy"]; !ok {
 		if uiHeaders {
-			h[0]["Content-Security-Policy"] = uiContentSecurityPolicy
+			h[0]["Content-Security-Policy"] = []string{uiContentSecurityPolicy}
 		} else {
-			h[0]["Content-Security-Policy"] = apiContentSecurityPolicy
+			h[0]["Content-Security-Policy"] = []string{apiContentSecurityPolicy}
 		}
 	}
 
@@ -518,8 +518,8 @@ func convertStatusCode(sc string) (int, error) {
 	return status, nil
 }
 
-func parseHeaders(in map[string]interface{}) (map[string]string, error) {
-	hvMap := make(map[string]string)
+func parseHeaders(in map[string]interface{}) (map[string][]string, error) {
+	hvMap := make(map[string][]string)
 	for k, v := range in {
 		// parsing header name
 		headerName := textproto.CanonicalMIMEHeaderKey(k)
@@ -533,24 +533,22 @@ func parseHeaders(in map[string]interface{}) (map[string]string, error) {
 	return hvMap, nil
 }
 
-func parseHeaderValues(header interface{}) (string, error) {
+func parseHeaderValues(header interface{}) ([]string, error) {
 	var sl []string
 	headerValList, ok := header.([]interface{})
 	if !ok {
-		return "", fmt.Errorf("headers must be given in a list of strings")
+		return []string{}, fmt.Errorf("headers must be given in a list of strings")
 	}
 	for _, vh := range headerValList {
 		if _, ok := vh.(string); !ok {
-			return "", fmt.Errorf("found a non-string header value: %v", vh)
+			return []string{}, fmt.Errorf("found a non-string header value: %v", vh)
 		}
 		headerVal := strings.TrimSpace(vh.(string))
 		if headerVal == "" {
 			continue
 		}
 		sl = append(sl, headerVal)
-
 	}
-	s := strings.Join(sl, "; ")
 
-	return s, nil
+	return sl, nil
 }

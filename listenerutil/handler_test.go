@@ -14,46 +14,46 @@ import (
 func TestCustomHeadersWrapper(t *testing.T) {
 	listenerConfig := &ListenerConfig{
 		Type: "tcp",
-		CustomApiResponseHeaders: map[int]map[string]string{
+		CustomApiResponseHeaders: map[int]map[string][]string{
 			0: {
-				"Test":                      "default value; default value 2",
-				"Content-Security-Policy":   "default-src 'none'",
-				"X-Content-Type-Options":    "nosniff",
-				"Strict-Transport-Security": "max-age=31536000; includeSubDomains",
-				"Cache-Control":             "no-store",
+				"Test":                      {"default value", "default value 2"},
+				"Content-Security-Policy":   {"default-src 'none'"},
+				"X-Content-Type-Options":    {"nosniff"},
+				"Strict-Transport-Security": {"max-age=31536000", "includeSubDomains"},
+				"Cache-Control":             {"no-store"},
 			},
 			200: {
-				"Test": "200 value",
+				"Test": {"200 value"},
 			},
 			2: {
-				"Test": "2xx value",
+				"Test": {"2xx value"},
 			},
 			401: {
-				"Test": "401 value",
+				"Test": {"401 value"},
 			},
 			4: {
-				"Test": "4xx value",
+				"Test": {"4xx value"},
 			},
 		},
-		CustomUiResponseHeaders: map[int]map[string]string{
+		CustomUiResponseHeaders: map[int]map[string][]string{
 			0: {
-				"Test":                      "ui default value",
-				"Content-Security-Policy":   "default-src 'none'; script-src 'self'; frame-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data:*; style-src 'self'; media-src 'self'; manifest-src 'self'; style-src-attr 'self'; frame-ancestors 'self'",
-				"X-Content-Type-Options":    "nosniff",
-				"Strict-Transport-Security": "max-age=31536000; includeSubDomains",
-				"Cache-Control":             "max-age=604800",
+				"Test":                      {"ui default value"},
+				"Content-Security-Policy":   {"default-src 'none'; script-src 'self'; frame-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data:*; style-src 'self'; media-src 'self'; manifest-src 'self'; style-src-attr 'self'; frame-ancestors 'self'"},
+				"X-Content-Type-Options":    {"nosniff"},
+				"Strict-Transport-Security": {"max-age=31536000; includeSubDomains"},
+				"Cache-Control":             {"max-age=604800"},
 			},
 			200: {
-				"Test": "ui 200 value",
+				"Test": {"ui 200 value"},
 			},
 			2: {
-				"Test": "ui 2xx value",
+				"Test": {"ui 2xx value"},
 			},
 			401: {
-				"Test": "ui 401 value",
+				"Test": {"ui 401 value"},
 			},
 			4: {
-				"Test": "ui 4xx value",
+				"Test": {"ui 4xx value"},
 			},
 		},
 	}

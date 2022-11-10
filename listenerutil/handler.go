@@ -10,7 +10,7 @@ type ResponseWriter struct {
 	// headers[status][header name] = header value
 	// this map also contains values for hundred-level values in the format 1: "1xx", 2: "2xx", etc
 	// defaults are set to 0
-	headers       map[int]map[string]string
+	headers       map[int]map[string][]string
 	headerWritten bool
 }
 
@@ -46,9 +46,12 @@ func (w *ResponseWriter) setCustomResponseHeaders(statusCode int) {
 	}
 
 	// Setter function to set headers
-	setter := func(headerMap map[string]string) {
-		for header, value := range headerMap {
-			w.Header().Set(header, value)
+	setter := func(headerMap map[string][]string) {
+		for header, values := range headerMap {
+			w.Header().Del(header)
+			for _, value := range values {
+				w.Header().Add(header, value)
+			}
 		}
 	}
 
@@ -85,7 +88,7 @@ func WrapCustomHeadersHandler(h http.Handler, config *ListenerConfig, isUiReques
 		// this function is extremely generic as all we want to do is wrap the http.ResponseWriter
 		// in our own ResponseWriter above, which will then perform all the logic we actually want
 
-		var headers map[int]map[string]string
+		var headers map[int]map[string][]string
 
 		if isUiRequest(req) {
 			headers = uiHeaders
