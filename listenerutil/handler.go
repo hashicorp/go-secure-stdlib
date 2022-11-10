@@ -101,5 +101,9 @@ func WrapCustomHeadersHandler(h http.Handler, config *ListenerConfig, isUiReques
 			headers: headers,
 		}
 		h.ServeHTTP(wrappedWriter, req)
+
+		if !wrappedWriter.headerWritten {
+			wrappedWriter.WriteHeader(http.StatusOK)
+		}
 	})
 }

@@ -1,15 +1,13 @@
 package listenerutil
 
 import (
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 )
-
-// type uiRequestFunc func(*http.Request) bool
 
 func TestCustomHeadersWrapper(t *testing.T) {
 	listenerConfig := &ListenerConfig{
@@ -19,7 +17,7 @@ func TestCustomHeadersWrapper(t *testing.T) {
 				"Test":                      {"default value", "default value 2"},
 				"Content-Security-Policy":   {"default-src 'none'"},
 				"X-Content-Type-Options":    {"nosniff"},
-				"Strict-Transport-Security": {"max-age=31536000", "includeSubDomains"},
+				"Strict-Transport-Security": {"max-age=31536000; includeSubDomains"},
 				"Cache-Control":             {"no-store"},
 			},
 			200: {
@@ -69,7 +67,7 @@ func TestCustomHeadersWrapper(t *testing.T) {
 		name        string
 		config      *ListenerConfig
 		handler     http.Handler
-		expHeaders  map[string]string
+		expHeaders  map[string][]string
 		expStatus   int
 		wrapperFunc uiRequestFunc
 	}{
@@ -79,12 +77,12 @@ func TestCustomHeadersWrapper(t *testing.T) {
 			handler: http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 				w.Write([]byte("response"))
 			}),
-			expHeaders: map[string]string{
-				"Test":                      "200 value",
-				"Content-Security-Policy":   "default-src 'none'",
-				"X-Content-Type-Options":    "nosniff",
-				"Strict-Transport-Security": "max-age=31536000; includeSubDomains",
-				"Cache-Control":             "no-store",
+			expHeaders: map[string][]string{
+				"Test":                      {"200 value"},
+				"Content-Security-Policy":   {"default-src 'none'"},
+				"X-Content-Type-Options":    {"nosniff"},
+				"Strict-Transport-Security": {"max-age=31536000; includeSubDomains"},
+				"Cache-Control":             {"no-store"},
 			},
 			expStatus:   200,
 			wrapperFunc: apiRequest,
@@ -96,12 +94,12 @@ func TestCustomHeadersWrapper(t *testing.T) {
 				w.WriteHeader(300)
 				w.Write([]byte("response"))
 			}),
-			expHeaders: map[string]string{
-				"Test":                      "default value; default value 2",
-				"Content-Security-Policy":   "default-src 'none'",
-				"X-Content-Type-Options":    "nosniff",
-				"Strict-Transport-Security": "max-age=31536000; includeSubDomains",
-				"Cache-Control":             "no-store",
+			expHeaders: map[string][]string{
+				"Test":                      {"default value", "default value 2"},
+				"Content-Security-Policy":   {"default-src 'none'"},
+				"X-Content-Type-Options":    {"nosniff"},
+				"Strict-Transport-Security": {"max-age=31536000; includeSubDomains"},
+				"Cache-Control":             {"no-store"},
 			},
 			expStatus:   300,
 			wrapperFunc: apiRequest,
@@ -113,12 +111,12 @@ func TestCustomHeadersWrapper(t *testing.T) {
 				w.WriteHeader(400)
 				w.Write([]byte("response"))
 			}),
-			expHeaders: map[string]string{
-				"Test":                      "4xx value",
-				"Content-Security-Policy":   "default-src 'none'",
-				"X-Content-Type-Options":    "nosniff",
-				"Strict-Transport-Security": "max-age=31536000; includeSubDomains",
-				"Cache-Control":             "no-store",
+			expHeaders: map[string][]string{
+				"Test":                      {"4xx value"},
+				"Content-Security-Policy":   {"default-src 'none'"},
+				"X-Content-Type-Options":    {"nosniff"},
+				"Strict-Transport-Security": {"max-age=31536000; includeSubDomains"},
+				"Cache-Control":             {"no-store"},
 			},
 			expStatus:   400,
 			wrapperFunc: apiRequest,
@@ -130,12 +128,12 @@ func TestCustomHeadersWrapper(t *testing.T) {
 				w.WriteHeader(401)
 				w.Write([]byte("response"))
 			}),
-			expHeaders: map[string]string{
-				"Test":                      "401 value",
-				"Content-Security-Policy":   "default-src 'none'",
-				"X-Content-Type-Options":    "nosniff",
-				"Strict-Transport-Security": "max-age=31536000; includeSubDomains",
-				"Cache-Control":             "no-store",
+			expHeaders: map[string][]string{
+				"Test":                      {"401 value"},
+				"Content-Security-Policy":   {"default-src 'none'"},
+				"X-Content-Type-Options":    {"nosniff"},
+				"Strict-Transport-Security": {"max-age=31536000; includeSubDomains"},
+				"Cache-Control":             {"no-store"},
 			},
 			expStatus:   401,
 			wrapperFunc: apiRequest,
@@ -147,12 +145,12 @@ func TestCustomHeadersWrapper(t *testing.T) {
 			handler: http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 				w.Write([]byte("response"))
 			}),
-			expHeaders: map[string]string{
-				"Test":                      "ui 200 value",
-				"Content-Security-Policy":   "default-src 'none'; script-src 'self'; frame-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data:*; style-src 'self'; media-src 'self'; manifest-src 'self'; style-src-attr 'self'; frame-ancestors 'self'",
-				"X-Content-Type-Options":    "nosniff",
-				"Strict-Transport-Security": "max-age=31536000; includeSubDomains",
-				"Cache-Control":             "max-age=604800",
+			expHeaders: map[string][]string{
+				"Test":                      {"ui 200 value"},
+				"Content-Security-Policy":   {"default-src 'none'; script-src 'self'; frame-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data:*; style-src 'self'; media-src 'self'; manifest-src 'self'; style-src-attr 'self'; frame-ancestors 'self'"},
+				"X-Content-Type-Options":    {"nosniff"},
+				"Strict-Transport-Security": {"max-age=31536000; includeSubDomains"},
+				"Cache-Control":             {"max-age=604800"},
 			},
 			expStatus:   200,
 			wrapperFunc: uiRequest,
@@ -164,12 +162,12 @@ func TestCustomHeadersWrapper(t *testing.T) {
 				w.WriteHeader(300)
 				w.Write([]byte("response"))
 			}),
-			expHeaders: map[string]string{
-				"Test":                      "ui default value",
-				"Content-Security-Policy":   "default-src 'none'; script-src 'self'; frame-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data:*; style-src 'self'; media-src 'self'; manifest-src 'self'; style-src-attr 'self'; frame-ancestors 'self'",
-				"X-Content-Type-Options":    "nosniff",
-				"Strict-Transport-Security": "max-age=31536000; includeSubDomains",
-				"Cache-Control":             "max-age=604800",
+			expHeaders: map[string][]string{
+				"Test":                      {"ui default value"},
+				"Content-Security-Policy":   {"default-src 'none'; script-src 'self'; frame-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data:*; style-src 'self'; media-src 'self'; manifest-src 'self'; style-src-attr 'self'; frame-ancestors 'self'"},
+				"X-Content-Type-Options":    {"nosniff"},
+				"Strict-Transport-Security": {"max-age=31536000; includeSubDomains"},
+				"Cache-Control":             {"max-age=604800"},
 			},
 			expStatus:   300,
 			wrapperFunc: uiRequest,
@@ -181,12 +179,12 @@ func TestCustomHeadersWrapper(t *testing.T) {
 				w.WriteHeader(400)
 				w.Write([]byte("response"))
 			}),
-			expHeaders: map[string]string{
-				"Test":                      "ui 4xx value",
-				"Content-Security-Policy":   "default-src 'none'; script-src 'self'; frame-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data:*; style-src 'self'; media-src 'self'; manifest-src 'self'; style-src-attr 'self'; frame-ancestors 'self'",
-				"X-Content-Type-Options":    "nosniff",
-				"Strict-Transport-Security": "max-age=31536000; includeSubDomains",
-				"Cache-Control":             "max-age=604800",
+			expHeaders: map[string][]string{
+				"Test":                      {"ui 4xx value"},
+				"Content-Security-Policy":   {"default-src 'none'; script-src 'self'; frame-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data:*; style-src 'self'; media-src 'self'; manifest-src 'self'; style-src-attr 'self'; frame-ancestors 'self'"},
+				"X-Content-Type-Options":    {"nosniff"},
+				"Strict-Transport-Security": {"max-age=31536000; includeSubDomains"},
+				"Cache-Control":             {"max-age=604800"},
 			},
 			expStatus:   400,
 			wrapperFunc: uiRequest,
@@ -198,20 +196,36 @@ func TestCustomHeadersWrapper(t *testing.T) {
 				w.WriteHeader(401)
 				w.Write([]byte("response"))
 			}),
-			expHeaders: map[string]string{
-				"Test":                      "ui 401 value",
-				"Content-Security-Policy":   "default-src 'none'; script-src 'self'; frame-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data:*; style-src 'self'; media-src 'self'; manifest-src 'self'; style-src-attr 'self'; frame-ancestors 'self'",
-				"X-Content-Type-Options":    "nosniff",
-				"Strict-Transport-Security": "max-age=31536000; includeSubDomains",
-				"Cache-Control":             "max-age=604800",
+			expHeaders: map[string][]string{
+				"Test":                      {"ui 401 value"},
+				"Content-Security-Policy":   {"default-src 'none'; script-src 'self'; frame-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data:*; style-src 'self'; media-src 'self'; manifest-src 'self'; style-src-attr 'self'; frame-ancestors 'self'"},
+				"X-Content-Type-Options":    {"nosniff"},
+				"Strict-Transport-Security": {"max-age=31536000; includeSubDomains"},
+				"Cache-Control":             {"max-age=604800"},
 			},
 			expStatus:   401,
 			wrapperFunc: uiRequest,
 		},
+		{
+			name:   "empty response",
+			config: listenerConfig,
+			handler: http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				w.Header().Add("Test2", "another value, ey")
+			}),
+			expHeaders: map[string][]string{
+				"Test":                      {"200 value"},
+				"Content-Security-Policy":   {"default-src 'none'"},
+				"X-Content-Type-Options":    {"nosniff"},
+				"Strict-Transport-Security": {"max-age=31536000; includeSubDomains"},
+				"Cache-Control":             {"no-store"},
+				"Test2":                     {"another value, ey"},
+			},
+			expStatus:   200,
+			wrapperFunc: apiRequest,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 			wrappedHandler := WrapCustomHeadersHandler(tt.handler, tt.config, tt.wrapperFunc)
 
 			r := httptest.NewRequest("GET", "http://localhost:9200/", nil)
@@ -219,11 +233,10 @@ func TestCustomHeadersWrapper(t *testing.T) {
 			wrappedHandler.ServeHTTP(w, r)
 
 			resp := w.Result()
-			fmt.Printf("response: %#v", resp)
 			assert.Equal(t, tt.expStatus, resp.StatusCode)
 
 			for header, expected := range tt.expHeaders {
-				assert.Equal(t, expected, resp.Header.Get(header))
+				assert.Empty(t, cmp.Diff(expected, resp.Header.Values(header)))
 			}
 		})
 	}
