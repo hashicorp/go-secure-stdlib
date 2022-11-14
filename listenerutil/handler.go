@@ -78,9 +78,6 @@ type uiRequestFunc func(*http.Request) bool
 // later wrappers and handlers to assign custom headers by status code. This wrapper must
 // be the outermost wrapper to function correctly.
 func WrapCustomHeadersHandler(h http.Handler, config *ListenerConfig, isUiRequest uiRequestFunc) http.Handler {
-	// TODO: maybe we should perform some preparsing here on the headers? check for duplicates,
-	// headers that aren't allowed, etc.
-
 	uiHeaders := config.CustomUiResponseHeaders
 	apiHeaders := config.CustomApiResponseHeaders
 
