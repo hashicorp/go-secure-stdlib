@@ -53,6 +53,8 @@ func TestParseConfig(t *testing.T) {
 				custom_api_response_headers {
 					"default" = {
 						"test" = ["default value", "default value 2"]
+						// try unsetting this one
+						"x-content-type-options" = []
 					}
 					"200" = {
 						"test" = ["200 value"]
@@ -70,7 +72,8 @@ func TestParseConfig(t *testing.T) {
 				custom_ui_response_headers {
 					"default" = {
 						"test" =          ["ui default value"]
-						"cache-control" = ["max-age=604800"]
+						// try overwriting this one
+						"CACHE-CONTROL" = ["max-age=604800"]
 					}
 					"200" = {
 						"test" = ["ui 200 value"]
@@ -94,7 +97,10 @@ func TestParseConfig(t *testing.T) {
 							"custom_api_response_headers": []map[string]interface{}{
 								{
 									"default": []map[string]interface{}{
-										{"test": []interface{}{"default value", "default value 2"}},
+										{
+											"test":                   []interface{}{"default value", "default value 2"},
+											"x-content-type-options": []interface{}{},
+										},
 									},
 									"200": []map[string]interface{}{
 										{"test": []interface{}{"200 value"}},
@@ -115,7 +121,7 @@ func TestParseConfig(t *testing.T) {
 									"default": []map[string]interface{}{
 										{
 											"test":          []interface{}{"ui default value"},
-											"cache-control": []interface{}{"max-age=604800"},
+											"CACHE-CONTROL": []interface{}{"max-age=604800"},
 										},
 									},
 									"200": []map[string]interface{}{
@@ -133,46 +139,45 @@ func TestParseConfig(t *testing.T) {
 								},
 							},
 						},
-						CustomApiResponseHeaders: map[int]map[string]string{
+						CustomApiResponseHeaders: map[int]map[string][]string{
 							0: {
-								"Test":                      "default value; default value 2",
-								"Content-Security-Policy":   "default-src 'none'",
-								"X-Content-Type-Options":    "nosniff",
-								"Strict-Transport-Security": "max-age=31536000; includeSubDomains",
-								"Cache-Control":             "no-store",
+								"Test":                      {"default value", "default value 2"},
+								"Content-Security-Policy":   {"default-src 'none'"},
+								"Strict-Transport-Security": {"max-age=31536000; includeSubDomains"},
+								"Cache-Control":             {"no-store"},
 							},
 							200: {
-								"Test": "200 value",
+								"Test": {"200 value"},
 							},
 							2: {
-								"Test": "2xx value",
+								"Test": {"2xx value"},
 							},
 							401: {
-								"Test": "401 value",
+								"Test": {"401 value"},
 							},
 							4: {
-								"Test": "4xx value",
+								"Test": {"4xx value"},
 							},
 						},
-						CustomUiResponseHeaders: map[int]map[string]string{
+						CustomUiResponseHeaders: map[int]map[string][]string{
 							0: {
-								"Test":                      "ui default value",
-								"Content-Security-Policy":   "default-src 'none'; script-src 'self'; frame-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data:*; style-src 'self'; media-src 'self'; manifest-src 'self'; style-src-attr 'self'; frame-ancestors 'self'",
-								"X-Content-Type-Options":    "nosniff",
-								"Strict-Transport-Security": "max-age=31536000; includeSubDomains",
-								"Cache-Control":             "max-age=604800",
+								"Test":                      {"ui default value"},
+								"Content-Security-Policy":   {"default-src 'none'; script-src 'self'; frame-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data:*; style-src 'self'; media-src 'self'; manifest-src 'self'; style-src-attr 'self'; frame-ancestors 'self'"},
+								"X-Content-Type-Options":    {"nosniff"},
+								"Strict-Transport-Security": {"max-age=31536000; includeSubDomains"},
+								"Cache-Control":             {"max-age=604800"},
 							},
 							200: {
-								"Test": "ui 200 value",
+								"Test": {"ui 200 value"},
 							},
 							2: {
-								"Test": "ui 2xx value",
+								"Test": {"ui 2xx value"},
 							},
 							401: {
-								"Test": "ui 401 value",
+								"Test": {"ui 401 value"},
 							},
 							4: {
-								"Test": "ui 4xx value",
+								"Test": {"ui 4xx value"},
 							},
 						},
 					},

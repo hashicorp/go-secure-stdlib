@@ -414,11 +414,18 @@ func ParseSingleIPTemplate(ipTmpl string) (string, error) {
 	}
 }
 
-const strictTransportSecurity = "max-age=31536000; includeSubDomains"
-const xContentTypeOptions = "nosniff"
-const cacheControl = "no-store"
-const apiContentSecurityPolicy = "default-src 'none'"
-const uiContentSecurityPolicy = "default-src 'none'; script-src 'self'; frame-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data:*; style-src 'self'; media-src 'self'; manifest-src 'self'; style-src-attr 'self'; frame-ancestors 'self'"
+// Header value consts
+const defaultStrictTransportSecurityHeader = "max-age=31536000; includeSubDomains"
+const defaultXContentTypeOptionsHeader = "nosniff"
+const defaultCacheControlHeader = "no-store"
+const defaultApiContentSecurityPolicyHeader = "default-src 'none'"
+const defaultUiContentSecurityPolicyHeader = "default-src 'none'; script-src 'self'; frame-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data:*; style-src 'self'; media-src 'self'; manifest-src 'self'; style-src-attr 'self'; frame-ancestors 'self'"
+
+// Header names consts
+const contentSecurityPolicy = "Content-Security-Policy"
+const strictTransportSecurity = "Strict-Transport-Security"
+const xContentTypeOptions = "X-Content-Type-Options"
+const cacheControl = "Cache-Control"
 
 // parseCustomResponseHeaders takes raw config values for the "custom_ui_response_headers"
 // and "custom_api_response_headers". It makes sure the config entry is passed in as a map
@@ -430,14 +437,14 @@ func parseCustomResponseHeaders(responseHeaders interface{}, uiHeaders bool) (ma
 	// if responseHeaders is nil, we still should set the default custom headers
 	if responseHeaders == nil {
 		h[0] = map[string][]string{
-			"Strict-Transport-Security": {strictTransportSecurity},
-			"X-Content-Type-Options":    {xContentTypeOptions},
-			"Cache-Control":             {cacheControl},
+			strictTransportSecurity: {defaultStrictTransportSecurityHeader},
+			xContentTypeOptions:     {defaultXContentTypeOptionsHeader},
+			cacheControl:            {defaultCacheControlHeader},
 		}
 		if uiHeaders {
-			h[0]["Content-Security-Policy"] = []string{uiContentSecurityPolicy}
+			h[0][contentSecurityPolicy] = []string{defaultUiContentSecurityPolicyHeader}
 		} else {
-			h[0]["Content-Security-Policy"] = []string{apiContentSecurityPolicy}
+			h[0][contentSecurityPolicy] = []string{defaultApiContentSecurityPolicyHeader}
 		}
 		return h, nil
 	}
@@ -473,24 +480,32 @@ func parseCustomResponseHeaders(responseHeaders interface{}, uiHeaders bool) (ma
 	}
 
 	// setting default headers
-	if h[0] == nil {
-		h[0] = make(map[string][]string)
+	if _, ok := h[0][strictTransportSecurity]; !ok {
+		h[0][strictTransportSecurity] = []string{defaultStrictTransportSecurityHeader}
+	} else if h[0][strictTransportSecurity] == nil {
+		delete(h[0], strictTransportSecurity)
 	}
-	if _, ok := h[0]["Strict-Transport-Security"]; !ok {
-		h[0]["Strict-Transport-Security"] = []string{strictTransportSecurity}
+
+	if _, ok := h[0][xContentTypeOptions]; !ok {
+		h[0][xContentTypeOptions] = []string{defaultXContentTypeOptionsHeader}
+	} else if h[0][xContentTypeOptions] == nil {
+		delete(h[0], xContentTypeOptions)
 	}
-	if _, ok := h[0]["X-Content-Type-Options"]; !ok {
-		h[0]["X-Content-Type-Options"] = []string{xContentTypeOptions}
+
+	if _, ok := h[0][cacheControl]; !ok {
+		h[0][cacheControl] = []string{defaultCacheControlHeader}
+	} else if h[0][cacheControl] == nil {
+		delete(h[0], cacheControl)
 	}
-	if _, ok := h[0]["Cache-Control"]; !ok {
-		h[0]["Cache-Control"] = []string{cacheControl}
-	}
-	if _, ok := h[0]["Content-Security-Policy"]; !ok {
+
+	if _, ok := h[0][contentSecurityPolicy]; !ok {
 		if uiHeaders {
-			h[0]["Content-Security-Policy"] = []string{uiContentSecurityPolicy}
+			h[0][contentSecurityPolicy] = []string{defaultUiContentSecurityPolicyHeader}
 		} else {
-			h[0]["Content-Security-Policy"] = []string{apiContentSecurityPolicy}
+			h[0][contentSecurityPolicy] = []string{defaultApiContentSecurityPolicyHeader}
 		}
+	} else if h[0][contentSecurityPolicy] == nil {
+		delete(h[0], contentSecurityPolicy)
 	}
 
 	return h, nil
