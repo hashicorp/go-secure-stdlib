@@ -12,7 +12,7 @@ import (
 func TestCustomHeadersWrapper(t *testing.T) {
 	listenerConfig := &ListenerConfig{
 		Type: "tcp",
-		CustomApiResponseHeaders: map[int]map[string][]string{
+		CustomApiResponseHeaders: map[int]http.Header{
 			0: {
 				"Test":                      {"default value", "default value 2"},
 				"Content-Security-Policy":   {"default-src 'none'"},
@@ -33,7 +33,7 @@ func TestCustomHeadersWrapper(t *testing.T) {
 				"Test": {"4xx value"},
 			},
 		},
-		CustomUiResponseHeaders: map[int]map[string][]string{
+		CustomUiResponseHeaders: map[int]http.Header{
 			0: {
 				"Test":                      {"ui default value"},
 				"Content-Security-Policy":   {"default-src 'none'; script-src 'self'; frame-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data:*; style-src 'self'; media-src 'self'; manifest-src 'self'; style-src-attr 'self'; frame-ancestors 'self'"},

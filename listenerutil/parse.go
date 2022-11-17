@@ -3,6 +3,7 @@ package listenerutil
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"net/textproto"
 	"strconv"
 	"strings"
@@ -96,10 +97,10 @@ type ListenerConfig struct {
 	CorsAllowedHeadersRaw                    []string    `hcl:"cors_allowed_headers"`
 
 	// Custom Http response headers
-	CustomApiResponseHeaders    map[int]map[string][]string `hcl:"-"`
-	CustomApiResponseHeadersRaw interface{}                 `hcl:"custom_api_response_headers"`
-	CustomUiResponseHeaders     map[int]map[string][]string `hcl:"-"`
-	CustomUiResponseHeadersRaw  interface{}                 `hcl:"custom_ui_response_headers"`
+	CustomApiResponseHeaders    map[int]http.Header `hcl:"-"`
+	CustomApiResponseHeadersRaw interface{}         `hcl:"custom_api_response_headers"`
+	CustomUiResponseHeaders     map[int]http.Header `hcl:"-"`
+	CustomUiResponseHeadersRaw  interface{}         `hcl:"custom_ui_response_headers"`
 }
 
 func (l *ListenerConfig) GoString() string {
@@ -432,11 +433,11 @@ const cacheControl = "Cache-Control"
 // of status code to a map of header name and header values. It verifies the validity of the
 // status codes, and header values. It also adds the default headers values for "Cache-Control",
 // "Strict-Transport-Security", "X-Content-Type-Options", and "Content-Security-Policy".
-func parseCustomResponseHeaders(responseHeaders interface{}, uiHeaders bool) (map[int]map[string][]string, error) {
-	h := make(map[int]map[string][]string)
+func parseCustomResponseHeaders(responseHeaders interface{}, uiHeaders bool) (map[int]http.Header, error) {
+	h := make(map[int]http.Header)
 	// if responseHeaders is nil, we still should set the default custom headers
 	if responseHeaders == nil {
-		h[0] = map[string][]string{
+		h[0] = http.Header{
 			strictTransportSecurity: {defaultStrictTransportSecurityHeader},
 			xContentTypeOptions:     {defaultXContentTypeOptionsHeader},
 			cacheControl:            {defaultCacheControlHeader},
