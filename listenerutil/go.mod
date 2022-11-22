@@ -4,6 +4,7 @@ go 1.16
 
 require (
 	github.com/armon/go-radix v1.0.0 // indirect
+	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/go-secure-stdlib/parseutil v0.1.1
@@ -16,5 +17,5 @@ require (
 	github.com/mattn/go-colorable v0.1.6 // indirect
 	github.com/mitchellh/cli v1.1.2
 	github.com/stretchr/testify v1.7.0
-	golang.org/x/sys v0.0.0-20200602225109-6fdc65e7d980 // indirect
+	golang.org/x/sys v0.2.0 // indirect
 )

@@ -62,7 +62,7 @@ opM24uvQT3Bc0UM0WNh3tdRFuboxDeBDh7PX/2RIoiaMuCCiRZ3O0A==
 	if err == nil {
 		t.Fatal("error expected")
 	}
-	if !errors.As(err, &x509.IncorrectPasswordError) {
+	if !errors.Is(err, x509.IncorrectPasswordError) {
 		t.Fatalf("expected incorrect password error, got %v", err)
 	}
 

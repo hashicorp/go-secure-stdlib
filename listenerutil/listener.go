@@ -85,7 +85,7 @@ func TLSConfig(
 	if err := cg.Reload(); err != nil {
 		// We try the key without a passphrase first and if we get an incorrect
 		// passphrase response, try again after prompting for a passphrase
-		if errors.As(err, &x509.IncorrectPasswordError) {
+		if errors.Is(err, x509.IncorrectPasswordError) {
 			var passphrase string
 			passphrase, err = ui.AskSecret(fmt.Sprintf("Enter passphrase for %s:", l.TLSKeyFile))
 			if err == nil {
@@ -149,7 +149,7 @@ PASSPHRASECORRECT:
 		if len(badCiphers) == len(l.TLSCipherSuites) {
 			ui.Warn(`WARNING! All cipher suites defined by 'tls_cipher_suites' are blacklisted by the
 HTTP/2 specification. HTTP/2 communication with TLS 1.2 will not work as intended
-and Vault will be unavailable via the CLI.
+and the application may be unavailable.
 Please see https://tools.ietf.org/html/rfc7540#appendix-A for further information.`)
 		} else if len(badCiphers) > 0 {
 			ui.Warn(fmt.Sprintf(`WARNING! The following cipher suites defined by 'tls_cipher_suites' are
