@@ -36,7 +36,7 @@ func TestCustomHeadersWrapper(t *testing.T) {
 		CustomUiResponseHeaders: map[int]http.Header{
 			0: {
 				"Test":                      {"ui default value"},
-				"Content-Security-Policy":   {"default-src 'none'; script-src 'self'; frame-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data:*; style-src 'self'; media-src 'self'; manifest-src 'self'; style-src-attr 'self'; frame-ancestors 'self'"},
+				"Content-Security-Policy":   {"default-src 'none'; script-src 'self'; frame-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self'; media-src 'self'; manifest-src 'self'; style-src-attr 'self'; frame-ancestors 'self'"},
 				"X-Content-Type-Options":    {"nosniff"},
 				"Strict-Transport-Security": {"max-age=31536000; includeSubDomains"},
 				"Cache-Control":             {"max-age=604800"},
@@ -147,7 +147,7 @@ func TestCustomHeadersWrapper(t *testing.T) {
 			}),
 			expHeaders: map[string][]string{
 				"Test":                      {"ui 200 value"},
-				"Content-Security-Policy":   {"default-src 'none'; script-src 'self'; frame-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data:*; style-src 'self'; media-src 'self'; manifest-src 'self'; style-src-attr 'self'; frame-ancestors 'self'"},
+				"Content-Security-Policy":   {"default-src 'none'; script-src 'self'; frame-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self'; media-src 'self'; manifest-src 'self'; style-src-attr 'self'; frame-ancestors 'self'"},
 				"X-Content-Type-Options":    {"nosniff"},
 				"Strict-Transport-Security": {"max-age=31536000; includeSubDomains"},
 				"Cache-Control":             {"max-age=604800"},
@@ -164,7 +164,7 @@ func TestCustomHeadersWrapper(t *testing.T) {
 			}),
 			expHeaders: map[string][]string{
 				"Test":                      {"ui default value"},
-				"Content-Security-Policy":   {"default-src 'none'; script-src 'self'; frame-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data:*; style-src 'self'; media-src 'self'; manifest-src 'self'; style-src-attr 'self'; frame-ancestors 'self'"},
+				"Content-Security-Policy":   {"default-src 'none'; script-src 'self'; frame-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self'; media-src 'self'; manifest-src 'self'; style-src-attr 'self'; frame-ancestors 'self'"},
 				"X-Content-Type-Options":    {"nosniff"},
 				"Strict-Transport-Security": {"max-age=31536000; includeSubDomains"},
 				"Cache-Control":             {"max-age=604800"},
@@ -181,7 +181,7 @@ func TestCustomHeadersWrapper(t *testing.T) {
 			}),
 			expHeaders: map[string][]string{
 				"Test":                      {"ui 4xx value"},
-				"Content-Security-Policy":   {"default-src 'none'; script-src 'self'; frame-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data:*; style-src 'self'; media-src 'self'; manifest-src 'self'; style-src-attr 'self'; frame-ancestors 'self'"},
+				"Content-Security-Policy":   {"default-src 'none'; script-src 'self'; frame-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self'; media-src 'self'; manifest-src 'self'; style-src-attr 'self'; frame-ancestors 'self'"},
 				"X-Content-Type-Options":    {"nosniff"},
 				"Strict-Transport-Security": {"max-age=31536000; includeSubDomains"},
 				"Cache-Control":             {"max-age=604800"},
@@ -198,7 +198,7 @@ func TestCustomHeadersWrapper(t *testing.T) {
 			}),
 			expHeaders: map[string][]string{
 				"Test":                      {"ui 401 value"},
-				"Content-Security-Policy":   {"default-src 'none'; script-src 'self'; frame-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data:*; style-src 'self'; media-src 'self'; manifest-src 'self'; style-src-attr 'self'; frame-ancestors 'self'"},
+				"Content-Security-Policy":   {"default-src 'none'; script-src 'self'; frame-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self'; media-src 'self'; manifest-src 'self'; style-src-attr 'self'; frame-ancestors 'self'"},
 				"X-Content-Type-Options":    {"nosniff"},
 				"Strict-Transport-Security": {"max-age=31536000; includeSubDomains"},
 				"Cache-Control":             {"max-age=604800"},

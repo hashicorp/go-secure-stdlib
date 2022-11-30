@@ -420,7 +420,7 @@ const defaultStrictTransportSecurityHeader = "max-age=31536000; includeSubDomain
 const defaultXContentTypeOptionsHeader = "nosniff"
 const defaultCacheControlHeader = "no-store"
 const defaultApiContentSecurityPolicyHeader = "default-src 'none'"
-const defaultUiContentSecurityPolicyHeader = "default-src 'none'; script-src 'self'; frame-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data:*; style-src 'self'; media-src 'self'; manifest-src 'self'; style-src-attr 'self'; frame-ancestors 'self'"
+const defaultUiContentSecurityPolicyHeader = "default-src 'none'; script-src 'self'; frame-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self'; media-src 'self'; manifest-src 'self'; style-src-attr 'self'; frame-ancestors 'self'"
 
 // Header names consts
 const contentSecurityPolicy = "Content-Security-Policy"
