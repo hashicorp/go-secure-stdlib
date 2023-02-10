@@ -4,15 +4,7 @@ import (
 	"net/http"
 )
 
-type ResponseWriter struct {
-	wrapped http.ResponseWriter
-	// headers contain a map of response code to header map such that
-	// headers[status][header name] = header value
-	// this map also contains values for hundred-level values in the format 1: "1xx", 2: "2xx", etc
-	// defaults are set to 0
-	headers       map[int]http.Header
-	headerWritten bool
-}
+type uiRequestFunc func(*http.Request) bool
 
 func (w *ResponseWriter) WriteHeader(statusCode int) {
 	w.headerWritten = true
@@ -32,6 +24,20 @@ func (w *ResponseWriter) Write(data []byte) (int, error) {
 		w.WriteHeader(http.StatusOK)
 	}
 	return w.wrapped.Write(data)
+}
+
+// Provide Unwrap for users of http.ResponseController
+func (w *ResponseWriter) Unwrap() http.ResponseWriter {
+	return w.wrapped
+}
+
+// Implement http.Pusher if available.
+func (w *ResponseWriter) Push(target string, opts *http.PushOptions) error {
+	p, ok := w.wrapped.(http.Pusher)
+	if ok {
+		return p.Push(target, opts)
+	}
+	return http.ErrNotSupported
 }
 
 func (w *ResponseWriter) setCustomResponseHeaders(statusCode int) {
@@ -70,37 +76,4 @@ func (w *ResponseWriter) setCustomResponseHeaders(statusCode int) {
 	if val, ok := sch[statusCode]; ok {
 		setter(val)
 	}
-}
-
-type uiRequestFunc func(*http.Request) bool
-
-// WrapCustomHeadersHandler wraps the handler to pass a custom ResponseWriter struct to all
-// later wrappers and handlers to assign custom headers by status code. This wrapper must
-// be the outermost wrapper to function correctly.
-func WrapCustomHeadersHandler(h http.Handler, config *ListenerConfig, isUiRequest uiRequestFunc) http.Handler {
-	uiHeaders := config.CustomUiResponseHeaders
-	apiHeaders := config.CustomApiResponseHeaders
-
-	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		// this function is extremely generic as all we want to do is wrap the http.ResponseWriter
-		// in our own ResponseWriter above, which will then perform all the logic we actually want
-
-		var headers map[int]http.Header
-
-		if isUiRequest(req) {
-			headers = uiHeaders
-		} else {
-			headers = apiHeaders
-		}
-
-		wrappedWriter := &ResponseWriter{
-			wrapped: w,
-			headers: headers,
-		}
-		h.ServeHTTP(wrappedWriter, req)
-
-		if !wrappedWriter.headerWritten {
-			wrappedWriter.WriteHeader(http.StatusOK)
-		}
-	})
 }
