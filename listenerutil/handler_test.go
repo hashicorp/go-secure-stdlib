@@ -1,12 +1,15 @@
 package listenerutil
 
 import (
+	"bufio"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCustomHeadersWrapper(t *testing.T) {
@@ -241,3 +244,142 @@ func TestCustomHeadersWrapper(t *testing.T) {
 		})
 	}
 }
+
+func TestWrappingPropagatesInterfaces(t *testing.T) {
+	t.Parallel()
+
+	type testNoOptional struct {
+		http.ResponseWriter
+	}
+	type testPusherHijacker struct {
+		http.ResponseWriter
+		testHijacker
+		testPusher
+	}
+	type testPusherFlusher struct {
+		http.ResponseWriter
+		testPusher
+		testFlusher
+	}
+	type testFlusherHijacker struct {
+		http.ResponseWriter
+		testFlusher
+		testHijacker
+	}
+
+	type testAll struct {
+		http.ResponseWriter
+		testFlusher
+		testHijacker
+		testPusher
+	}
+
+	tests := []struct {
+		name         string
+		wrap         http.ResponseWriter
+		wantFlusher  bool
+		wantPusher   bool
+		wantHijacker bool
+	}{
+		{
+			name: "missing-test-writer",
+			wrap: &testFlusher{},
+		},
+		{
+			name: "missing-wrapper",
+		},
+		{
+			name: "success-no-optional",
+			wrap: &testNoOptional{},
+		},
+		{
+			name:        "success-flusher",
+			wrap:        &testFlusher{},
+			wantFlusher: true,
+		},
+		{
+			name:        "success-flusher-hijacker",
+			wrap:        &testFlusherHijacker{},
+			wantFlusher: true,
+		},
+		{
+			name:       "success-pusher",
+			wrap:       &testPusher{},
+			wantPusher: true,
+		},
+		{
+			name:         "success-pusher-hijacker",
+			wrap:         &testPusherHijacker{},
+			wantHijacker: true,
+			wantPusher:   true,
+		},
+		{
+			name:        "success-pusher-flusher",
+			wrap:        &testPusherFlusher{},
+			wantFlusher: true,
+			wantPusher:  true,
+		},
+		{
+			name:         "success-hijacker",
+			wrap:         &testHijacker{},
+			wantHijacker: true,
+		},
+		{
+			name:         "success-all",
+			wrap:         &testAll{},
+			wantHijacker: true,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert, require := assert.New(t), require.New(t)
+			h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if tt.wantPusher {
+					_, ok := w.(http.Pusher)
+					assert.Truef(ok, "wanted an response writer that satisfied the http.Pusher interface")
+				}
+				if tt.wantHijacker {
+					_, ok := w.(http.Hijacker)
+					assert.Truef(ok, "wanted an response writer that satisfied the http.Hijacker interface")
+				}
+				if tt.wantFlusher {
+					f, ok := w.(http.Flusher)
+					assert.Truef(ok, "wanted an response writer that satisfied the http.Flusher interface")
+					f.Flush()
+				}
+			})
+			wrapped := WrapCustomHeadersHandler(h, &ListenerConfig{}, func(r *http.Request) bool { return false })
+			require.NotNil(wrapped)
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			wrapped.ServeHTTP(rec, req)
+			if tt.wantFlusher {
+				assert.True(rec.Flushed)
+			}
+		})
+	}
+
+}
+
+type testFlusher struct {
+	http.ResponseWriter
+	http.Flusher
+}
+
+func (t *testFlusher) Flush() {
+	t.Flusher.Flush()
+}
+
+type testPusher struct {
+	http.ResponseWriter
+}
+
+func (t *testPusher) Push(target string, opts *http.PushOptions) error { return nil }
+
+type testHijacker struct {
+	http.ResponseWriter
+}
+
+func (t *testHijacker) Hijack() (net.Conn, *bufio.ReadWriter, error) { return nil, nil, nil }
