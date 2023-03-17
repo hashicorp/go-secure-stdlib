@@ -1,4 +1,4 @@
-package functional
+package promise
 
 import (
 	"context"

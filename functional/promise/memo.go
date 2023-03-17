@@ -1,14 +1,14 @@
-package functional
+package promise
 
 import (
 	"context"
 	"sync"
 )
 
-type MemoizationFunc[T any] func() T
-type MemoizationWithContextFunc[T any] func(ctx context.Context) (T, error)
+type Promise[T any] func() T
+type PromiseWithContext[T any] func(ctx context.Context) (T, error)
 
-func MemoizeOnce[T any](f MemoizationFunc[T]) MemoizationFunc[T] {
+func Once[T any](f Promise[T]) Promise[T] {
 	var once sync.Once
 	var rv T
 	return func() T {
@@ -20,7 +20,7 @@ func MemoizeOnce[T any](f MemoizationFunc[T]) MemoizationFunc[T] {
 	}
 }
 
-func MemoizeOnceWithContext[T any](f MemoizationWithContextFunc[T]) MemoizationWithContextFunc[T] {
+func OnceContext[T any](f PromiseWithContext[T]) PromiseWithContext[T] {
 	var once sync.Once
 	var rv T
 	var err error
