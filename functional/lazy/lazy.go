@@ -1,3 +1,6 @@
+// Package lazy implements generic Lazy functions.  Lazy functions are evaluated when first called, while
+// all subsequent calls return the results of the initial call.  Call lazy functions in your code
+// as many times as you like knowing that the computation or side effects will only occur once.
 package lazy
 
 import (
@@ -5,6 +8,7 @@ import (
 	"sync"
 )
 
+// FromProducer returns the underlying function made lazy.
 func FromProducer[T any](f functional.Producer[T]) functional.Producer[T] {
 	var once sync.Once
 	var rv T
@@ -16,6 +20,7 @@ func FromProducer[T any](f functional.Producer[T]) functional.Producer[T] {
 	}
 }
 
+// FromErrorableProducer returns the underlying function made lazy.
 func FromErrorableProducer[T any](f functional.ErrorableProducer[T]) functional.ErrorableProducer[T] {
 	var once sync.Once
 	var rv T
@@ -32,6 +37,7 @@ func FromErrorableProducer[T any](f functional.ErrorableProducer[T]) functional.
 	}
 }
 
+// FromFunction returns the underlying function made lazy.
 func FromFunction[A, V any](f functional.Function[A, V]) functional.Function[A, V] {
 	var once sync.Once
 	var rv V
@@ -43,6 +49,7 @@ func FromFunction[A, V any](f functional.Function[A, V]) functional.Function[A, 
 	}
 }
 
+// FromErrorableFunction returns the underlying function made lazy.
 func FromErrorableFunction[A, V any](f functional.ErrorableFunction[A, V]) functional.ErrorableFunction[A, V] {
 	var once sync.Once
 	var rv V
@@ -64,6 +71,7 @@ func FromErrorableFunction[A, V any](f functional.ErrorableFunction[A, V]) funct
 	}
 }
 
+// FromBiFunction returns the underlying function made lazy.
 func FromBiFunction[A, B, V any](f functional.BiFunction[A, B, V]) functional.BiFunction[A, B, V] {
 	var once sync.Once
 	var rv V
@@ -75,6 +83,7 @@ func FromBiFunction[A, B, V any](f functional.BiFunction[A, B, V]) functional.Bi
 	}
 }
 
+// FromErrorableBiFunction returns the underlying function made lazy.
 func FromErrorableBiFunction[A, B, V any](f functional.ErrorableBiFunction[A, B, V]) functional.ErrorableBiFunction[A, B, V] {
 	var once sync.Once
 	var rv V
