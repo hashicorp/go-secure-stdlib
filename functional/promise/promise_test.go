@@ -7,12 +7,12 @@ import (
 	"testing"
 )
 
-func TestMemoization(t *testing.T) {
+func TestPromises(t *testing.T) {
 	r := require.New(t)
 
 	// Values memoized
 	i := 0
-	m1 := MemoizeOnce(func() int {
+	m1 := Once(func() int {
 		i = i + 1
 		return i
 	})
@@ -22,7 +22,7 @@ func TestMemoization(t *testing.T) {
 	var err error
 
 	// Values memoized
-	m2 := MemoizeOnceWithContext(func(_ context.Context) (int, error) {
+	m2 := OnceContext(func(_ context.Context) (int, error) {
 		i = i + 1
 		return i, err
 	})
@@ -38,7 +38,7 @@ func TestMemoization(t *testing.T) {
 	_, err2 = m2(context.Background())
 	r.NoError(err2)
 
-	m3 := MemoizeOnceWithContext(func(_ context.Context) (int, error) {
+	m3 := OnceContext(func(_ context.Context) (int, error) {
 		return 0, err
 	})
 
