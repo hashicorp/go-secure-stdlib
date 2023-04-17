@@ -128,4 +128,43 @@ func Test_GetOpts(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotNil(t, opts.withSTSAPIFunc)
 	})
+	t.Run("withRoleArn", func(t *testing.T) {
+		opts, err := getOpts(WithRoleArn("foobar"))
+		require.NoError(t, err)
+		testOpts := getDefaultOptions()
+		testOpts.withRoleArn = "foobar"
+		assert.Equal(t, opts, testOpts)
+	})
+	t.Run("withRoleExternalId", func(t *testing.T) {
+		opts, err := getOpts(WithRoleExternalId("foobar"))
+		require.NoError(t, err)
+		testOpts := getDefaultOptions()
+		testOpts.withRoleExternalId = "foobar"
+		assert.Equal(t, opts, testOpts)
+	})
+	t.Run("withRoleSessionName", func(t *testing.T) {
+		opts, err := getOpts(WithRoleSessionName("foobar"))
+		require.NoError(t, err)
+		testOpts := getDefaultOptions()
+		testOpts.withRoleSessionName = "foobar"
+		assert.Equal(t, opts, testOpts)
+	})
+	t.Run("WithRoleTags", func(t *testing.T) {
+		opts, err := getOpts(WithRoleTags(map[string]string{
+			"foo": "bar",
+		}))
+		require.NoError(t, err)
+		testOpts := getDefaultOptions()
+		testOpts.withRoleTags = map[string]string{
+			"foo": "bar",
+		}
+		assert.Equal(t, opts, testOpts)
+	})
+	t.Run("WithWebIdentityTokenFile", func(t *testing.T) {
+		opts, err := getOpts(WithWebIdentityTokenFile("foo"))
+		require.NoError(t, err)
+		testOpts := getDefaultOptions()
+		testOpts.withWebIdentityTokenFile = "foo"
+		assert.Equal(t, opts, testOpts)
+	})
 }
