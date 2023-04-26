@@ -3,7 +3,7 @@ package awsutil
 import (
 	"errors"
 	"testing"
-
+	
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/sts"
@@ -18,6 +18,8 @@ func TestMockIAM(t *testing.T) {
 		expectedCreateAccessKeyOutput *iam.CreateAccessKeyOutput
 		expectedCreateAccessKeyError  error
 		expectedDeleteAccessKeyError  error
+		expectedListAccessKeysOutput  *iam.ListAccessKeysOutput
+		expectedListAccessKeysError   error
 		expectedGetUserOutput         *iam.GetUserOutput
 		expectedGetUserError          error
 	}{
@@ -42,6 +44,34 @@ func TestMockIAM(t *testing.T) {
 			name:                         "CreateAccessKeyError",
 			opts:                         []MockIAMOption{WithCreateAccessKeyError(errors.New("testerr"))},
 			expectedCreateAccessKeyError: errors.New("testerr"),
+		},
+		{
+			name: "ListAccessKeysOutput",
+			opts: []MockIAMOption{WithListAccessKeysOutput(
+				&iam.ListAccessKeysOutput{
+					AccessKeyMetadata: []*iam.AccessKeyMetadata{
+						{
+							AccessKeyId: aws.String("foobar"),
+							Status:      aws.String("bazqux"),
+							UserName:    aws.String("janedoe"),
+						},
+					},
+				},
+			)},
+			expectedListAccessKeysOutput: &iam.ListAccessKeysOutput{
+				AccessKeyMetadata: []*iam.AccessKeyMetadata{
+					{
+						AccessKeyId: aws.String("foobar"),
+						Status:      aws.String("bazqux"),
+						UserName:    aws.String("janedoe"),
+					},
+				},
+			},
+		},
+		{
+			name:                        "ListAccessKeysError",
+			opts:                        []MockIAMOption{WithListAccessKeysError(errors.New("testerr"))},
+			expectedListAccessKeysError: errors.New("testerr"),
 		},
 		{
 			name:                         "DeleteAccessKeyError",
