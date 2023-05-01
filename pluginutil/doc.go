@@ -1,3 +1,6 @@
+// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
 /*
 Package pluginutil provides common functions to make it easier to load plugins,
 especially if they can be either instantiated in memory or implemented as
