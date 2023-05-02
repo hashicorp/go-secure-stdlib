@@ -13,7 +13,7 @@ require (
 	github.com/hashicorp/go-secure-stdlib/pluginutil/v2 v2.0.2
 	github.com/hashicorp/hcl v1.0.0
 	github.com/stretchr/testify v1.7.0
-	golang.org/x/crypto v0.0.0-20220313003712-b769efc7c000
+	golang.org/x/crypto v0.1.0
 	google.golang.org/protobuf v1.27.1
 )
 
