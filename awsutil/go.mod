@@ -3,7 +3,7 @@ module github.com/hashicorp/go-secure-stdlib/awsutil
 go 1.16
 
 require (
-	github.com/aws/aws-sdk-go v1.30.27
+	github.com/aws/aws-sdk-go v1.34.0
 	github.com/hashicorp/errwrap v1.1.0
 	github.com/hashicorp/go-cleanhttp v0.5.2
 	github.com/hashicorp/go-hclog v0.16.2
