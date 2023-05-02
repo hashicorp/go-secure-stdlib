@@ -1,3 +1,6 @@
+// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
 // password is a package for reading a password securely from a terminal.
 // The code in this package disables echo in the terminal so that the
 // password is not echoed back in plaintext to the user.
