@@ -1,3 +1,14 @@
+// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
+// The implementation of this package is a simple sync.Map to allow creation
+// and redemption of nonces. Creating nonces consumes memory and sync.Map is
+// not easily shrinkable without an expensive copy operation (which has not
+// be implemented here). However, redemption of nonces (including invalid
+// or reused nonces) is as fast as a single sync.Map lookup.
+//
+// As such, this implementation should not be used.
+
 package nonce
 
 import (

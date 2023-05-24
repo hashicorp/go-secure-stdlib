@@ -1,7 +1,9 @@
-// Nonce is a class for generating and validating nonces loosely based off
-// the design of Let's Encrypt's Boulder nonce service here:
-//
-//   https://github.com/letsencrypt/boulder/blob/main/nonce/nonce.go
+// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
+// Nonce is an interface for generating and validating nonces. Different
+// backend implementations have different performance and security
+// characteristics.
 
 package nonce
 

@@ -1,3 +1,6 @@
+// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
 // Nonce is a class for generating and validating nonces loosely based off
 // the design of Let's Encrypt's Boulder nonce service here:
 //
