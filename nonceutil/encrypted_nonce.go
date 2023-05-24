@@ -18,7 +18,7 @@
 // and other checks for delayed or reused nonces remain as fast as parsing
 // and decrypting the token value.
 
-package nonce
+package nonceutil
 
 import (
 	"crypto/aes"

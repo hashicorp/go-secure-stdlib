@@ -5,7 +5,7 @@
 // backend implementations have different performance and security
 // characteristics.
 
-package nonce
+package nonceutil
 
 import (
 	"time"

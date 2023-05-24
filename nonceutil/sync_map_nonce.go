@@ -9,7 +9,7 @@
 //
 // As such, this implementation should not be used.
 
-package nonce
+package nonceutil
 
 import (
 	"crypto/rand"
