@@ -15,6 +15,12 @@ import (
 // a hook to periodically free resources when no redemptions have happened
 // recently.
 //
+// A nonce is a unique token that can be given to a client, who can later
+// "redeem" or use that token on a subsequent request to prove that the
+// request has only been done once. No tracking of client->token is performed
+// as part of this service. For an example use of nonces within a protocol,
+// see IETF RFC 8555 Automatic Certificate Management Environment (ACME).
+//
 // Notably, nonces are not guaranteed to be stored or persisted; nonces
 // from one startup will not necessarily be valid from another.
 type NonceService interface {
