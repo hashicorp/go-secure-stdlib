@@ -56,6 +56,9 @@ type SharedConfig struct {
 }
 
 // LoadConfigFile loads the configuration from the given file.
+// Supported options:
+//   - WithMaxKmsBlocks
+//   - WithListenerOptions
 func LoadConfigFile(path string, opt ...Option) (*SharedConfig, error) {
 	// Read the file
 	d, err := ioutil.ReadFile(path)
@@ -65,6 +68,9 @@ func LoadConfigFile(path string, opt ...Option) (*SharedConfig, error) {
 	return ParseConfig(string(d), opt...)
 }
 
+// LoadConfigKMSes loads KMS configuration from the provided path.
+// Supported options:
+//   - WithMaxKmsBlocks
 func LoadConfigKMSes(path string, opt ...Option) ([]*KMS, error) {
 	// Read the file
 	d, err := ioutil.ReadFile(path)
@@ -74,9 +80,18 @@ func LoadConfigKMSes(path string, opt ...Option) ([]*KMS, error) {
 	return ParseKMSes(string(d), opt...)
 }
 
+// ParseConfig parses the string d as a SharedConfig struct.
+// Supported options:
+//   - WithMaxKmsBlocks
+//   - WithListenerOptions
 func ParseConfig(d string, opt ...Option) (*SharedConfig, error) {
 	// Parse!
 	obj, err := hcl.Parse(d)
+	if err != nil {
+		return nil, err
+	}
+
+	opts, err := getOpts(opt...)
 	if err != nil {
 		return nil, err
 	}
@@ -111,7 +126,7 @@ func ParseConfig(d string, opt ...Option) (*SharedConfig, error) {
 		return nil, fmt.Errorf("error parsing: file doesn't contain a root object")
 	}
 
-	if result.Seals, err = filterKMSes(list, opt...); err != nil {
+	if result.Seals, err = filterKMSes(list, opts.withMaxKmsBlocks); err != nil {
 		return nil, fmt.Errorf("error parsing kms information: %w", err)
 	}
 
@@ -122,7 +137,7 @@ func ParseConfig(d string, opt ...Option) (*SharedConfig, error) {
 	}
 
 	if o := list.Filter("listener"); len(o.Items) > 0 {
-		l, err := listenerutil.ParseListeners(o)
+		l, err := listenerutil.ParseListeners(o, opts.withListenerOptions...)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing 'listener': %w", err)
 		}

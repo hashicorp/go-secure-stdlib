@@ -5,6 +5,7 @@ package configutil
 
 import (
 	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/go-secure-stdlib/listenerutil"
 	"github.com/hashicorp/go-secure-stdlib/pluginutil/v2"
 )
 
@@ -26,9 +27,10 @@ type Option func(*options) error
 
 // options = how options are represented
 type options struct {
-	withPluginOptions []pluginutil.Option
-	withMaxKmsBlocks  int
-	withLogger        hclog.Logger
+	withPluginOptions   []pluginutil.Option
+	withMaxKmsBlocks    int
+	withLogger          hclog.Logger
+	withListenerOptions []listenerutil.Option
 }
 
 func getDefaultOptions() options {
@@ -59,6 +61,15 @@ func WithPluginOptions(opts ...pluginutil.Option) Option {
 func WithLogger(logger hclog.Logger) Option {
 	return func(o *options) error {
 		o.withLogger = logger
+		return nil
+	}
+}
+
+// WithListenerOptions allows providing listener-related (as opposed to
+// configutil-related) options.
+func WithListenerOptions(listenerOpts []listenerutil.Option) Option {
+	return func(o *options) error {
+		o.withListenerOptions = listenerOpts
 		return nil
 	}
 }

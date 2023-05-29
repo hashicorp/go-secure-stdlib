@@ -190,9 +190,17 @@ func parseKMS(result *[]*KMS, list *ast.ObjectList, blockName string, opt ...Opt
 	return nil
 }
 
+// ParseKMSes loads KMS configuration from the provided string.
+// Supported options:
+//   - WithMaxKmsBlocks
 func ParseKMSes(d string, opt ...Option) ([]*KMS, error) {
 	// Parse!
 	obj, err := hcl.Parse(d)
+	if err != nil {
+		return nil, err
+	}
+
+	opts, err := getOpts(opt...)
 	if err != nil {
 		return nil, err
 	}
@@ -211,28 +219,40 @@ func ParseKMSes(d string, opt ...Option) ([]*KMS, error) {
 		return nil, fmt.Errorf("error parsing: file doesn't contain a root object")
 	}
 
-	return filterKMSes(list, opt...)
+	return filterKMSes(list, opts.withMaxKmsBlocks)
 }
 
 // filterKMSes unifies the logic formerly in ParseConfig and ParseKMSes to
 // populate the actual KMSes once the HCL decoding has been performed
-func filterKMSes(list *ast.ObjectList, opt ...Option) ([]*KMS, error) {
+func filterKMSes(list *ast.ObjectList, maxKmsBlocks int) ([]*KMS, error) {
 	seals := new([]*KMS)
 
 	// opt is used after the WithMaxKmsBlocks option so that what a user passes
 	// in can override the defaults here
 	if o := list.Filter("hsm"); len(o.Items) > 0 {
-		if err := parseKMS(seals, o, "hsm", append([]Option{WithMaxKmsBlocks(2)}, opt...)...); err != nil {
+		maxHsmKmsBlocks := maxKmsBlocks
+		if maxHsmKmsBlocks == 0 {
+			maxHsmKmsBlocks = 2
+		}
+		if err := parseKMS(seals, o, "hsm", WithMaxKmsBlocks(maxHsmKmsBlocks)); err != nil {
 			return nil, fmt.Errorf("error parsing 'seal': %w", err)
 		}
 	}
 	if o := list.Filter("seal"); len(o.Items) > 0 {
-		if err := parseKMS(seals, o, "seal", append([]Option{WithMaxKmsBlocks(3)}, opt...)...); err != nil {
+		maxSealKmsBlocks := maxKmsBlocks
+		if maxSealKmsBlocks == 0 {
+			maxSealKmsBlocks = 3
+		}
+		if err := parseKMS(seals, o, "seal", WithMaxKmsBlocks(maxSealKmsBlocks)); err != nil {
 			return nil, fmt.Errorf("error parsing 'seal': %w", err)
 		}
 	}
 	if o := list.Filter("kms"); len(o.Items) > 0 {
-		if err := parseKMS(seals, o, "kms", append([]Option{WithMaxKmsBlocks(5)}, opt...)...); err != nil {
+		maxKmsBlocks := maxKmsBlocks
+		if maxKmsBlocks == 0 {
+			maxKmsBlocks = 5
+		}
+		if err := parseKMS(seals, o, "kms", WithMaxKmsBlocks(maxKmsBlocks)); err != nil {
 			return nil, fmt.Errorf("error parsing 'kms': %w", err)
 		}
 	}
