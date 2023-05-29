@@ -67,9 +67,9 @@ func WithLogger(logger hclog.Logger) Option {
 
 // WithListenerOptions allows providing listener-related (as opposed to
 // configutil-related) options.
-func WithListenerOptions(listenerOpts []listenerutil.Option) Option {
+func WithListenerOptions(opts ...listenerutil.Option) Option {
 	return func(o *options) error {
-		o.withListenerOptions = listenerOpts
+		o.withListenerOptions = opts
 		return nil
 	}
 }

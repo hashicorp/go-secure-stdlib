@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/go-secure-stdlib/listenerutil"
 	"github.com/hashicorp/go-secure-stdlib/pluginutil/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -52,5 +53,17 @@ func Test_GetOpts(t *testing.T) {
 		require.NoError(err)
 		require.NotNil(opts)
 		assert.Equal(logger, opts.withLogger)
+	})
+	t.Run("with-listener-options", func(t *testing.T) {
+		assert, require := assert.New(t), require.New(t)
+		opts, err := getOpts()
+		require.NoError(err)
+		assert.Nil(opts.withListenerOptions)
+		opts, err = getOpts(
+			WithListenerOptions(listenerutil.WithDefaultUiContentSecurityPolicyHeader("wasm-unsafe-eval")),
+		)
+		require.NoError(err)
+		require.NotNil(opts)
+		assert.Len(opts.withListenerOptions, 1)
 	})
 }
