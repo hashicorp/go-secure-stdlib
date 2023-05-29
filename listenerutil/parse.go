@@ -110,6 +110,9 @@ func (l *ListenerConfig) GoString() string {
 	return fmt.Sprintf("*%#v", *l)
 }
 
+// ParseListeners parses the list of listeners into a slice of ListenerConfig structs.
+// Supported options:
+//   - WithDefaultUiContentSecurityPolicyHeader
 func ParseListeners(list *ast.ObjectList, opt ...Option) ([]*ListenerConfig, error) {
 	var err error
 	opts, err := getOpts(opt...)
@@ -382,7 +385,7 @@ func ParseListeners(list *ast.ObjectList, opt ...Option) ([]*ListenerConfig, err
 		// HTTP Headers
 		{
 			// if CustomApiResponseHeadersRaw is nil, we still need to set the default headers
-			customApiHeadersMap, err := parseCustomResponseHeaders(l.CustomApiResponseHeadersRaw, false, WithDefaultResponseHeaders(opts.withDefaultApiResponseHeaders))
+			customApiHeadersMap, err := parseCustomResponseHeaders(l.CustomApiResponseHeadersRaw, false)
 			if err != nil {
 				return nil, multierror.Prefix(fmt.Errorf("failed to parse custom_api_response_headers: %w", err), fmt.Sprintf("listeners.%d", i))
 			}
@@ -390,7 +393,11 @@ func ParseListeners(list *ast.ObjectList, opt ...Option) ([]*ListenerConfig, err
 			l.CustomApiResponseHeadersRaw = nil
 
 			// if CustomUiResponseHeadersRaw is nil, we still need to set the default headers
-			customUiHeadersMap, err := parseCustomResponseHeaders(l.CustomUiResponseHeadersRaw, true, WithDefaultResponseHeaders(opts.withDefaultUiResponseHeaders))
+			customUiHeadersMap, err := parseCustomResponseHeaders(
+				l.CustomUiResponseHeadersRaw,
+				true,
+				WithDefaultUiContentSecurityPolicyHeader(opts.withDefaultUiContentSecurityPolicyHeader),
+			)
 			if err != nil {
 				return nil, multierror.Prefix(fmt.Errorf("failed to parse custom_ui_response_headers: %w", err), fmt.Sprintf("listeners.%d", i))
 			}
@@ -441,6 +448,8 @@ const cacheControl = "Cache-Control"
 // of status code to a map of header name and header values. It verifies the validity of the
 // status codes, and header values. It also adds the default headers values for "Cache-Control",
 // "Strict-Transport-Security", "X-Content-Type-Options", and "Content-Security-Policy".
+// Supported options:
+//   - WithDefaultUiContentSecurityPolicyHeader
 func parseCustomResponseHeaders(responseHeaders interface{}, uiHeaders bool, opt ...Option) (map[int]http.Header, error) {
 	opts, err := getOpts(opt...)
 	if err != nil {
@@ -449,21 +458,21 @@ func parseCustomResponseHeaders(responseHeaders interface{}, uiHeaders bool, opt
 	h := make(map[int]http.Header)
 	// if responseHeaders is nil, we still should set the default custom headers
 	if responseHeaders == nil {
-		if opts.withDefaultResponseHeaders != nil {
-			return opts.withDefaultResponseHeaders, nil
-		} else {
-			h[0] = http.Header{
-				strictTransportSecurity: {defaultStrictTransportSecurityHeader},
-				xContentTypeOptions:     {defaultXContentTypeOptionsHeader},
-				cacheControl:            {defaultCacheControlHeader},
-			}
-			if uiHeaders {
-				h[0][contentSecurityPolicy] = []string{defaultUiContentSecurityPolicyHeader}
-			} else {
-				h[0][contentSecurityPolicy] = []string{defaultApiContentSecurityPolicyHeader}
-			}
-			return h, nil
+		h[0] = http.Header{
+			strictTransportSecurity: {defaultStrictTransportSecurityHeader},
+			xContentTypeOptions:     {defaultXContentTypeOptionsHeader},
+			cacheControl:            {defaultCacheControlHeader},
 		}
+		if uiHeaders {
+			uiContentSecurityPolicyHeader := defaultUiContentSecurityPolicyHeader
+			if opts.withDefaultUiContentSecurityPolicyHeader != "" {
+				uiContentSecurityPolicyHeader = opts.withDefaultUiContentSecurityPolicyHeader
+			}
+			h[0][contentSecurityPolicy] = []string{uiContentSecurityPolicyHeader}
+		} else {
+			h[0][contentSecurityPolicy] = []string{defaultApiContentSecurityPolicyHeader}
+		}
+		return h, nil
 	}
 
 	customResponseHeader, ok := responseHeaders.([]map[string]interface{})

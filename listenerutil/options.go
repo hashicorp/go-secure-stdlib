@@ -3,8 +3,6 @@
 
 package listenerutil
 
-import "net/http"
-
 // getOpts - iterate the inbound Options and return a struct
 func getOpts(opt ...Option) (*options, error) {
 	opts := getDefaultOptions()
@@ -23,38 +21,18 @@ type Option func(*options) error
 
 // options = how options are represented
 type options struct {
-	withDefaultResponseHeaders    map[int]http.Header
-	withDefaultApiResponseHeaders map[int]http.Header
-	withDefaultUiResponseHeaders  map[int]http.Header
+	withDefaultUiContentSecurityPolicyHeader string
 }
 
 func getDefaultOptions() options {
 	return options{}
 }
 
-// WithDefaultResponseHeaders provides a default value for listener
-// response headers
-func WithDefaultResponseHeaders(headers map[int]http.Header) Option {
+// WithDefaultUiContentSecurityPolicyHeader provides a default value for the UI listener's
+// Content-Security-Policy header.
+func WithDefaultUiContentSecurityPolicyHeader(cspHeader string) Option {
 	return func(o *options) error {
-		o.withDefaultResponseHeaders = headers
-		return nil
-	}
-}
-
-// WithDefaultApiResponseHeaders provides a default value for API listener
-// response headers
-func WithDefaultApiResponseHeaders(headers map[int]http.Header) Option {
-	return func(o *options) error {
-		o.withDefaultApiResponseHeaders = headers
-		return nil
-	}
-}
-
-// WithDefaultUiResponseHeaders provides a default value for UI listener
-// response headers
-func WithDefaultUiResponseHeaders(headers map[int]http.Header) Option {
-	return func(o *options) error {
-		o.withDefaultUiResponseHeaders = headers
+		o.withDefaultUiContentSecurityPolicyHeader = cspHeader
 		return nil
 	}
 }
