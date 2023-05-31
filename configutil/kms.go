@@ -224,34 +224,30 @@ func ParseKMSes(d string, opt ...Option) ([]*KMS, error) {
 
 // filterKMSes unifies the logic formerly in ParseConfig and ParseKMSes to
 // populate the actual KMSes once the HCL decoding has been performed
-func filterKMSes(list *ast.ObjectList, maxKmsBlocks int) ([]*KMS, error) {
+func filterKMSes(list *ast.ObjectList, maxBlocks int) ([]*KMS, error) {
 	seals := new([]*KMS)
 
+	maxHsmKmsBlocks := maxBlocks
+	maxSealKmsBlocks := maxBlocks
+	maxKmsBlocks := maxBlocks
+	if maxBlocks == 0 {
+		maxHsmKmsBlocks = 2
+		maxSealKmsBlocks = 3
+		maxKmsBlocks = 5
+	}
 	// opt is used after the WithMaxKmsBlocks option so that what a user passes
 	// in can override the defaults here
 	if o := list.Filter("hsm"); len(o.Items) > 0 {
-		maxHsmKmsBlocks := maxKmsBlocks
-		if maxHsmKmsBlocks == 0 {
-			maxHsmKmsBlocks = 2
-		}
 		if err := parseKMS(seals, o, "hsm", WithMaxKmsBlocks(maxHsmKmsBlocks)); err != nil {
 			return nil, fmt.Errorf("error parsing 'seal': %w", err)
 		}
 	}
 	if o := list.Filter("seal"); len(o.Items) > 0 {
-		maxSealKmsBlocks := maxKmsBlocks
-		if maxSealKmsBlocks == 0 {
-			maxSealKmsBlocks = 3
-		}
 		if err := parseKMS(seals, o, "seal", WithMaxKmsBlocks(maxSealKmsBlocks)); err != nil {
 			return nil, fmt.Errorf("error parsing 'seal': %w", err)
 		}
 	}
 	if o := list.Filter("kms"); len(o.Items) > 0 {
-		maxKmsBlocks := maxKmsBlocks
-		if maxKmsBlocks == 0 {
-			maxKmsBlocks = 5
-		}
 		if err := parseKMS(seals, o, "kms", WithMaxKmsBlocks(maxKmsBlocks)); err != nil {
 			return nil, fmt.Errorf("error parsing 'kms': %w", err)
 		}
