@@ -72,6 +72,10 @@ type CredentialsConfig struct {
 	// The web identity token file to use if using the web identity token provider
 	WebIdentityTokenFile string
 
+	// The web identity token (contents, not the file path) to use with the web
+	// identity token provider
+	WebIdentityToken string
+
 	// The http.Client to use, or nil for the client to use its default
 	HTTPClient *http.Client
 
@@ -230,6 +234,22 @@ func (c *CredentialsConfig) GenerateCredentialChain(opt ...Option) (*credentials
 				// Add the web identity role credential provider
 				providers = append(providers, webIdentityProvider)
 			}
+		} else if c.WebIdentityToken != "" {
+			c.log(hclog.Debug, "adding web identity provider with token", "roleARN", c.RoleARN)
+			sess, err := session.NewSession()
+			if err != nil {
+				return nil, errors.Wrap(err, "error creating a new session to create a WebIdentityRoleProvider with token")
+			}
+			webIdentityProvider := stscreds.NewWebIdentityRoleProviderWithToken(sts.New(sess), c.RoleARN, c.RoleSessionName, FetchTokenContents(c.WebIdentityToken))
+
+			// Check if the webIdentityProvider can successfully retrieve
+			// credentials (via sts:AssumeRole), and warn if there's a problem.
+			if _, err := webIdentityProvider.Retrieve(); err != nil {
+				c.log(hclog.Warn, "error assuming role with WebIdentityToken", "roleARN", c.RoleARN, "sessionName", c.RoleSessionName, "err", err)
+			} else {
+				// Add the web identity role credential provider
+				providers = append(providers, webIdentityProvider)
+			}
 		} else {
 			// this session is only created to create the AssumeRoleProvider, variables used to
 			// assume a role are pulled from values provided in options. If the option values are
@@ -378,4 +398,15 @@ func stsSigningResolver(service, region string, optFns ...func(*endpoints.Option
 	}
 	defaultEndpoint.SigningRegion = region
 	return defaultEndpoint, nil
+}
+
+// FetchTokenContents allows the use of the content of a token in the
+// WebIdentityProvider, instead of the path to a token. Useful with a
+// serviceaccount token requested directly from the EKS/K8s API, for example.
+type FetchTokenContents string
+
+var _ stscreds.TokenFetcher = (*FetchTokenContents)(nil)
+
+func (f FetchTokenContents) FetchToken(_ aws.Context) ([]byte, error) {
+	return []byte(f), nil
 }
