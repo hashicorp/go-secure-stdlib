@@ -74,7 +74,7 @@ type CredentialsConfig struct {
 
 	// The web identity token (contents, not the file path) to use with the web
 	// identity token provider
-	WebIdentityToken string
+	WebIdentityToken []byte
 
 	// The http.Client to use, or nil for the client to use its default
 	HTTPClient *http.Client
@@ -92,7 +92,8 @@ type CredentialsConfig struct {
 //
 // Supported options: WithAccessKey, WithSecretKey, WithLogger, WithStsEndpoint,
 // WithIamEndpoint, WithMaxRetries, WithRegion, WithHttpClient, WithRoleArn,
-// WithRoleSessionName, WithRoleExternalId, WithRoleTags, WithWebIdentityTokenFile.
+// WithRoleSessionName, WithRoleExternalId, WithRoleTags, WithWebIdentityTokenFile,
+// WithWebIdentityToken.
 func NewCredentialsConfig(opt ...Option) (*CredentialsConfig, error) {
 	opts, err := getOpts(opt...)
 	if err != nil {
@@ -132,6 +133,7 @@ func NewCredentialsConfig(opt ...Option) (*CredentialsConfig, error) {
 	if c.WebIdentityTokenFile == "" {
 		c.WebIdentityTokenFile = os.Getenv("AWS_WEB_IDENTITY_TOKEN_FILE")
 	}
+	c.WebIdentityToken = opts.withWebIdentityToken
 
 	if c.RoleARN == "" {
 		if c.RoleSessionName != "" {
@@ -145,6 +147,9 @@ func NewCredentialsConfig(opt ...Option) (*CredentialsConfig, error) {
 		}
 		if c.WebIdentityTokenFile != "" {
 			return nil, fmt.Errorf("web identity token file specified without role ARN")
+		}
+		if len(c.WebIdentityToken) > 0 {
+			return nil, fmt.Errorf("web identity token specified without role ARN")
 		}
 	}
 
@@ -234,7 +239,7 @@ func (c *CredentialsConfig) GenerateCredentialChain(opt ...Option) (*credentials
 				// Add the web identity role credential provider
 				providers = append(providers, webIdentityProvider)
 			}
-		} else if c.WebIdentityToken != "" {
+		} else if len(c.WebIdentityToken) > 0 {
 			c.log(hclog.Debug, "adding web identity provider with token", "roleARN", c.RoleARN)
 			sess, err := session.NewSession()
 			if err != nil {
