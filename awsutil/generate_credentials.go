@@ -403,10 +403,10 @@ func stsSigningResolver(service, region string, optFns ...func(*endpoints.Option
 // FetchTokenContents allows the use of the content of a token in the
 // WebIdentityProvider, instead of the path to a token. Useful with a
 // serviceaccount token requested directly from the EKS/K8s API, for example.
-type FetchTokenContents string
+type FetchTokenContents []byte
 
 var _ stscreds.TokenFetcher = (*FetchTokenContents)(nil)
 
 func (f FetchTokenContents) FetchToken(_ aws.Context) ([]byte, error) {
-	return []byte(f), nil
+	return f, nil
 }
