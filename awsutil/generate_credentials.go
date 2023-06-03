@@ -171,7 +171,8 @@ func (c *CredentialsConfig) log(level hclog.Level, msg string, args ...interface
 // GenerateCredentialChain uses the config to generate a credential chain
 // suitable for creating AWS sessions and clients.
 //
-// Supported options: WithEnvironmentCredentials, WithSharedCredentials
+// Supported options: WithEnvironmentCredentials, WithSharedCredentials,
+// WithSkipWebIdentityValidity
 func (c *CredentialsConfig) GenerateCredentialChain(opt ...Option) (*credentials.Credentials, error) {
 	opts, err := getOpts(opt...)
 	if err != nil {
@@ -231,13 +232,19 @@ func (c *CredentialsConfig) GenerateCredentialChain(opt ...Option) (*credentials
 			}
 			webIdentityProvider := stscreds.NewWebIdentityRoleProvider(sts.New(sess), c.RoleARN, c.RoleSessionName, c.WebIdentityTokenFile)
 
-			// Check if the webIdentityProvider can successfully retrieve
-			// credentials (via sts:AssumeRole), and warn if there's a problem.
-			if _, err := webIdentityProvider.Retrieve(); err != nil {
-				c.log(hclog.Warn, "error assuming role", "roleARN", c.RoleARN, "tokenPath", c.WebIdentityTokenFile, "sessionName", c.RoleSessionName, "err", err)
-			} else {
-				// Add the web identity role credential provider
+			if opts.withSkipWebIdentityValidity {
+				// Add the web identity role credential provider without
+				// generating credentials to check validity first
 				providers = append(providers, webIdentityProvider)
+			} else {
+				// Check if the webIdentityProvider can successfully retrieve
+				// credentials (via sts:AssumeRole), and warn if there's a problem.
+				if _, err := webIdentityProvider.Retrieve(); err != nil {
+					c.log(hclog.Warn, "error assuming role", "roleARN", c.RoleARN, "tokenPath", c.WebIdentityTokenFile, "sessionName", c.RoleSessionName, "err", err)
+				} else {
+					// Add the web identity role credential provider
+					providers = append(providers, webIdentityProvider)
+				}
 			}
 		} else if c.WebIdentityToken != "" {
 			c.log(hclog.Debug, "adding web identity provider with token", "roleARN", c.RoleARN)
@@ -247,13 +254,19 @@ func (c *CredentialsConfig) GenerateCredentialChain(opt ...Option) (*credentials
 			}
 			webIdentityProvider := stscreds.NewWebIdentityRoleProviderWithToken(sts.New(sess), c.RoleARN, c.RoleSessionName, FetchTokenContents(c.WebIdentityToken))
 
-			// Check if the webIdentityProvider can successfully retrieve
-			// credentials (via sts:AssumeRole), and warn if there's a problem.
-			if _, err := webIdentityProvider.Retrieve(); err != nil {
-				c.log(hclog.Warn, "error assuming role with WebIdentityToken", "roleARN", c.RoleARN, "sessionName", c.RoleSessionName, "err", err)
-			} else {
-				// Add the web identity role credential provider
+			if opts.withSkipWebIdentityValidity {
+				// Add the web identity role credential provider without
+				// generating credentials to check validity first
 				providers = append(providers, webIdentityProvider)
+			} else {
+				// Check if the webIdentityProvider can successfully retrieve
+				// credentials (via sts:AssumeRole), and warn if there's a problem.
+				if _, err := webIdentityProvider.Retrieve(); err != nil {
+					c.log(hclog.Warn, "error assuming role with WebIdentityToken", "roleARN", c.RoleARN, "sessionName", c.RoleSessionName, "err", err)
+				} else {
+					// Add the web identity role credential provider
+					providers = append(providers, webIdentityProvider)
+				}
 			}
 		} else {
 			// this session is only created to create the AssumeRoleProvider, variables used to

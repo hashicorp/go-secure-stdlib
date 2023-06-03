@@ -177,4 +177,11 @@ func Test_GetOpts(t *testing.T) {
 		testOpts.withWebIdentityToken = "foo"
 		assert.Equal(t, opts, testOpts)
 	})
+	t.Run("WithSkipWebIdentityValidity", func(t *testing.T) {
+		opts, err := getOpts(WithSkipWebIdentityValidity(true))
+		require.NoError(t, err)
+		testOpts := getDefaultOptions()
+		testOpts.withSkipWebIdentityValidity = true
+		assert.Equal(t, opts, testOpts)
+	})
 }
