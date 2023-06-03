@@ -171,10 +171,10 @@ func Test_GetOpts(t *testing.T) {
 		assert.Equal(t, opts, testOpts)
 	})
 	t.Run("WithWebIdentityToken", func(t *testing.T) {
-		opts, err := getOpts(WithWebIdentityToken([]byte("foo")))
+		opts, err := getOpts(WithWebIdentityToken("foo"))
 		require.NoError(t, err)
 		testOpts := getDefaultOptions()
-		testOpts.withWebIdentityToken = []byte("foo")
+		testOpts.withWebIdentityToken = "foo"
 		assert.Equal(t, opts, testOpts)
 	})
 }

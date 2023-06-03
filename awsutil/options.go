@@ -48,7 +48,7 @@ type options struct {
 	withRoleExternalId         string
 	withRoleTags               map[string]string
 	withWebIdentityTokenFile   string
-	withWebIdentityToken       []byte
+	withWebIdentityToken       string
 	withHttpClient             *http.Client
 	withValidityCheckTimeout   time.Duration
 	withIAMAPIFunc             IAMAPIFunc
@@ -116,7 +116,7 @@ func WithWebIdentityTokenFile(with string) Option {
 
 // WithWebIdentityToken allows passing a web identity token to use for the
 // assumed role. If set, the RoleARN must be set.
-func WithWebIdentityToken(with []byte) Option {
+func WithWebIdentityToken(with string) Option {
 	return func(o *options) error {
 		o.withWebIdentityToken = with
 		return nil

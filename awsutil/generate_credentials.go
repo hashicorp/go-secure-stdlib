@@ -74,7 +74,7 @@ type CredentialsConfig struct {
 
 	// The web identity token (contents, not the file path) to use with the web
 	// identity token provider
-	WebIdentityToken []byte
+	WebIdentityToken string
 
 	// The http.Client to use, or nil for the client to use its default
 	HTTPClient *http.Client
@@ -239,7 +239,7 @@ func (c *CredentialsConfig) GenerateCredentialChain(opt ...Option) (*credentials
 				// Add the web identity role credential provider
 				providers = append(providers, webIdentityProvider)
 			}
-		} else if len(c.WebIdentityToken) > 0 {
+		} else if c.WebIdentityToken != "" {
 			c.log(hclog.Debug, "adding web identity provider with token", "roleARN", c.RoleARN)
 			sess, err := session.NewSession()
 			if err != nil {
