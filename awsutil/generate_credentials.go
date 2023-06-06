@@ -72,6 +72,10 @@ type CredentialsConfig struct {
 	// The web identity token file to use if using the web identity token provider
 	WebIdentityTokenFile string
 
+	// The web identity token (contents, not the file path) to use with the web
+	// identity token provider
+	WebIdentityToken string
+
 	// The http.Client to use, or nil for the client to use its default
 	HTTPClient *http.Client
 
@@ -88,7 +92,8 @@ type CredentialsConfig struct {
 //
 // Supported options: WithAccessKey, WithSecretKey, WithLogger, WithStsEndpoint,
 // WithIamEndpoint, WithMaxRetries, WithRegion, WithHttpClient, WithRoleArn,
-// WithRoleSessionName, WithRoleExternalId, WithRoleTags, WithWebIdentityTokenFile.
+// WithRoleSessionName, WithRoleExternalId, WithRoleTags, WithWebIdentityTokenFile,
+// WithWebIdentityToken.
 func NewCredentialsConfig(opt ...Option) (*CredentialsConfig, error) {
 	opts, err := getOpts(opt...)
 	if err != nil {
@@ -128,6 +133,7 @@ func NewCredentialsConfig(opt ...Option) (*CredentialsConfig, error) {
 	if c.WebIdentityTokenFile == "" {
 		c.WebIdentityTokenFile = os.Getenv("AWS_WEB_IDENTITY_TOKEN_FILE")
 	}
+	c.WebIdentityToken = opts.withWebIdentityToken
 
 	if c.RoleARN == "" {
 		if c.RoleSessionName != "" {
@@ -141,6 +147,9 @@ func NewCredentialsConfig(opt ...Option) (*CredentialsConfig, error) {
 		}
 		if c.WebIdentityTokenFile != "" {
 			return nil, fmt.Errorf("web identity token file specified without role ARN")
+		}
+		if len(c.WebIdentityToken) > 0 {
+			return nil, fmt.Errorf("web identity token specified without role ARN")
 		}
 	}
 
@@ -162,7 +171,8 @@ func (c *CredentialsConfig) log(level hclog.Level, msg string, args ...interface
 // GenerateCredentialChain uses the config to generate a credential chain
 // suitable for creating AWS sessions and clients.
 //
-// Supported options: WithEnvironmentCredentials, WithSharedCredentials
+// Supported options: WithEnvironmentCredentials, WithSharedCredentials,
+// WithSkipWebIdentityValidity
 func (c *CredentialsConfig) GenerateCredentialChain(opt ...Option) (*credentials.Credentials, error) {
 	opts, err := getOpts(opt...)
 	if err != nil {
@@ -222,13 +232,41 @@ func (c *CredentialsConfig) GenerateCredentialChain(opt ...Option) (*credentials
 			}
 			webIdentityProvider := stscreds.NewWebIdentityRoleProvider(sts.New(sess), c.RoleARN, c.RoleSessionName, c.WebIdentityTokenFile)
 
-			// Check if the webIdentityProvider can successfully retrieve
-			// credentials (via sts:AssumeRole), and warn if there's a problem.
-			if _, err := webIdentityProvider.Retrieve(); err != nil {
-				c.log(hclog.Warn, "error assuming role", "roleARN", c.RoleARN, "tokenPath", c.WebIdentityTokenFile, "sessionName", c.RoleSessionName, "err", err)
-			} else {
-				// Add the web identity role credential provider
+			if opts.withSkipWebIdentityValidity {
+				// Add the web identity role credential provider without
+				// generating credentials to check validity first
 				providers = append(providers, webIdentityProvider)
+			} else {
+				// Check if the webIdentityProvider can successfully retrieve
+				// credentials (via sts:AssumeRole), and warn if there's a problem.
+				if _, err := webIdentityProvider.Retrieve(); err != nil {
+					c.log(hclog.Warn, "error assuming role", "roleARN", c.RoleARN, "tokenPath", c.WebIdentityTokenFile, "sessionName", c.RoleSessionName, "err", err)
+				} else {
+					// Add the web identity role credential provider
+					providers = append(providers, webIdentityProvider)
+				}
+			}
+		} else if c.WebIdentityToken != "" {
+			c.log(hclog.Debug, "adding web identity provider with token", "roleARN", c.RoleARN)
+			sess, err := session.NewSession()
+			if err != nil {
+				return nil, errors.Wrap(err, "error creating a new session to create a WebIdentityRoleProvider with token")
+			}
+			webIdentityProvider := stscreds.NewWebIdentityRoleProviderWithToken(sts.New(sess), c.RoleARN, c.RoleSessionName, FetchTokenContents(c.WebIdentityToken))
+
+			if opts.withSkipWebIdentityValidity {
+				// Add the web identity role credential provider without
+				// generating credentials to check validity first
+				providers = append(providers, webIdentityProvider)
+			} else {
+				// Check if the webIdentityProvider can successfully retrieve
+				// credentials (via sts:AssumeRole), and warn if there's a problem.
+				if _, err := webIdentityProvider.Retrieve(); err != nil {
+					c.log(hclog.Warn, "error assuming role with WebIdentityToken", "roleARN", c.RoleARN, "sessionName", c.RoleSessionName, "err", err)
+				} else {
+					// Add the web identity role credential provider
+					providers = append(providers, webIdentityProvider)
+				}
 			}
 		} else {
 			// this session is only created to create the AssumeRoleProvider, variables used to
@@ -378,4 +416,15 @@ func stsSigningResolver(service, region string, optFns ...func(*endpoints.Option
 	}
 	defaultEndpoint.SigningRegion = region
 	return defaultEndpoint, nil
+}
+
+// FetchTokenContents allows the use of the content of a token in the
+// WebIdentityProvider, instead of the path to a token. Useful with a
+// serviceaccount token requested directly from the EKS/K8s API, for example.
+type FetchTokenContents []byte
+
+var _ stscreds.TokenFetcher = (*FetchTokenContents)(nil)
+
+func (f FetchTokenContents) FetchToken(_ aws.Context) ([]byte, error) {
+	return f, nil
 }

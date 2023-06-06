@@ -31,27 +31,29 @@ type Option func(*options) error
 
 // options = how options are represented
 type options struct {
-	withEnvironmentCredentials bool
-	withSharedCredentials      bool
-	withAwsSession             *session.Session
-	withClientType             string
-	withUsername               string
-	withAccessKey              string
-	withSecretKey              string
-	withLogger                 hclog.Logger
-	withStsEndpoint            string
-	withIamEndpoint            string
-	withMaxRetries             *int
-	withRegion                 string
-	withRoleArn                string
-	withRoleSessionName        string
-	withRoleExternalId         string
-	withRoleTags               map[string]string
-	withWebIdentityTokenFile   string
-	withHttpClient             *http.Client
-	withValidityCheckTimeout   time.Duration
-	withIAMAPIFunc             IAMAPIFunc
-	withSTSAPIFunc             STSAPIFunc
+	withEnvironmentCredentials  bool
+	withSharedCredentials       bool
+	withAwsSession              *session.Session
+	withClientType              string
+	withUsername                string
+	withAccessKey               string
+	withSecretKey               string
+	withLogger                  hclog.Logger
+	withStsEndpoint             string
+	withIamEndpoint             string
+	withMaxRetries              *int
+	withRegion                  string
+	withRoleArn                 string
+	withRoleSessionName         string
+	withRoleExternalId          string
+	withRoleTags                map[string]string
+	withWebIdentityTokenFile    string
+	withWebIdentityToken        string
+	withSkipWebIdentityValidity bool
+	withHttpClient              *http.Client
+	withValidityCheckTimeout    time.Duration
+	withIAMAPIFunc              IAMAPIFunc
+	withSTSAPIFunc              STSAPIFunc
 }
 
 func getDefaultOptions() options {
@@ -109,6 +111,24 @@ func WithRoleTags(with map[string]string) Option {
 func WithWebIdentityTokenFile(with string) Option {
 	return func(o *options) error {
 		o.withWebIdentityTokenFile = with
+		return nil
+	}
+}
+
+// WithWebIdentityToken allows passing a web identity token to use for the
+// assumed role. If set, the RoleARN must be set.
+func WithWebIdentityToken(with string) Option {
+	return func(o *options) error {
+		o.withWebIdentityToken = with
+		return nil
+	}
+}
+
+// WithSkipWebIdentityValidity allows controlling whether the validity check is
+// skipped for the web identity provider
+func WithSkipWebIdentityValidity(with bool) Option {
+	return func(o *options) error {
+		o.withSkipWebIdentityValidity = with
 		return nil
 	}
 }
