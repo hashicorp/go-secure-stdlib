@@ -87,8 +87,7 @@ type CredentialsConfig struct {
 	Logger hclog.Logger
 }
 
-// GenerateCredentialChain uses the config to generate a credential chain
-// suitable for creating AWS sessions and clients.
+// NewCredentialsConfig creates a CredentialsConfig with the provided options.
 //
 // Supported options: WithAccessKey, WithSecretKey, WithLogger, WithStsEndpoint,
 // WithIamEndpoint, WithMaxRetries, WithRegion, WithHttpClient, WithRoleArn,
@@ -220,17 +219,29 @@ func (c *CredentialsConfig) GenerateCredentialChain(opt ...Option) (*credentials
 	}
 
 	// Add the assume role provider
-	if c.RoleARN != "" {
-		if c.WebIdentityTokenFile != "" {
+	roleARN := c.RoleARN
+	if roleARN == "" {
+		roleARN = os.Getenv("AWS_ROLE_ARN")
+	}
+	tokenPath := c.WebIdentityTokenFile
+	if tokenPath == "" {
+		tokenPath = os.Getenv("AWS_WEB_IDENTITY_TOKEN_FILE")
+	}
+	roleSessionName := c.RoleSessionName
+	if roleSessionName == "" {
+		roleSessionName = os.Getenv("AWS_ROLE_SESSION_NAME")
+	}
+	if roleARN != "" {
+		if tokenPath != "" {
 			// this session is only created to create the WebIdentityRoleProvider, variables used to
 			// assume a role are pulled from values provided in options. If the option values are
 			// not set, then the provider will default to using the environment variables.
-			c.log(hclog.Debug, "adding web identity provider", "roleARN", c.RoleARN)
+			c.log(hclog.Debug, "adding web identity provider", "roleARN", roleARN)
 			sess, err := session.NewSession()
 			if err != nil {
 				return nil, errors.Wrap(err, "error creating a new session to create a WebIdentityRoleProvider")
 			}
-			webIdentityProvider := stscreds.NewWebIdentityRoleProvider(sts.New(sess), c.RoleARN, c.RoleSessionName, c.WebIdentityTokenFile)
+			webIdentityProvider := stscreds.NewWebIdentityRoleProvider(sts.New(sess), roleARN, roleSessionName, tokenPath)
 
 			if opts.withSkipWebIdentityValidity {
 				// Add the web identity role credential provider without
@@ -240,19 +251,19 @@ func (c *CredentialsConfig) GenerateCredentialChain(opt ...Option) (*credentials
 				// Check if the webIdentityProvider can successfully retrieve
 				// credentials (via sts:AssumeRole), and warn if there's a problem.
 				if _, err := webIdentityProvider.Retrieve(); err != nil {
-					c.log(hclog.Warn, "error assuming role", "roleARN", c.RoleARN, "tokenPath", c.WebIdentityTokenFile, "sessionName", c.RoleSessionName, "err", err)
+					c.log(hclog.Warn, "error assuming role", "roleARN", roleARN, "tokenPath", tokenPath, "sessionName", roleSessionName, "err", err)
 				} else {
 					// Add the web identity role credential provider
 					providers = append(providers, webIdentityProvider)
 				}
 			}
 		} else if c.WebIdentityToken != "" {
-			c.log(hclog.Debug, "adding web identity provider with token", "roleARN", c.RoleARN)
+			c.log(hclog.Debug, "adding web identity provider with token", "roleARN", roleARN)
 			sess, err := session.NewSession()
 			if err != nil {
 				return nil, errors.Wrap(err, "error creating a new session to create a WebIdentityRoleProvider with token")
 			}
-			webIdentityProvider := stscreds.NewWebIdentityRoleProviderWithToken(sts.New(sess), c.RoleARN, c.RoleSessionName, FetchTokenContents(c.WebIdentityToken))
+			webIdentityProvider := stscreds.NewWebIdentityRoleProviderWithToken(sts.New(sess), roleARN, roleSessionName, FetchTokenContents(c.WebIdentityToken))
 
 			if opts.withSkipWebIdentityValidity {
 				// Add the web identity role credential provider without
@@ -262,7 +273,7 @@ func (c *CredentialsConfig) GenerateCredentialChain(opt ...Option) (*credentials
 				// Check if the webIdentityProvider can successfully retrieve
 				// credentials (via sts:AssumeRole), and warn if there's a problem.
 				if _, err := webIdentityProvider.Retrieve(); err != nil {
-					c.log(hclog.Warn, "error assuming role with WebIdentityToken", "roleARN", c.RoleARN, "sessionName", c.RoleSessionName, "err", err)
+					c.log(hclog.Warn, "error assuming role with WebIdentityToken", "roleARN", roleARN, "sessionName", roleSessionName, "err", err)
 				} else {
 					// Add the web identity role credential provider
 					providers = append(providers, webIdentityProvider)
@@ -272,13 +283,13 @@ func (c *CredentialsConfig) GenerateCredentialChain(opt ...Option) (*credentials
 			// this session is only created to create the AssumeRoleProvider, variables used to
 			// assume a role are pulled from values provided in options. If the option values are
 			// not set, then the provider will default to using the environment variables.
-			c.log(hclog.Debug, "adding ec2-instance role provider", "roleARN", c.RoleARN)
+			c.log(hclog.Debug, "adding ec2-instance role provider", "roleARN", roleARN)
 			sess, err := session.NewSession()
 			if err != nil {
 				return nil, errors.Wrap(err, "error creating a new session for ec2 instance role credentials")
 			}
-			assumedRoleCredentials := stscreds.NewCredentials(sess, c.RoleARN, func(p *stscreds.AssumeRoleProvider) {
-				p.RoleSessionName = c.RoleSessionName
+			assumedRoleCredentials := stscreds.NewCredentials(sess, roleARN, func(p *stscreds.AssumeRoleProvider) {
+				p.RoleSessionName = roleSessionName
 				if c.RoleExternalId != "" {
 					p.ExternalID = aws.String(c.RoleExternalId)
 				}
@@ -296,7 +307,7 @@ func (c *CredentialsConfig) GenerateCredentialChain(opt ...Option) (*credentials
 			// (via sts:AssumeRole), and warn if there's a problem.
 			creds, err := assumedRoleCredentials.Get()
 			if err != nil {
-				c.log(hclog.Warn, "error assuming role", "roleARN", c.RoleARN, "sessionName", c.RoleSessionName, "err", err)
+				c.log(hclog.Warn, "error assuming role", "roleARN", roleARN, "sessionName", roleSessionName, "err", err)
 			} else {
 				providers = append(providers, &credentials.StaticProvider{
 					Value: creds,
