@@ -728,3 +728,106 @@ func TestReverse(t *testing.T) {
 		})
 	}
 }
+
+func TestReplaceNonMatcher(t *testing.T) {
+	// prepare cases
+	cases := []struct {
+		input      string
+		regex      string
+		replacedBy string
+		exp        string
+	}{
+		{
+			input:      "日本語",
+			regex:      "[a-z]",
+			replacedBy: "_",
+			exp:        "___",
+		},
+		{
+			input:      "Test",
+			regex:      "[a-z]",
+			replacedBy: "_",
+			exp:        "_est",
+		},
+		{
+			input:      "Test",
+			regex:      "[A-Z]",
+			replacedBy: "-",
+			exp:        "T---",
+		},
+		{
+			input:      "teSt",
+			regex:      "[a-z]",
+			replacedBy: "foo",
+			exp:        "tefoot",
+		},
+	}
+
+	// run cases
+	for i, tc := range cases {
+		t.Run(fmt.Sprint(i), func(t *testing.T) {
+			want := tc.exp
+			got, _ := ReplaceNonMatcher(tc.input, tc.regex, tc.replacedBy)
+			if got != want {
+				t.Errorf("expected %q with non-matchers "+
+					"for regex %s and "+
+					"replaced by %s "+
+					"to be %s, "+
+					"got %s",
+					tc.input, tc.regex, tc.replacedBy, want, got)
+			}
+		})
+	}
+
+}
+
+func TestRemoveNonMatcher(t *testing.T) {
+	// prepare cases
+	cases := []struct {
+		input string
+		regex string
+		exp   string
+	}{
+		{
+			input: "日本語",
+			regex: "[a-z]",
+			exp:   "",
+		},
+		{
+			input: "Test",
+			regex: "[a-z]",
+			exp:   "est",
+		},
+		{
+			input: "Test",
+			regex: "[A-Z]",
+			exp:   "T",
+		},
+		{
+			input: "teSt",
+			regex: "[a-z]",
+			exp:   "tet",
+		},
+		{
+			input: "FOO",
+			regex: "[a-z]",
+			exp:   "",
+		},
+	}
+
+	// run cases
+	for i, tc := range cases {
+		t.Run(fmt.Sprint(i), func(t *testing.T) {
+			want := tc.exp
+			got, _ := RemoveNonMatcher(tc.input, tc.regex)
+			if got != want {
+				t.Errorf("expected %q with non-matchers "+
+					"for regex %s "+
+					"to be %s, "+
+					"got %s",
+					tc.input, tc.regex, want, got)
+			}
+		})
+	}
+
+}
