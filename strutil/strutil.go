@@ -516,33 +516,31 @@ func Reverse(in string) string {
 // ReplaceNonMatcher replaces all characters within a given string that do not match
 // a given regular expression. The function returns the updated string and the
 // number of replacements
-func ReplaceNonMatcher(in, matcher string, replaceWith byte) (string, int) {
-	var adjustments int
-	work := []byte(in)
-	allowList := regexp.MustCompile(matcher)
-	for idx := range work {
-		val := string(work[idx])
-		if !allowList.MatchString(val) {
-			work[idx] = byte(replaceWith)
-			adjustments = adjustments + 1
+func ReplaceNonMatcher(in, matcher, replaceWith string) (string, error) {
+	// prepare regex
+	allowList, err := regexp.Compile(matcher)
+	if err != nil {
+		return "", err
+	}
+
+	// prepare result string
+	var sb strings.Builder
+
+	// iterate over input
+	for _, inrune := range in {
+		if !allowList.MatchString(string(inrune)) {
+			sb.WriteString(replaceWith)
+		} else {
+			sb.WriteString(string(inrune))
 		}
 	}
-	return string(work), adjustments
+
+	return sb.String(), nil
 }
 
 // RemoveNonMatcher removes all characters within a string that do not match
 // a given regular expression. The function returns the updated string and the
 // number of removements
-func RemoveNonMatcher(in, matcher string) (string, int) {
-	var removed int
-	work := []byte(in)
-	allowList := regexp.MustCompile(matcher)
-	for idx := len(work) - 1; idx >= 0; idx -= 1 {
-		val := string(work[idx])
-		if !allowList.MatchString(val) {
-			work = append(work[:idx], work[idx+1:]...)
-			removed = removed + 1
-		}
-	}
-	return string(work), removed
+func RemoveNonMatcher(in, matcher string) (string, error) {
+	return ReplaceNonMatcher(in, matcher, "")
 }
