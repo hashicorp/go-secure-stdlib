@@ -513,7 +513,7 @@ func Reverse(in string) string {
 	return string(out)
 }
 
-// ReplaceNonMatcher replaces all characters within a given that do not match
+// ReplaceNonMatcher replaces all characters within a given string that do not match
 // a given regular expression. The function returns the updated string and the
 // number of replacements
 func ReplaceNonMatcher(in, matcher string, replaceWith byte) (string, int) {
