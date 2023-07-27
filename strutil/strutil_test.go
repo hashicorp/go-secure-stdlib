@@ -779,6 +779,15 @@ func TestReplaceNonMatcher(t *testing.T) {
 		})
 	}
 
+	// check error handling
+	t.Run(fmt.Sprint(len(cases)), func(t *testing.T) {
+		regex := "[wrong regex)"
+		got, err := ReplaceNonMatcher("Test", regex, "_")
+		if err == nil {
+			t.Errorf("expected %s to panic the function call, but got %s", regex, got)
+		}
+	})
+
 }
 
 func TestRemoveNonMatcher(t *testing.T) {
@@ -829,5 +838,14 @@ func TestRemoveNonMatcher(t *testing.T) {
 			}
 		})
 	}
+
+	// check error handling
+	t.Run(fmt.Sprint(len(cases)), func(t *testing.T) {
+		regex := "[wrong regex)"
+		got, err := RemoveNonMatcher("Test", regex)
+		if err == nil {
+			t.Errorf("expected %s to panic the function call, but got %v", regex, got)
+		}
+	})
 
 }
