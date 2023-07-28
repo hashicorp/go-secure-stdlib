@@ -767,7 +767,7 @@ func TestReplaceNonMatcher(t *testing.T) {
 	for i, tc := range cases {
 		t.Run(fmt.Sprint(i), func(t *testing.T) {
 			want := tc.exp
-			got, _ := ReplaceNonMatcher(tc.input, tc.regex, tc.replacedBy)
+			got, _ := ReplaceEachNonMatchingRune(tc.input, tc.regex, tc.replacedBy)
 			if got != want {
 				t.Errorf("expected %q with non-matchers "+
 					"for regex %s and "+
@@ -782,7 +782,7 @@ func TestReplaceNonMatcher(t *testing.T) {
 	// check error handling
 	t.Run(fmt.Sprint(len(cases)), func(t *testing.T) {
 		regex := "[wrong regex)"
-		got, err := ReplaceNonMatcher("Test", regex, "_")
+		got, err := RemoveEachNonMatchingRune("Test", regex, "_")
 		if err == nil {
 			t.Errorf("expected %s to panic the function call, but got %s", regex, got)
 		}

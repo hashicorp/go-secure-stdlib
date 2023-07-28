@@ -513,12 +513,11 @@ func Reverse(in string) string {
 	return string(out)
 }
 
-// ReplaceNonMatcher replaces all characters within a given string that do not match
-// a given regular expression. The function returns the updated string and the
-// number of replacements
-func ReplaceNonMatcher(in, matcher, replaceWith string) (string, error) {
+// ReplaceEachNonMatchingRune returns a copy of _src_, _regex_ specifies the runes that
+// are *NOT* replaced by _replacer_.
+func ReplaceEachNonMatchingRune(src, regex, replacer string) (string, error) {
 	// prepare regex
-	allowList, err := regexp.Compile(matcher)
+	allowList, err := regexp.Compile(regex)
 	if err != nil {
 		return "", err
 	}
@@ -527,20 +526,19 @@ func ReplaceNonMatcher(in, matcher, replaceWith string) (string, error) {
 	var sb strings.Builder
 
 	// iterate over input
-	for _, inrune := range in {
-		if !allowList.MatchString(string(inrune)) {
-			sb.WriteString(replaceWith)
+	for _, srcrune := range src {
+		if !allowList.MatchString(string(srcrune)) {
+			sb.WriteString(replacer)
 		} else {
-			sb.WriteString(string(inrune))
+			sb.WriteString(string(srcrune))
 		}
 	}
 
 	return sb.String(), nil
 }
 
-// RemoveNonMatcher removes all characters within a string that do not match
-// a given regular expression. The function returns the updated string and the
-// number of removements
-func RemoveNonMatcher(in, matcher string) (string, error) {
-	return ReplaceNonMatcher(in, matcher, "")
+// RemoveNonMatcher returns a copy of _src_, _regex_ specifies the runes that
+// are *NOT* removed from _src_.
+func RemoveNonMatcher(src, regex string) (string, error) {
+	return ReplaceEachNonMatchingRune(src, regex, "")
 }
