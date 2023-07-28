@@ -782,69 +782,9 @@ func TestReplaceNonMatcher(t *testing.T) {
 	// check error handling
 	t.Run(fmt.Sprint(len(cases)), func(t *testing.T) {
 		regex := "[wrong regex)"
-		got, err := RemoveEachNonMatchingRune("Test", regex, "_")
+		got, err := ReplaceEachNonMatchingRune("Test", regex, "_")
 		if err == nil {
 			t.Errorf("expected %s to panic the function call, but got %s", regex, got)
-		}
-	})
-
-}
-
-func TestRemoveNonMatcher(t *testing.T) {
-	// prepare cases
-	cases := []struct {
-		input string
-		regex string
-		exp   string
-	}{
-		{
-			input: "日本語",
-			regex: "[a-z]",
-			exp:   "",
-		},
-		{
-			input: "Test",
-			regex: "[a-z]",
-			exp:   "est",
-		},
-		{
-			input: "Test",
-			regex: "[A-Z]",
-			exp:   "T",
-		},
-		{
-			input: "teSt",
-			regex: "[a-z]",
-			exp:   "tet",
-		},
-		{
-			input: "FOO",
-			regex: "[a-z]",
-			exp:   "",
-		},
-	}
-
-	// run cases
-	for i, tc := range cases {
-		t.Run(fmt.Sprint(i), func(t *testing.T) {
-			want := tc.exp
-			got, _ := RemoveNonMatcher(tc.input, tc.regex)
-			if got != want {
-				t.Errorf("expected %q with non-matchers "+
-					"for regex %s "+
-					"to be %s, "+
-					"got %s",
-					tc.input, tc.regex, want, got)
-			}
-		})
-	}
-
-	// check error handling
-	t.Run(fmt.Sprint(len(cases)), func(t *testing.T) {
-		regex := "[wrong regex)"
-		got, err := RemoveNonMatcher("Test", regex)
-		if err == nil {
-			t.Errorf("expected %s to panic the function call, but got %v", regex, got)
 		}
 	})
 
