@@ -761,6 +761,12 @@ func TestReplaceNonMatcher(t *testing.T) {
 			replacedBy: "foo",
 			exp:        "tefoot",
 		},
+		{
+			input:      "RemoveTest",
+			regex:      "[a-z]",
+			replacedBy: "",
+			exp:        "emoveest",
+		},
 	}
 
 	// run cases
