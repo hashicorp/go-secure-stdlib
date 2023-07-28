@@ -536,9 +536,3 @@ func ReplaceEachNonMatchingRune(src, regex, replacer string) (string, error) {
 
 	return sb.String(), nil
 }
-
-// RemoveNonMatcher returns a copy of _src_, _regex_ specifies the runes that
-// are *NOT* removed from _src_.
-func RemoveNonMatcher(src, regex string) (string, error) {
-	return ReplaceEachNonMatchingRune(src, regex, "")
-}
