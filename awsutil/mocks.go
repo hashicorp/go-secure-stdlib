@@ -4,12 +4,57 @@
 package awsutil
 
 import (
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/iam"
-	"github.com/aws/aws-sdk-go/service/iam/iamiface"
-	"github.com/aws/aws-sdk-go/service/sts"
-	"github.com/aws/aws-sdk-go/service/sts/stsiface"
+	"context"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
+	awserr "github.com/aws/smithy-go"
 )
+
+var (
+	_ awserr.APIError         = (*MockAWSErr)(nil)
+	_ aws.CredentialsProvider = (*MockCredentialsProvider)(nil)
+	_ IAMClient               = (*MockIAM)(nil)
+	_ STSClient               = (*MockSTS)(nil)
+)
+
+// MockAWSErr is used to mock API error types for tests
+type MockAWSErr struct {
+	Code    string
+	Message string
+	Fault   awserr.ErrorFault
+}
+
+// ErrorCode returns the error code
+func (e *MockAWSErr) ErrorCode() string {
+	return e.Code
+}
+
+// Error returns the error message
+func (e *MockAWSErr) Error() string {
+	return e.Message
+}
+
+// ErrorFault returns one of the following values:
+// FaultClient, FaultServer, FaultUnknown
+func (e *MockAWSErr) ErrorFault() awserr.ErrorFault {
+	return e.Fault
+}
+
+// ErrorMessage returns the error message
+func (e *MockAWSErr) ErrorMessage() string {
+	return e.Message
+}
+
+// MockAWSThrottleErr returns a mocked aws error that mimics a throttling exception.
+func MockAWSThrottleErr() error {
+	return &MockAWSErr{
+		Code:    "ThrottlingException",
+		Message: "Throttling Exception",
+		Fault:   awserr.FaultServer,
+	}
+}
 
 // MockOptionErr provides a mock option error for use with testing.
 func MockOptionErr(withErr error) Option {
@@ -18,9 +63,53 @@ func MockOptionErr(withErr error) Option {
 	}
 }
 
+// MockCredentialsProvider provides a way to mock the aws.CredentialsProvider
+type MockCredentialsProvider struct {
+	aws.CredentialsProvider
+
+	aws.Credentials
+	error
+}
+
+// MockCredentialsProviderOption is a function for setting
+// the various fields on a MockCredentialsProvider object.
+type MockCredentialsProviderOption func(m *MockCredentialsProvider)
+
+// WithCredentials sets the output for the Retrieve method.
+func WithCredentials(o aws.Credentials) MockCredentialsProviderOption {
+	return func(m *MockCredentialsProvider) {
+		m.Credentials = o
+	}
+}
+
+// WithCredentials sets the output for the Retrieve method.
+func WithError(o error) MockCredentialsProviderOption {
+	return func(m *MockCredentialsProvider) {
+		m.error = o
+	}
+}
+
+// NewMockCredentialsProvider provides a factory function to
+// use with the WithCredentialsProvider option.
+func NewMockCredentialsProvider(opts ...MockCredentialsProviderOption) aws.CredentialsProvider {
+	m := new(MockCredentialsProvider)
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+func (m *MockCredentialsProvider) Retrieve(ctx context.Context) (aws.Credentials, error) {
+	if m.error != nil {
+		return aws.Credentials{}, m.error
+	}
+
+	return m.Credentials, nil
+}
+
 // MockIAM provides a way to mock the AWS IAM API.
 type MockIAM struct {
-	iamiface.IAMAPI
+	IAMClient
 
 	CreateAccessKeyOutput *iam.CreateAccessKeyOutput
 	CreateAccessKeyError  error
@@ -96,7 +185,7 @@ func WithGetUserError(e error) MockIAMOption {
 // NewMockIAM provides a factory function to use with the WithIAMAPIFunc
 // option.
 func NewMockIAM(opts ...MockIAMOption) IAMAPIFunc {
-	return func(_ *session.Session) (iamiface.IAMAPI, error) {
+	return func(_ *aws.Config) (IAMClient, error) {
 		m := new(MockIAM)
 		for _, opt := range opts {
 			if err := opt(m); err != nil {
@@ -108,7 +197,7 @@ func NewMockIAM(opts ...MockIAMOption) IAMAPIFunc {
 	}
 }
 
-func (m *MockIAM) CreateAccessKey(*iam.CreateAccessKeyInput) (*iam.CreateAccessKeyOutput, error) {
+func (m *MockIAM) CreateAccessKey(context.Context, *iam.CreateAccessKeyInput, ...func(*iam.Options)) (*iam.CreateAccessKeyOutput, error) {
 	if m.CreateAccessKeyError != nil {
 		return nil, m.CreateAccessKeyError
 	}
@@ -116,11 +205,11 @@ func (m *MockIAM) CreateAccessKey(*iam.CreateAccessKeyInput) (*iam.CreateAccessK
 	return m.CreateAccessKeyOutput, nil
 }
 
-func (m *MockIAM) DeleteAccessKey(*iam.DeleteAccessKeyInput) (*iam.DeleteAccessKeyOutput, error) {
+func (m *MockIAM) DeleteAccessKey(context.Context, *iam.DeleteAccessKeyInput, ...func(*iam.Options)) (*iam.DeleteAccessKeyOutput, error) {
 	return &iam.DeleteAccessKeyOutput{}, m.DeleteAccessKeyError
 }
 
-func (m *MockIAM) ListAccessKeys(*iam.ListAccessKeysInput) (*iam.ListAccessKeysOutput, error) {
+func (m *MockIAM) ListAccessKeys(context.Context, *iam.ListAccessKeysInput, ...func(*iam.Options)) (*iam.ListAccessKeysOutput, error) {
 	if m.ListAccessKeysError != nil {
 		return nil, m.ListAccessKeysError
 	}
@@ -128,7 +217,7 @@ func (m *MockIAM) ListAccessKeys(*iam.ListAccessKeysInput) (*iam.ListAccessKeysO
 	return m.ListAccessKeysOutput, nil
 }
 
-func (m *MockIAM) GetUser(*iam.GetUserInput) (*iam.GetUserOutput, error) {
+func (m *MockIAM) GetUser(context.Context, *iam.GetUserInput, ...func(*iam.Options)) (*iam.GetUserOutput, error) {
 	if m.GetUserError != nil {
 		return nil, m.GetUserError
 	}
@@ -138,15 +227,34 @@ func (m *MockIAM) GetUser(*iam.GetUserInput) (*iam.GetUserOutput, error) {
 
 // MockSTS provides a way to mock the AWS STS API.
 type MockSTS struct {
-	stsiface.STSAPI
+	STSClient
 
 	GetCallerIdentityOutput *sts.GetCallerIdentityOutput
 	GetCallerIdentityError  error
+
+	AssumeRoleOutput *sts.AssumeRoleOutput
+	AssumeRoleError  error
 }
 
 // MockSTSOption is a function for setting the various fields on a MockSTS
 // object.
 type MockSTSOption func(m *MockSTS) error
+
+// WithAssumeRoleOutput sets the output for the AssumeRole method.
+func WithAssumeRoleOutput(o *sts.AssumeRoleOutput) MockSTSOption {
+	return func(m *MockSTS) error {
+		m.AssumeRoleOutput = o
+		return nil
+	}
+}
+
+// WithAssumeRoleError sets the error output for the AssumeRole method.
+func WithAssumeRoleError(e error) MockSTSOption {
+	return func(m *MockSTS) error {
+		m.AssumeRoleError = e
+		return nil
+	}
+}
 
 // WithGetCallerIdentityOutput sets the output for the GetCallerIdentity
 // method.
@@ -172,7 +280,7 @@ func WithGetCallerIdentityError(e error) MockSTSOption {
 // If withGetCallerIdentityError is supplied, calls to GetCallerIdentity will
 // return the supplied error. Otherwise, a basic mock API output is returned.
 func NewMockSTS(opts ...MockSTSOption) STSAPIFunc {
-	return func(_ *session.Session) (stsiface.STSAPI, error) {
+	return func(_ *aws.Config) (STSClient, error) {
 		m := new(MockSTS)
 		for _, opt := range opts {
 			if err := opt(m); err != nil {
@@ -184,10 +292,18 @@ func NewMockSTS(opts ...MockSTSOption) STSAPIFunc {
 	}
 }
 
-func (m *MockSTS) GetCallerIdentity(_ *sts.GetCallerIdentityInput) (*sts.GetCallerIdentityOutput, error) {
+func (m *MockSTS) GetCallerIdentity(context.Context, *sts.GetCallerIdentityInput, ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error) {
 	if m.GetCallerIdentityError != nil {
 		return nil, m.GetCallerIdentityError
 	}
 
 	return m.GetCallerIdentityOutput, nil
+}
+
+func (m *MockSTS) AssumeRole(context.Context, *sts.AssumeRoleInput, ...func(*sts.Options)) (*sts.AssumeRoleOutput, error) {
+	if m.AssumeRoleError != nil {
+		return nil, m.AssumeRoleError
+	}
+
+	return m.AssumeRoleOutput, nil
 }

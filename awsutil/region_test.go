@@ -4,15 +4,15 @@
 package awsutil
 
 import (
+	"context"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/user"
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go-v2/aws"
 )
 
 const testConfigFile = `[default]
@@ -39,7 +39,7 @@ func TestGetRegion_UserConfigPreferredFirst(t *testing.T) {
 	cleanupMetadata := setInstanceMetadata(t, unexpectedTestRegion)
 	defer cleanupMetadata()
 
-	result, err := GetRegion(configuredRegion)
+	result, err := GetRegion(context.Background(), configuredRegion)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +60,7 @@ func TestGetRegion_EnvVarsPreferredSecond(t *testing.T) {
 	cleanupMetadata := setInstanceMetadata(t, unexpectedTestRegion)
 	defer cleanupMetadata()
 
-	result, err := GetRegion(configuredRegion)
+	result, err := GetRegion(context.Background(), configuredRegion)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,7 +87,7 @@ func TestGetRegion_ConfigFilesPreferredThird(t *testing.T) {
 	cleanupMetadata := setInstanceMetadata(t, unexpectedTestRegion)
 	defer cleanupMetadata()
 
-	result, err := GetRegion(configuredRegion)
+	result, err := GetRegion(context.Background(), configuredRegion)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,7 +114,7 @@ func TestGetRegion_ConfigFileUnfound(t *testing.T) {
 		}
 	}()
 
-	result, err := GetRegion(configuredRegion)
+	result, err := GetRegion(context.Background(), configuredRegion)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +141,7 @@ func TestGetRegion_EC2InstanceMetadataPreferredFourth(t *testing.T) {
 	cleanupMetadata := setInstanceMetadata(t, expectedTestRegion)
 	defer cleanupMetadata()
 
-	result, err := GetRegion(configuredRegion)
+	result, err := GetRegion(context.Background(), configuredRegion)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -163,7 +163,7 @@ func TestGetRegion_DefaultsToDefaultRegionWhenRegionUnavailable(t *testing.T) {
 	cleanupFile := setConfigFileRegion(t, "")
 	defer cleanupFile()
 
-	result, err := GetRegion(configuredRegion)
+	result, err := GetRegion(context.Background(), configuredRegion)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -209,7 +209,7 @@ func setConfigFileRegion(t *testing.T, region string) (cleanup func()) {
 	pathToAWSDir := usr.HomeDir + "/.aws"
 	pathToConfig := pathToAWSDir + "/config"
 
-	preExistingConfig, err := ioutil.ReadFile(pathToConfig)
+	preExistingConfig, err := os.ReadFile(pathToConfig)
 	if err != nil {
 		// File simply doesn't exist.
 		if err := os.Mkdir(pathToAWSDir, os.ModeDir); err != nil {
@@ -222,13 +222,13 @@ func setConfigFileRegion(t *testing.T, region string) (cleanup func()) {
 		})
 	} else {
 		cleanupFuncs = append(cleanupFuncs, func() {
-			if err := ioutil.WriteFile(pathToConfig, preExistingConfig, 0o644); err != nil {
+			if err := os.WriteFile(pathToConfig, preExistingConfig, 0o644); err != nil {
 				t.Fatal(err)
 			}
 		})
 	}
 	fileBody := fmt.Sprintf(testConfigFile, region)
-	if err := ioutil.WriteFile(pathToConfig, []byte(fileBody), 0o644); err != nil {
+	if err := os.WriteFile(pathToConfig, []byte(fileBody), 0o644); err != nil {
 		t.Fatal(err)
 	}
 

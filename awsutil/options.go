@@ -4,11 +4,12 @@
 package awsutil
 
 import (
-	"fmt"
 	"net/http"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/hashicorp/go-hclog"
 )
 
@@ -31,36 +32,32 @@ type Option func(*options) error
 
 // options = how options are represented
 type options struct {
-	withEnvironmentCredentials  bool
-	withSharedCredentials       bool
-	withAwsSession              *session.Session
-	withClientType              string
-	withUsername                string
-	withAccessKey               string
-	withSecretKey               string
-	withLogger                  hclog.Logger
-	withStsEndpoint             string
-	withIamEndpoint             string
-	withMaxRetries              *int
-	withRegion                  string
-	withRoleArn                 string
-	withRoleSessionName         string
-	withRoleExternalId          string
-	withRoleTags                map[string]string
-	withWebIdentityTokenFile    string
-	withWebIdentityToken        string
-	withSkipWebIdentityValidity bool
-	withHttpClient              *http.Client
-	withValidityCheckTimeout    time.Duration
-	withIAMAPIFunc              IAMAPIFunc
-	withSTSAPIFunc              STSAPIFunc
+	withSharedCredentials    bool
+	withAwsConfig            *aws.Config
+	withUsername             string
+	withAccessKey            string
+	withSecretKey            string
+	withLogger               hclog.Logger
+	withStsEndpointResolver  sts.EndpointResolverV2
+	withIamEndpointResolver  iam.EndpointResolverV2
+	withMaxRetries           *int
+	withRegion               string
+	withRoleArn              string
+	withRoleSessionName      string
+	withRoleExternalId       string
+	withRoleTags             map[string]string
+	withWebIdentityTokenFile string
+	withWebIdentityToken     string
+	withHttpClient           *http.Client
+	withValidityCheckTimeout time.Duration
+	withIAMAPIFunc           IAMAPIFunc
+	withSTSAPIFunc           STSAPIFunc
+	withCredentialsProvider  aws.CredentialsProvider
 }
 
 func getDefaultOptions() options {
 	return options{
-		withEnvironmentCredentials: true,
-		withSharedCredentials:      true,
-		withClientType:             "iam",
+		withSharedCredentials: true,
 	}
 }
 
@@ -124,24 +121,6 @@ func WithWebIdentityToken(with string) Option {
 	}
 }
 
-// WithSkipWebIdentityValidity allows controlling whether the validity check is
-// skipped for the web identity provider
-func WithSkipWebIdentityValidity(with bool) Option {
-	return func(o *options) error {
-		o.withSkipWebIdentityValidity = with
-		return nil
-	}
-}
-
-// WithEnvironmentCredentials allows controlling whether environment credentials
-// are used
-func WithEnvironmentCredentials(with bool) Option {
-	return func(o *options) error {
-		o.withEnvironmentCredentials = with
-		return nil
-	}
-}
-
 // WithSharedCredentials allows controlling whether shared credentials are used
 func WithSharedCredentials(with bool) Option {
 	return func(o *options) error {
@@ -150,23 +129,10 @@ func WithSharedCredentials(with bool) Option {
 	}
 }
 
-// WithAwsSession allows controlling the session passed into the client
-func WithAwsSession(with *session.Session) Option {
+// WithAwsConfig allows controlling the configuration passed into the client
+func WithAwsConfig(with *aws.Config) Option {
 	return func(o *options) error {
-		o.withAwsSession = with
-		return nil
-	}
-}
-
-// WithClientType allows choosing the client type to use
-func WithClientType(with string) Option {
-	return func(o *options) error {
-		switch with {
-		case "iam", "sts":
-		default:
-			return fmt.Errorf("unsupported client type %q", with)
-		}
-		o.withClientType = with
+		o.withAwsConfig = with
 		return nil
 	}
 }
@@ -195,18 +161,18 @@ func WithSecretKey(with string) Option {
 	}
 }
 
-// WithStsEndpoint allows passing a custom STS endpoint
-func WithStsEndpoint(with string) Option {
+// WithStsEndpointResolver allows passing a custom STS endpoint resolver
+func WithStsEndpointResolver(with sts.EndpointResolverV2) Option {
 	return func(o *options) error {
-		o.withStsEndpoint = with
+		o.withStsEndpointResolver = with
 		return nil
 	}
 }
 
-// WithIamEndpoint allows passing a custom IAM endpoint
-func WithIamEndpoint(with string) Option {
+// WithIamEndppointResolver allows passing a custom IAM endpoint resolver
+func WithIamEndpointResolver(with iam.EndpointResolverV2) Option {
 	return func(o *options) error {
-		o.withIamEndpoint = with
+		o.withIamEndpointResolver = with
 		return nil
 	}
 }
@@ -266,6 +232,15 @@ func WithIAMAPIFunc(with IAMAPIFunc) Option {
 func WithSTSAPIFunc(with STSAPIFunc) Option {
 	return func(o *options) error {
 		o.withSTSAPIFunc = with
+		return nil
+	}
+}
+
+// WithCredentialsProvider allows passing in a CredentialsProvider interface
+// constructor for mocking the AWS Credential Provider.
+func WithCredentialsProvider(with aws.CredentialsProvider) Option {
+	return func(o *options) error {
+		o.withCredentialsProvider = with
 		return nil
 	}
 }

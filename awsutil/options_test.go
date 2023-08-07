@@ -8,8 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/hashicorp/go-hclog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,17 +20,8 @@ func Test_GetOpts(t *testing.T) {
 	t.Parallel()
 	t.Run("default", func(t *testing.T) {
 		testOpts := getDefaultOptions()
-		assert.Equal(t, true, testOpts.withEnvironmentCredentials)
 		assert.Equal(t, true, testOpts.withSharedCredentials)
-		assert.Nil(t, testOpts.withAwsSession)
-		assert.Equal(t, "iam", testOpts.withClientType)
-	})
-	t.Run("withEnvironmentCredentials", func(t *testing.T) {
-		opts, err := getOpts(WithEnvironmentCredentials(false))
-		require.NoError(t, err)
-		testOpts := getDefaultOptions()
-		testOpts.withEnvironmentCredentials = false
-		assert.Equal(t, opts, testOpts)
+		assert.Nil(t, testOpts.withAwsConfig)
 	})
 	t.Run("withSharedCredentials", func(t *testing.T) {
 		opts, err := getOpts(WithSharedCredentials(false))
@@ -38,12 +30,12 @@ func Test_GetOpts(t *testing.T) {
 		testOpts.withSharedCredentials = false
 		assert.Equal(t, opts, testOpts)
 	})
-	t.Run("withAwsSession", func(t *testing.T) {
-		sess := new(session.Session)
-		opts, err := getOpts(WithAwsSession(sess))
+	t.Run("withAwsConfig", func(t *testing.T) {
+		cfg := new(aws.Config)
+		opts, err := getOpts(WithAwsConfig(cfg))
 		require.NoError(t, err)
 		testOpts := getDefaultOptions()
-		testOpts.withAwsSession = sess
+		testOpts.withAwsConfig = cfg
 		assert.Equal(t, opts, testOpts)
 	})
 	t.Run("withUsername", func(t *testing.T) {
@@ -51,15 +43,6 @@ func Test_GetOpts(t *testing.T) {
 		require.NoError(t, err)
 		testOpts := getDefaultOptions()
 		testOpts.withUsername = "foobar"
-		assert.Equal(t, opts, testOpts)
-	})
-	t.Run("withClientType", func(t *testing.T) {
-		_, err := getOpts(WithClientType("foobar"))
-		require.Error(t, err)
-		opts, err := getOpts(WithClientType("sts"))
-		require.NoError(t, err)
-		testOpts := getDefaultOptions()
-		testOpts.withClientType = "sts"
 		assert.Equal(t, opts, testOpts)
 	})
 	t.Run("withAccessKey", func(t *testing.T) {
@@ -77,17 +60,19 @@ func Test_GetOpts(t *testing.T) {
 		assert.Equal(t, opts, testOpts)
 	})
 	t.Run("withStsEndpoint", func(t *testing.T) {
-		opts, err := getOpts(WithStsEndpoint("foobar"))
+		resolver := sts.NewDefaultEndpointResolverV2()
+		opts, err := getOpts(WithStsEndpointResolver(resolver))
 		require.NoError(t, err)
 		testOpts := getDefaultOptions()
-		testOpts.withStsEndpoint = "foobar"
+		testOpts.withStsEndpointResolver = resolver
 		assert.Equal(t, opts, testOpts)
 	})
 	t.Run("withIamEndpoint", func(t *testing.T) {
-		opts, err := getOpts(WithIamEndpoint("foobar"))
+		resolver := iam.NewDefaultEndpointResolverV2()
+		opts, err := getOpts(WithIamEndpointResolver(resolver))
 		require.NoError(t, err)
 		testOpts := getDefaultOptions()
-		testOpts.withIamEndpoint = "foobar"
+		testOpts.withIamEndpointResolver = resolver
 		assert.Equal(t, opts, testOpts)
 	})
 	t.Run("withLogger", func(t *testing.T) {
@@ -177,11 +162,12 @@ func Test_GetOpts(t *testing.T) {
 		testOpts.withWebIdentityToken = "foo"
 		assert.Equal(t, opts, testOpts)
 	})
-	t.Run("WithSkipWebIdentityValidity", func(t *testing.T) {
-		opts, err := getOpts(WithSkipWebIdentityValidity(true))
+	t.Run("WithCredentialsProvider", func(t *testing.T) {
+		credProvider := &MockCredentialsProvider{}
+		opts, err := getOpts(WithCredentialsProvider(credProvider))
 		require.NoError(t, err)
 		testOpts := getDefaultOptions()
-		testOpts.withSkipWebIdentityValidity = true
+		testOpts.withCredentialsProvider = credProvider
 		assert.Equal(t, opts, testOpts)
 	})
 }
