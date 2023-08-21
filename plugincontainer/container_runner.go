@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"runtime"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
@@ -20,7 +21,11 @@ import (
 	"github.com/hashicorp/go-secure-stdlib/plugincontainer/config"
 )
 
-var _ runner.Runner = (*ContainerRunner)(nil)
+var (
+	_ runner.Runner = (*ContainerRunner)(nil)
+
+	ErrUnsupportedOS = errors.New("plugincontainer currently only supports Linux")
+)
 
 const pluginSocketDir = "/tmp/go-plugin-container"
 
@@ -43,6 +48,10 @@ type ContainerRunner struct {
 
 // NewContainerRunner must be passed a cmd that hasn't yet been started.
 func NewContainerRunner(logger hclog.Logger, cmd *exec.Cmd, cfg *config.ContainerConfig, hostSocketDir string) (*ContainerRunner, error) {
+	if runtime.GOOS != "linux" {
+		return nil, ErrUnsupportedOS
+	}
+
 	client, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		return nil, err
