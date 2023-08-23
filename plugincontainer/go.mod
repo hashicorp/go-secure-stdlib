@@ -1,6 +1,6 @@
 module github.com/hashicorp/go-secure-stdlib/plugincontainer
 
-go 1.21.0
+go 1.21
 
 require (
 	github.com/docker/docker v24.0.5+incompatible
