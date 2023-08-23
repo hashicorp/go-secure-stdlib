@@ -13,6 +13,7 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
+	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/hashicorp/go-hclog"
@@ -33,17 +34,17 @@ const pluginSocketDir = "/tmp/go-plugin-container"
 type ContainerRunner struct {
 	logger hclog.Logger
 
-	cmd    *exec.Cmd
-	config *config.ContainerConfig
-
 	hostSocketDir string
+
+	containerConfig *container.Config
+	hostConfig      *container.HostConfig
+	networkConfig   *network.NetworkingConfig
 
 	dockerClient *client.Client
 	stdout       io.ReadCloser
 	stderr       io.ReadCloser
 
-	image string
-	id    string
+	id string
 }
 
 // NewContainerRunner must be passed a cmd that hasn't yet been started.
@@ -57,37 +58,78 @@ func NewContainerRunner(logger hclog.Logger, cmd *exec.Cmd, cfg *config.Containe
 		return nil, err
 	}
 
-	// TODO: Support overriding entrypoint, args, and working dir from cmd
-	cfg.HostConfig.Mounts = append(cfg.HostConfig.Mounts, mount.Mount{
-		Type:     mount.TypeBind,
-		Source:   hostSocketDir,
-		Target:   pluginSocketDir,
-		ReadOnly: false,
-		BindOptions: &mount.BindOptions{
-			Propagation:  mount.PropagationRShared,
-			NonRecursive: true,
-		},
-		Consistency: mount.ConsistencyDefault,
-	})
-	cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", plugin.EnvUnixSocketDir, pluginSocketDir))
-	if cfg.UnixSocketGroup != 0 {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%d", plugin.EnvUnixSocketGroup, cfg.UnixSocketGroup))
+	// Container config.
+	containerConfig := &container.Config{
+		Env:             cmd.Env,
+		User:            cfg.User,
+		Image:           cfg.Image,
+		NetworkDisabled: cfg.DisableNetwork,
+		Labels:          cfg.Labels,
 	}
-	cfg.ContainerConfig.Env = cmd.Env
+	containerConfig.Env = append(containerConfig.Env, fmt.Sprintf("%s=%s", plugin.EnvUnixSocketDir, pluginSocketDir))
+	if cmd.Dir != "" {
+		containerConfig.WorkingDir = cmd.Dir
+	}
+	if cmd.Path != "" {
+		containerConfig.Entrypoint = []string{cmd.Path}
+	}
+	if cmd.Args != nil {
+		containerConfig.Cmd = cmd.Args
+		containerConfig.ArgsEscaped = true
+	}
+
+	// Host config.
+	// TODO: Can we safely we drop some default capabilities?
+	hostConfig := &container.HostConfig{
+		AutoRemove:    true,                      // Plugin containers are ephemeral.
+		RestartPolicy: container.RestartPolicy{}, // Empty restart policy means never.
+		Runtime:       cfg.Runtime,               // OCI runtime.
+		Resources: container.Resources{
+			NanoCPUs:     cfg.NanoCpus,     // CPU limit in billionths of a core.
+			Memory:       cfg.Memory,       // Memory limit in bytes.
+			CgroupParent: cfg.CgroupParent, // Parent Cgroup for the container.
+		},
+
+		// Bind mount for 2-way Unix socket communication.
+		Mounts: []mount.Mount{
+			{
+				Type:     mount.TypeBind,
+				Source:   hostSocketDir,
+				Target:   pluginSocketDir,
+				ReadOnly: false,
+				BindOptions: &mount.BindOptions{
+					Propagation:  mount.PropagationRShared,
+					NonRecursive: true,
+				},
+				Consistency: mount.ConsistencyDefault,
+			},
+		},
+	}
+
+	if cfg.UnixSocketGroup != "" {
+		containerConfig.Env = append(containerConfig.Env, fmt.Sprintf("%s=%s", plugin.EnvUnixSocketGroup, cfg.UnixSocketGroup))
+		hostConfig.GroupAdd = append(hostConfig.GroupAdd, cfg.UnixSocketGroup)
+	}
+
+	// Network config.
+	networkConfig := &network.NetworkingConfig{
+		EndpointsConfig: cfg.EndpointsConfig,
+	}
 
 	return &ContainerRunner{
 		logger:        logger,
-		cmd:           cmd,
-		config:        cfg,
 		hostSocketDir: hostSocketDir,
 		dockerClient:  client,
-		image:         cfg.ContainerConfig.Image,
+
+		containerConfig: containerConfig,
+		hostConfig:      hostConfig,
+		networkConfig:   networkConfig,
 	}, nil
 }
 
 func (c *ContainerRunner) Start() error {
 	ctx := context.Background()
-	resp, err := c.dockerClient.ContainerCreate(ctx, c.config.ContainerConfig, c.config.HostConfig, c.config.NetworkConfig, nil, "")
+	resp, err := c.dockerClient.ContainerCreate(ctx, c.containerConfig, c.hostConfig, c.networkConfig, nil, "")
 	if err != nil {
 		return err
 	}
@@ -133,7 +175,9 @@ func (c *ContainerRunner) Wait() error {
 			return err
 		}
 	case st := <-statusCh:
-		c.logger.Info("received status update", "status", st)
+		if st.StatusCode != 0 {
+			c.logger.Error("plugin shut down with non-0 exit code", "status", st)
+		}
 		if st.Error != nil {
 			return errors.New(st.Error.Message)
 		}
@@ -178,7 +222,7 @@ func (c *ContainerRunner) HostToPlugin(hostNet, hostAddr string) (pluginNet stri
 }
 
 func (c *ContainerRunner) Name() string {
-	return c.image
+	return c.containerConfig.Image
 }
 
 func (c *ContainerRunner) ID() string {

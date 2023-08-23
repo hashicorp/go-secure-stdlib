@@ -11,7 +11,6 @@ import (
 	"os/exec"
 	"strconv"
 
-	"github.com/docker/docker/api/types/container"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-plugin"
 	"github.com/hashicorp/go-plugin/runner"
@@ -28,38 +27,15 @@ func main() {
 
 func run() error {
 	// We're a host. Start by launching the plugin process.
-	cfg := &config.ContainerConfig{
-		UnixSocketGroup: os.Getgid(),
-		ContainerConfig: &container.Config{
-			Image: "plugin-counter",
-			// AttachStdin: true,
-			// AttachStdout: true,
-			// AttachStderr: true,
-			// Tty:     true,
-			// Volumes: map[string]struct{}{},
-			// User:    "1000:1000",
-		},
-		HostConfig: &container.HostConfig{
-			// Binds:          []string{},
-			// NetworkMode:    container.NetworkMode("default"),
-			// AutoRemove: true,
-			// GroupAdd: []string{},
-			// Cgroup:         container.CgroupSpec(""),
-			// CgroupnsMode:   container.CgroupnsModeEmpty,
-			// ReadonlyRootfs: true,
-			// Runtime:        "runsc",
-			// Resources:      container.Resources{},
-			// StorageOpt:     map[string]string{},
-		},
-		// NetworkConfig: &network.NetworkingConfig{
-		// 	EndpointsConfig: map[string]*network.EndpointSettings{},
-		// },
-	}
 	client := plugin.NewClient(&plugin.ClientConfig{
 		HandshakeConfig: shared.Handshake,
 		Plugins:         shared.PluginMap,
 		Cmd:             exec.Command(""),
 		RunnerFunc: func(logger hclog.Logger, cmd *exec.Cmd, tmpDir string) (runner.Runner, error) {
+			cfg := &config.ContainerConfig{
+				Image:           "plugin-counter",
+				UnixSocketGroup: fmt.Sprintf("%d", os.Getgid()),
+			}
 			return plugincontainer.NewContainerRunner(logger, cmd, cfg, tmpDir)
 		},
 		AllowedProtocols: []plugin.Protocol{
