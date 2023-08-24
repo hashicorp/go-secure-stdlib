@@ -1,6 +1,7 @@
 package plugincontainer
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -9,7 +10,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/network"
+	"github.com/docker/docker/client"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-plugin"
 	"github.com/hashicorp/go-plugin/runner"
@@ -130,64 +134,93 @@ func TestExamplePlugin(t *testing.T) {
 	runCmd(t, "go", "build", "-o=examples/container/go-plugin-counter", "./examples/container/plugin-counter")
 	runCmd(t, "docker", "build", "-t=go-plugin-counter", "-f=examples/container/Dockerfile", "examples/container")
 
-	client := plugin.NewClient(&plugin.ClientConfig{
-		HandshakeConfig: shared.Handshake,
-		Plugins:         shared.PluginMap,
-		Cmd:             exec.Command(""),
-		RunnerFunc: func(logger hclog.Logger, cmd *exec.Cmd, tmpDir string) (runner.Runner, error) {
-			cfg := &config.ContainerConfig{
-				Image:           "go-plugin-counter",
-				UnixSocketGroup: fmt.Sprintf("%d", os.Getgid()),
-			}
-			return NewContainerRunner(logger, cmd, cfg, tmpDir)
-		},
-		AllowedProtocols: []plugin.Protocol{
-			plugin.ProtocolGRPC,
-		},
+	dockerClient, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	images, err := dockerClient.ImageList(context.Background(), types.ImageListOptions{
+		Filters: filters.NewArgs(filters.Arg("reference", "go-plugin-counter:latest")),
 	})
-	defer client.Kill()
-
-	// Connect via RPC
-	rpcClient, err := client.Client()
 	if err != nil {
 		t.Fatal(err)
 	}
+	if len(images) != 1 {
+		t.Fatal(images)
+	}
+	id := images[0].ID
+	sha256 := strings.TrimPrefix(id, "sha256:")
 
-	// Request the plugin
-	raw, err := rpcClient.Dispense("counter")
-	if err != nil {
-		t.Fatal(err)
-	}
+	for name, tc := range map[string]struct {
+		image, sha256 string
+	}{
+		"just image":          {"go-plugin-counter", ""},
+		"just image with tag": {"go-plugin-counter:latest", ""},
+		"image and sha256":    {"go-plugin-counter", sha256},
+		"image and id":        {"go-plugin-counter", id},
+	} {
+		t.Run(name, func(t *testing.T) {
+			client := plugin.NewClient(&plugin.ClientConfig{
+				HandshakeConfig: shared.Handshake,
+				Plugins:         shared.PluginMap,
+				Cmd:             exec.Command(""),
+				RunnerFunc: func(logger hclog.Logger, cmd *exec.Cmd, tmpDir string) (runner.Runner, error) {
+					cfg := &config.ContainerConfig{
+						Image:           tc.image,
+						SHA256:          tc.sha256,
+						UnixSocketGroup: fmt.Sprintf("%d", os.Getgid()),
+					}
+					return NewContainerRunner(logger, cmd, cfg, tmpDir)
+				},
+				AllowedProtocols: []plugin.Protocol{
+					plugin.ProtocolGRPC,
+				},
+			})
+			defer client.Kill()
 
-	// We should have a Counter store running inside a container now! This feels
-	// like a normal interface implementation but is in fact over an RPC connection.
-	counter := raw.(shared.Counter)
+			// Connect via RPC
+			rpcClient, err := client.Client()
+			if err != nil {
+				t.Fatal(err)
+			}
 
-	storage := &inMemStorage{
-		data: make(map[string]int64),
-	}
-	v, err := counter.Increment("hello", 1, storage)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if v != 1 {
-		t.Fatal(v)
-	}
+			// Request the plugin
+			raw, err := rpcClient.Dispense("counter")
+			if err != nil {
+				t.Fatal(err)
+			}
 
-	v, err = counter.Increment("hello", 2, storage)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if v != 3 {
-		t.Fatal(v)
-	}
+			// We should have a Counter store running inside a container now! This feels
+			// like a normal interface implementation but is in fact over an RPC connection.
+			counter := raw.(shared.Counter)
 
-	v, err = counter.Increment("world", 2, storage)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if v != 2 {
-		t.Fatal(v)
+			storage := &inMemStorage{
+				data: make(map[string]int64),
+			}
+			v, err := counter.Increment("hello", 1, storage)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if v != 1 {
+				t.Fatal(v)
+			}
+
+			v, err = counter.Increment("hello", 2, storage)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if v != 3 {
+				t.Fatal(v)
+			}
+
+			v, err = counter.Increment("world", 2, storage)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if v != 2 {
+				t.Fatal(v)
+			}
+		})
 	}
 }
 

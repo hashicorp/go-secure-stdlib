@@ -9,9 +9,11 @@ import (
 	"os/exec"
 	"path"
 	"runtime"
+	"strings"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
@@ -44,7 +46,9 @@ type ContainerRunner struct {
 	stdout       io.ReadCloser
 	stderr       io.ReadCloser
 
-	id string
+	image  string
+	sha256 string
+	id     string
 }
 
 // NewContainerRunner must be passed a cmd that hasn't yet been started.
@@ -53,16 +57,32 @@ func NewContainerRunner(logger hclog.Logger, cmd *exec.Cmd, cfg *config.Containe
 		return nil, ErrUnsupportedOS
 	}
 
+	if cfg.Image == "" {
+		return nil, errors.New("must provide an image")
+	}
+
 	client, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		return nil, err
 	}
 
+	// Accept both "abc123..." "sha256:abc123...", but treat the former as the
+	// canonical form.
+	sha256 := strings.TrimPrefix(cfg.SHA256, "sha256:")
+
+	// Default to using the SHA256 for secure pinning of images, but allow users
+	// to omit the SHA256 as well.
+	var imageArg string
+	if sha256 != "" {
+		imageArg = "sha256:" + sha256
+	} else {
+		imageArg = cfg.Image
+	}
 	// Container config.
 	containerConfig := &container.Config{
 		Env:             cmd.Env,
 		User:            cfg.User,
-		Image:           cfg.Image,
+		Image:           imageArg,
 		NetworkDisabled: cfg.DisableNetwork,
 		Labels:          cfg.Labels,
 	}
@@ -124,11 +144,35 @@ func NewContainerRunner(logger hclog.Logger, cmd *exec.Cmd, cfg *config.Containe
 		containerConfig: containerConfig,
 		hostConfig:      hostConfig,
 		networkConfig:   networkConfig,
+
+		image:  cfg.Image,
+		sha256: sha256,
 	}, nil
 }
 
 func (c *ContainerRunner) Start() error {
 	ctx := context.Background()
+
+	if c.sha256 != "" {
+		// Check the Image and SHA256 provided in the config match up.
+		images, err := c.dockerClient.ImageList(ctx, types.ImageListOptions{
+			Filters: filters.NewArgs(filters.Arg("reference", c.image)),
+		})
+		if err != nil {
+			return fmt.Errorf("failed to verify that image %s matches with provided SHA256 hash %s: %w", c.image, c.sha256, err)
+		}
+		var imageFound bool
+		for _, image := range images {
+			if image.ID == "sha256:"+c.sha256 {
+				imageFound = true
+				break
+			}
+		}
+		if !imageFound {
+			return fmt.Errorf("could not find any locally available images named %s that match with the provided SHA256 hash %s", c.image, c.sha256)
+		}
+	}
+
 	resp, err := c.dockerClient.ContainerCreate(ctx, c.containerConfig, c.hostConfig, c.networkConfig, nil, "")
 	if err != nil {
 		return err
@@ -222,7 +266,7 @@ func (c *ContainerRunner) HostToPlugin(hostNet, hostAddr string) (pluginNet stri
 }
 
 func (c *ContainerRunner) Name() string {
-	return c.containerConfig.Image
+	return c.image
 }
 
 func (c *ContainerRunner) ID() string {
