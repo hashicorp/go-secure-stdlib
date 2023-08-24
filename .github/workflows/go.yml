@@ -45,6 +45,6 @@ jobs:
     - uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3.5.3
     - run: |
         if ! find * -name go.mod -print0 | xargs -0 dirname | xargs -I % grep % .github/workflows/go.yml > /dev/null; then
-          echo "Ensure every submodule is included in the matrix 'module' input above"
+          echo "Ensure every submodule is included in the matrix 'module' input in go.yml in the github workflows folder"
           exit 1
         fi
