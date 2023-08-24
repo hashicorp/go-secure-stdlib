@@ -97,7 +97,7 @@ type entry struct {
 type storage struct{}
 
 func (*storage) Get(key string) (int64, error) {
-	b, err := os.ReadFile("storage_" + key)
+	b, err := os.ReadFile("storage_" + key + ".txt")
 	if err != nil {
 		if os.IsNotExist(err) {
 			return 0, nil
@@ -120,7 +120,7 @@ func (*storage) Put(key string, value int64) error {
 		return err
 	}
 
-	err = os.WriteFile("storage_"+key, b, 0o644)
+	err = os.WriteFile("storage_"+key+".txt", b, 0o644)
 	if err != nil {
 		return err
 	}
