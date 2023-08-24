@@ -5,6 +5,7 @@ on: [push, workflow_dispatch]
 jobs:
   test:
     strategy:
+      fail-fast: false
       matrix:
         module: ["awsutil",
                   "base62",
