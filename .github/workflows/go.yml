@@ -1,50 +1,24 @@
 name: Go
 
-on: [push, workflow_dispatch]
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
 
 jobs:
-  test:
-    name: ${{ matrix.module }}
-    strategy:
-      fail-fast: false
-      matrix:
-        module: ["awsutil",
-                  "base62",
-                  "configutil",
-                  "fileutil",
-                  "gatedwriter",
-                  "kv-builder",
-                  "listenerutil",
-                  "mlock",
-                  "nonceutil",
-                  "parseutil",
-                  "password",
-                  "pluginutil",
-                  "reloadutil",
-                  "strutil",
-                  "tlsutil"]
+  build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3.5.3
+    - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3.3.0
 
     - name: Set up Go
-      uses: actions/setup-go@93397bea11091df50f3d7e59dc26a7711a8bcfbe # v4.1.0
+      uses: actions/setup-go@6edd4406fa81c3da01a34fa6f6343087c207a568 # v3.5.0
       with:
-        go-version-file: ${{ matrix.module }}/go.mod
+        go-version: 1.17
 
     - name: Build
-      run: cd ${{ matrix.module }} && go build ./...
+      run: find . -name go.mod -execdir go build ./... \;
 
     - name: Test
-      run: cd ${{ matrix.module }} && go test ./...
-
-  # Verify that every module folder is mentioned in this workflow file.
-  verify-ci:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3.5.3
-    - run: |
-        if ! find * -name go.mod -print0 | xargs -0 dirname | xargs -I % grep % .github/workflows/go.yml > /dev/null; then
-          echo "Ensure every submodule is included in the matrix 'module' input in go.yml in the github workflows folder"
-          exit 1
-        fi
+      run: find . -name go.mod -execdir go test ./... \;

@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: MPL-2.0
 
 //go:build !go1.20
-// +build !go1.20
 
 package listenerutil
 
