@@ -136,7 +136,7 @@ func TestExamplePlugin(t *testing.T) {
 		Cmd:             exec.Command(""),
 		RunnerFunc: func(logger hclog.Logger, cmd *exec.Cmd, tmpDir string) (runner.Runner, error) {
 			cfg := &config.ContainerConfig{
-				Image:           "plugin-counter",
+				Image:           "go-plugin-counter",
 				UnixSocketGroup: fmt.Sprintf("%d", os.Getgid()),
 			}
 			return NewContainerRunner(logger, cmd, cfg, tmpDir)
