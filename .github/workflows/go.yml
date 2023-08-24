@@ -4,6 +4,7 @@ on: [push, workflow_dispatch]
 
 jobs:
   test:
+    name: ${{ matrix.module }}
     strategy:
       fail-fast: false
       matrix:
