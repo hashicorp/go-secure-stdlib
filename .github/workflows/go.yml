@@ -19,6 +19,7 @@ jobs:
                   "nonceutil",
                   "parseutil",
                   "password",
+                  "plugincontainer",
                   "pluginutil",
                   "reloadutil",
                   "strutil",
