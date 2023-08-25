@@ -31,6 +31,7 @@ jobs:
       uses: actions/setup-go@93397bea11091df50f3d7e59dc26a7711a8bcfbe # v4.1.0
       with:
         go-version-file: ${{ matrix.module }}/go.mod
+        cache-dependency-path: ${{ matrix.module }}/go.sum
 
     - name: Build
       run: cd ${{ matrix.module }} && go build ./...
