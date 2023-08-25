@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"os/exec"
 	"path"
 	"runtime"
@@ -151,6 +150,7 @@ func NewContainerRunner(logger hclog.Logger, cmd *exec.Cmd, cfg *config.Containe
 }
 
 func (c *ContainerRunner) Start() error {
+	c.logger.Debug("starting container", "image", c.image)
 	ctx := context.Background()
 
 	if c.sha256 != "" {
@@ -178,13 +178,18 @@ func (c *ContainerRunner) Start() error {
 		return err
 	}
 	c.id = resp.ID
+	c.logger.Trace("created container", "image", c.image, "id", c.id)
 
 	if err := c.dockerClient.ContainerStart(ctx, c.id, types.ContainerStartOptions{}); err != nil {
 		return err
 	}
 
 	// ContainerLogs combines stdout and stderr.
-	logReader, err := c.dockerClient.ContainerLogs(ctx, c.id, types.ContainerLogsOptions{ShowStdout: true, ShowStderr: true})
+	logReader, err := c.dockerClient.ContainerLogs(ctx, c.id, types.ContainerLogsOptions{
+		Follow:     true,
+		ShowStdout: true,
+		ShowStderr: true,
+	})
 	if err != nil {
 		return err
 	}
@@ -233,8 +238,8 @@ func (c *ContainerRunner) Wait() error {
 }
 
 func (c *ContainerRunner) Kill() error {
+	c.logger.Debug("killing container", "image", c.image, "id", c.id)
 	defer c.dockerClient.Close()
-	defer os.RemoveAll(c.hostSocketDir)
 	if c.id != "" {
 		return c.dockerClient.ContainerStop(context.Background(), c.id, container.StopOptions{})
 	}

@@ -139,6 +139,7 @@ func TestExamplePlugin(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// Get the full sha256 of the image we just built so we can test pinning.
 	images, err := dockerClient.ImageList(context.Background(), types.ImageListOptions{
 		Filters: filters.NewArgs(filters.Arg("reference", "go-plugin-counter:latest")),
 	})
@@ -154,16 +155,19 @@ func TestExamplePlugin(t *testing.T) {
 	for name, tc := range map[string]struct {
 		image, sha256 string
 	}{
-		"just image":          {"go-plugin-counter", ""},
-		"just image with tag": {"go-plugin-counter:latest", ""},
-		"image and sha256":    {"go-plugin-counter", sha256},
-		"image and id":        {"go-plugin-counter", id},
+		"image":                     {"go-plugin-counter", ""},
+		"image with tag":            {"go-plugin-counter:latest", ""},
+		"image and sha256":          {"go-plugin-counter", sha256},
+		"image with tag and sha256": {"go-plugin-counter:latest", sha256},
+		"image and id":              {"go-plugin-counter", id},
+		"image with tag and id":     {"go-plugin-counter:latest", id},
 	} {
 		t.Run(name, func(t *testing.T) {
 			client := plugin.NewClient(&plugin.ClientConfig{
 				HandshakeConfig: shared.Handshake,
 				Plugins:         shared.PluginMap,
-				Cmd:             exec.Command(""),
+				SkipHostEnv:     true,
+				AutoMTLS:        true,
 				RunnerFunc: func(logger hclog.Logger, cmd *exec.Cmd, tmpDir string) (runner.Runner, error) {
 					cfg := &config.ContainerConfig{
 						Image:           tc.image,
@@ -175,6 +179,10 @@ func TestExamplePlugin(t *testing.T) {
 				AllowedProtocols: []plugin.Protocol{
 					plugin.ProtocolGRPC,
 				},
+				Logger: hclog.New(&hclog.LoggerOptions{
+					Name:  t.Name(),
+					Level: hclog.Trace,
+				}),
 			})
 			defer client.Kill()
 
@@ -225,7 +233,11 @@ func TestExamplePlugin(t *testing.T) {
 }
 
 func runCmd(t *testing.T, name string, arg ...string) {
+	t.Helper()
 	cmd := exec.Command(name, arg...)
+	// Disable cgo for 'go build' command, as we're running inside a static
+	// distroless container that doesn't have libc bindings available.
+	cmd.Env = append(os.Environ(), "CGO_ENABLED=0")
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		t.Fatal(err)
