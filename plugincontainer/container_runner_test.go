@@ -2,6 +2,7 @@ package plugincontainer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -26,7 +27,7 @@ import (
 func TestNewContainerRunner_config(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		_, err := NewContainerRunner(hclog.Default(), exec.Command(""), nil, "")
-		if err != ErrUnsupportedOS {
+		if err != errUnsupportedOS {
 			t.Fatal(err)
 		}
 
@@ -153,14 +154,14 @@ func TestExamplePlugin(t *testing.T) {
 	sha256 := strings.TrimPrefix(id, "sha256:")
 
 	for name, tc := range map[string]struct {
-		image, sha256 string
+		image, tag, sha256 string
 	}{
-		"image":                     {"go-plugin-counter", ""},
-		"image with tag":            {"go-plugin-counter:latest", ""},
-		"image and sha256":          {"go-plugin-counter", sha256},
-		"image with tag and sha256": {"go-plugin-counter:latest", sha256},
-		"image and id":              {"go-plugin-counter", id},
-		"image with tag and id":     {"go-plugin-counter:latest", id},
+		"image":                     {"go-plugin-counter", "", ""},
+		"image with tag":            {"go-plugin-counter", "latest", ""},
+		"image and sha256":          {"go-plugin-counter", "", sha256},
+		"image with tag and sha256": {"go-plugin-counter", "latest", sha256},
+		"image and id":              {"go-plugin-counter", "", id},
+		"image with tag and id":     {"go-plugin-counter", "latest", id},
 	} {
 		t.Run(name, func(t *testing.T) {
 			client := plugin.NewClient(&plugin.ClientConfig{
@@ -227,6 +228,80 @@ func TestExamplePlugin(t *testing.T) {
 			}
 			if v != 2 {
 				t.Fatal(v)
+			}
+		})
+	}
+
+	// Failure cases.
+	runCmd(t, "docker", "build", "-t=broken", "-f=testdata/Dockerfile", "testdata/")
+	for name, tc := range map[string]struct {
+		image               string
+		sha256              string
+		expectedErr         error
+		expectedErrContents string
+	}{
+		"no image": {
+			"",
+			"",
+			nil,
+			"",
+		},
+		"image given with tag": {
+			"broken:latest",
+			"",
+			nil,
+			"broken:latest",
+		},
+		// Error should include container environment as part of diagnostics.
+		"simulated plugin error": {
+			"broken",
+			"",
+			nil,
+			fmt.Sprintf("%s=%s", shared.Handshake.MagicCookieKey, shared.Handshake.MagicCookieValue),
+		},
+		// The image and sha256 both got built in this test suite, but they
+		// mismatch so error should be SHA256 mismatch.
+		"SHA256 mismatch": {
+			"broken",
+			sha256,
+			errSHA256Mismatch,
+			"",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			client := plugin.NewClient(&plugin.ClientConfig{
+				HandshakeConfig: shared.Handshake,
+				Plugins:         shared.PluginMap,
+				SkipHostEnv:     true,
+				AutoMTLS:        true,
+				RunnerFunc: func(logger hclog.Logger, cmd *exec.Cmd, tmpDir string) (runner.Runner, error) {
+					cfg := &config.ContainerConfig{
+						Image:           tc.image,
+						SHA256:          tc.sha256,
+						UnixSocketGroup: fmt.Sprintf("%d", os.Getgid()),
+					}
+					return NewContainerRunner(logger, cmd, cfg, tmpDir)
+				},
+				AllowedProtocols: []plugin.Protocol{
+					plugin.ProtocolGRPC,
+				},
+				Logger: hclog.New(&hclog.LoggerOptions{
+					Name:  t.Name(),
+					Level: hclog.Trace,
+				}),
+			})
+			defer client.Kill()
+
+			// Connect via RPC
+			_, err := client.Client()
+			if err == nil {
+				t.Fatal("Expected error starting fake plugin")
+			}
+			if tc.expectedErr != nil && !errors.Is(err, tc.expectedErr) {
+				t.Fatalf("Expected error %s, but got %s", tc.expectedErr, err)
+			}
+			if tc.expectedErrContents != "" && !strings.Contains(err.Error(), tc.expectedErrContents) {
+				t.Fatalf("Expected %s in error, but got %s", tc.expectedErrContents, err)
 			}
 		})
 	}
