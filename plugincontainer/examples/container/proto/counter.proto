@@ -1,0 +1,21 @@
+// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
+syntax = "proto3";
+package proto;
+
+option go_package = "github.com/hashicorp/go-secure-stdlib/plugincontainer/examples/container/proto";
+
+message IncrementRequest {
+    string key = 1;
+    int64 value = 2;
+    uint32 storage_server = 3;
+}
+
+message IncrementResponse {
+    int64 value = 1;
+}
+
+service Counter {
+    rpc Increment(IncrementRequest) returns (IncrementResponse);
+}
