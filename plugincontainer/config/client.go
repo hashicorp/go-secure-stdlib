@@ -29,8 +29,9 @@ type ContainerConfig struct {
 	UnixSocketGroup string
 
 	// container.Config options
-	User           string            // User or uid:gid to run the container as.
-	Image          string            // Image to run, e.g. hashicorp/vault-plugin-auth-jwt:0.16.0
+	User           string            // User name or uid:gid to run the container as.
+	Image          string            // Image to run (without the tag), e.g. hashicorp/vault-plugin-auth-jwt
+	Tag            string            // Tag of the image to run, e.g. 0.16.0
 	SHA256         string            // SHA256 digest of the image. Can be a plain sha256 or prefixed with sha256:
 	DisableNetwork bool              // Whether to disable the networking stack.
 	Labels         map[string]string // Arbitrary metadata to facilitate querying containers.

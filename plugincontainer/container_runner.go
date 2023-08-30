@@ -2,6 +2,7 @@ package plugincontainer
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -26,12 +27,14 @@ import (
 var (
 	_ runner.Runner = (*ContainerRunner)(nil)
 
-	ErrUnsupportedOS = errors.New("plugincontainer currently only supports Linux")
+	errUnsupportedOS  = errors.New("plugincontainer currently only supports Linux")
+	errSHA256Mismatch = errors.New("SHA256 mismatch")
 )
 
 const pluginSocketDir = "/tmp/go-plugin-container"
 
-// ContainerRunner implements the Executor interface by running a container.
+// ContainerRunner implements go-plugin's runner.Runner interface to run plugins
+// inside a container.
 type ContainerRunner struct {
 	logger hclog.Logger
 
@@ -46,6 +49,7 @@ type ContainerRunner struct {
 	stderr       io.ReadCloser
 
 	image  string
+	tag    string
 	sha256 string
 	id     string
 }
@@ -53,11 +57,15 @@ type ContainerRunner struct {
 // NewContainerRunner must be passed a cmd that hasn't yet been started.
 func NewContainerRunner(logger hclog.Logger, cmd *exec.Cmd, cfg *config.ContainerConfig, hostSocketDir string) (*ContainerRunner, error) {
 	if runtime.GOOS != "linux" {
-		return nil, ErrUnsupportedOS
+		return nil, errUnsupportedOS
 	}
 
 	if cfg.Image == "" {
 		return nil, errors.New("must provide an image")
+	}
+
+	if strings.Contains(cfg.Image, ":") {
+		return nil, fmt.Errorf("image %q must not have any ':' characters, use the Tag field to specify a tag", cfg.Image)
 	}
 
 	client, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
@@ -65,8 +73,8 @@ func NewContainerRunner(logger hclog.Logger, cmd *exec.Cmd, cfg *config.Containe
 		return nil, err
 	}
 
-	// Accept both "abc123..." "sha256:abc123...", but treat the former as the
-	// canonical form.
+	// Accept both "abc123..." and "sha256:abc123...", but treat the former as
+	// the canonical form.
 	sha256 := strings.TrimPrefix(cfg.SHA256, "sha256:")
 
 	// Default to using the SHA256 for secure pinning of images, but allow users
@@ -145,21 +153,25 @@ func NewContainerRunner(logger hclog.Logger, cmd *exec.Cmd, cfg *config.Containe
 		networkConfig:   networkConfig,
 
 		image:  cfg.Image,
+		tag:    cfg.Tag,
 		sha256: sha256,
 	}, nil
 }
 
-func (c *ContainerRunner) Start() error {
+func (c *ContainerRunner) Start(ctx context.Context) error {
 	c.logger.Debug("starting container", "image", c.image)
-	ctx := context.Background()
 
 	if c.sha256 != "" {
+		ref := c.image
+		if c.tag != "" {
+			ref += ":" + c.tag
+		}
 		// Check the Image and SHA256 provided in the config match up.
 		images, err := c.dockerClient.ImageList(ctx, types.ImageListOptions{
-			Filters: filters.NewArgs(filters.Arg("reference", c.image)),
+			Filters: filters.NewArgs(filters.Arg("reference", ref)),
 		})
 		if err != nil {
-			return fmt.Errorf("failed to verify that image %s matches with provided SHA256 hash %s: %w", c.image, c.sha256, err)
+			return fmt.Errorf("failed to verify that image %s matches with provided SHA256 hash %s: %w", ref, c.sha256, err)
 		}
 		var imageFound bool
 		for _, image := range images {
@@ -169,7 +181,7 @@ func (c *ContainerRunner) Start() error {
 			}
 		}
 		if !imageFound {
-			return fmt.Errorf("could not find any locally available images named %s that match with the provided SHA256 hash %s", c.image, c.sha256)
+			return fmt.Errorf("could not find any locally available images named %s that match with the provided SHA256 hash %s: %w", ref, c.sha256, errSHA256Mismatch)
 		}
 	}
 
@@ -194,7 +206,6 @@ func (c *ContainerRunner) Start() error {
 		return err
 	}
 
-	// c.logger.Debug("tmp dir", "tmp", c.config.DockerConfig.TmpDir)
 	// Split logReader stream into distinct stdout and stderr readers.
 	var stdoutWriter, stderrWriter io.WriteCloser
 	c.stdout, stdoutWriter = io.Pipe()
@@ -216,8 +227,8 @@ func (c *ContainerRunner) Start() error {
 	return nil
 }
 
-func (c *ContainerRunner) Wait() error {
-	statusCh, errCh := c.dockerClient.ContainerWait(context.Background(), c.id, container.WaitConditionNotRunning)
+func (c *ContainerRunner) Wait(ctx context.Context) error {
+	statusCh, errCh := c.dockerClient.ContainerWait(ctx, c.id, container.WaitConditionNotRunning)
 	select {
 	case err := <-errCh:
 		if err != nil {
@@ -225,7 +236,7 @@ func (c *ContainerRunner) Wait() error {
 		}
 	case st := <-statusCh:
 		if st.StatusCode != 0 {
-			c.logger.Error("plugin shut down with non-0 exit code", "status", st)
+			c.logger.Error("plugin shut down with non-0 exit code", "id", c.id, "status", st.StatusCode)
 		}
 		if st.Error != nil {
 			return errors.New(st.Error.Message)
@@ -237,11 +248,21 @@ func (c *ContainerRunner) Wait() error {
 	return nil
 }
 
-func (c *ContainerRunner) Kill() error {
+func (c *ContainerRunner) Kill(ctx context.Context) error {
 	c.logger.Debug("killing container", "image", c.image, "id", c.id)
 	defer c.dockerClient.Close()
 	if c.id != "" {
-		return c.dockerClient.ContainerStop(context.Background(), c.id, container.StopOptions{})
+		err := c.dockerClient.ContainerStop(ctx, c.id, container.StopOptions{})
+		if err != nil {
+			// Docker SDK does not seem to expose sentinel errors in a way we can
+			// use here instead of string matching.
+			if strings.Contains(strings.ToLower(err.Error()), "no such container:") {
+				c.logger.Trace("container already stopped", "image", c.image, "id", c.id)
+				return nil
+			}
+
+			return err
+		}
 	}
 
 	return nil
@@ -258,7 +279,7 @@ func (c *ContainerRunner) Stderr() io.ReadCloser {
 func (c *ContainerRunner) PluginToHost(pluginNet, pluginAddr string) (hostNet string, hostAddr string, err error) {
 	if path.Dir(pluginAddr) != pluginSocketDir {
 		return "", "", fmt.Errorf("expected address to be in directory %s, but was %s; "+
-			"the plugin may need to be recompiled with the latest go-plugin version", c.hostSocketDir, hostAddr)
+			"the plugin may need to be recompiled with the latest go-plugin version", c.hostSocketDir, pluginAddr)
 	}
 	return pluginNet, path.Join(c.hostSocketDir, path.Base(pluginAddr)), nil
 }
@@ -276,4 +297,41 @@ func (c *ContainerRunner) Name() string {
 
 func (c *ContainerRunner) ID() string {
 	return c.id
+}
+
+// Diagnose prints out the container config to help users manually re-run the
+// plugin for debugging purposes.
+func (c *ContainerRunner) Diagnose(_ context.Context) string {
+	notes := "Here is the minimal container config required to try re-runninng the " +
+		"plugin manually:\n"
+	notes += fmt.Sprintf("Image: %s\n", c.containerConfig.Image)
+	if !emptyStrSlice(c.containerConfig.Entrypoint) {
+		notes += fmt.Sprintf("Entrypoint: %s\n", strings.Join(c.containerConfig.Entrypoint, " "))
+	}
+	if !emptyStrSlice(c.containerConfig.Cmd) {
+		notes += fmt.Sprintf("Cmd: %s\n", c.containerConfig.Cmd)
+	}
+	if c.hostConfig.Runtime != "" {
+		notes += fmt.Sprintf("Runtime: %s\n", c.hostConfig.Runtime)
+	}
+	notes += "Env:\n"
+	const envClientCert = "PLUGIN_CLIENT_CERT"
+	for _, e := range c.containerConfig.Env {
+		if strings.HasPrefix(e, envClientCert+"=") {
+			// Base64 encode the single use client cert for 2 reasons:
+			// 1: It's a large multiline string that dominates and confuses the
+			//    output otherwise
+			// 2. Although it's only single-use, it very much looks like sensitive
+			//    information that could trigger false positives in scanners.
+			notes += fmt.Sprintf("(base64 encoded) %s=%s\n", envClientCert, base64.StdEncoding.EncodeToString([]byte(e[len(envClientCert)+1:])))
+			continue
+		}
+		notes += e + "\n"
+	}
+
+	return notes
+}
+
+func emptyStrSlice(s []string) bool {
+	return len(s) == 0 || len(s) == 1 && s[0] == ""
 }

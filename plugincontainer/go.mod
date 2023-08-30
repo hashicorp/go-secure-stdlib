@@ -5,7 +5,7 @@ go 1.20
 require (
 	github.com/docker/docker v24.0.5+incompatible
 	github.com/hashicorp/go-hclog v1.5.0
-	github.com/hashicorp/go-plugin v1.4.11-rc1.0.20230825102857-8b178aa46bb3
+	github.com/hashicorp/go-plugin v1.5.0
 	google.golang.org/grpc v1.57.0
 	google.golang.org/protobuf v1.31.0
 )
