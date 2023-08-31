@@ -128,6 +128,18 @@ func TestNewContainerRunner_config(t *testing.T) {
 }
 
 func TestExamplePlugin(t *testing.T) {
+	// Default docker runtime.
+	t.Run("runc", func(t *testing.T) {
+		testExamplePlugin_WithRuntime(t, "runc")
+	})
+
+	// gVisor runtime.
+	t.Run("runsc", func(t *testing.T) {
+		testExamplePlugin_WithRuntime(t, "runsc")
+	})
+}
+
+func testExamplePlugin_WithRuntime(t *testing.T, ociRuntime string) {
 	if runtime.GOOS != "linux" {
 		t.Skip("Only linux is supported for now")
 	}
@@ -174,7 +186,7 @@ func TestExamplePlugin(t *testing.T) {
 						Image:           tc.image,
 						SHA256:          tc.sha256,
 						UnixSocketGroup: fmt.Sprintf("%d", os.Getgid()),
-						Runtime:         "runsc",
+						Runtime:         ociRuntime,
 					}
 					return NewContainerRunner(logger, cmd, cfg, tmpDir)
 				},
@@ -280,7 +292,7 @@ func TestExamplePlugin(t *testing.T) {
 						Image:           tc.image,
 						SHA256:          tc.sha256,
 						UnixSocketGroup: fmt.Sprintf("%d", os.Getgid()),
-						Runtime:         "runsc",
+						Runtime:         ociRuntime,
 					}
 					return NewContainerRunner(logger, cmd, cfg, tmpDir)
 				},
