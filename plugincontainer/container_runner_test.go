@@ -174,6 +174,7 @@ func TestExamplePlugin(t *testing.T) {
 						Image:           tc.image,
 						SHA256:          tc.sha256,
 						UnixSocketGroup: fmt.Sprintf("%d", os.Getgid()),
+						Runtime:         "runsc",
 					}
 					return NewContainerRunner(logger, cmd, cfg, tmpDir)
 				},
@@ -279,6 +280,7 @@ func TestExamplePlugin(t *testing.T) {
 						Image:           tc.image,
 						SHA256:          tc.sha256,
 						UnixSocketGroup: fmt.Sprintf("%d", os.Getgid()),
+						Runtime:         "runsc",
 					}
 					return NewContainerRunner(logger, cmd, cfg, tmpDir)
 				},

@@ -125,7 +125,9 @@ func NewContainerRunner(logger hclog.Logger, cmd *exec.Cmd, cfg *config.Containe
 				Target:   pluginSocketDir,
 				ReadOnly: false,
 				BindOptions: &mount.BindOptions{
-					Propagation:  mount.PropagationRShared,
+					// Private propagation, we don't need to replicate this mount.
+					// For details, see https://docs.docker.com/storage/bind-mounts/#configure-bind-propagation.
+					Propagation:  mount.PropagationPrivate,
 					NonRecursive: true,
 				},
 				Consistency: mount.ConsistencyDefault,
