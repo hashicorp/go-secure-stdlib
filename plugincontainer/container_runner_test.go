@@ -17,8 +17,6 @@ import (
 	"github.com/docker/docker/client"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-plugin"
-	"github.com/hashicorp/go-plugin/runner"
-	"github.com/hashicorp/go-secure-stdlib/plugincontainer/config"
 	"github.com/hashicorp/go-secure-stdlib/plugincontainer/examples/container/shared"
 )
 
@@ -26,7 +24,7 @@ import (
 // get passed through to the runner's internal config correctly.
 func TestNewContainerRunner_config(t *testing.T) {
 	if runtime.GOOS != "linux" {
-		_, err := NewContainerRunner(hclog.Default(), exec.Command(""), nil, "")
+		_, err := (&Config{}).NewContainerRunner(hclog.Default(), exec.Command(""), "")
 		if err != errUnsupportedOS {
 			t.Fatal(err)
 		}
@@ -36,8 +34,7 @@ func TestNewContainerRunner_config(t *testing.T) {
 
 	tmpDir := t.TempDir()
 	const (
-		gid          = "10"
-		user         = "1000:1000"
+		gid          = 10
 		image        = "fooimage"
 		labelsKey    = "foolabel"
 		runtime      = "fooruntime"
@@ -46,11 +43,10 @@ func TestNewContainerRunner_config(t *testing.T) {
 		memory       = 30
 		endpointsKey = "fooendpoint"
 	)
-	cfg := &config.ContainerConfig{
-		UnixSocketGroup: gid,
-		User:            user,
-		Image:           image,
-		DisableNetwork:  true,
+	cfg := &Config{
+		GroupAdd:       gid,
+		Image:          image,
+		DisableNetwork: true,
 		Labels: map[string]string{
 			labelsKey: "bar",
 		},
@@ -62,15 +58,17 @@ func TestNewContainerRunner_config(t *testing.T) {
 			endpointsKey: {},
 		},
 	}
-	runner, err := NewContainerRunner(hclog.Default(), exec.Command(""), cfg, tmpDir)
+	runnerIfc, err := cfg.NewContainerRunner(hclog.Default(), exec.Command(""), tmpDir)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// container.Config
-	if runner.containerConfig.User != user {
-		t.Fatal(runner.containerConfig.User)
+	runner, ok := runnerIfc.(*containerRunner)
+	if !ok {
+		t.Fatal(runner)
 	}
+
+	// container.Config
 	if runner.containerConfig.Image != image {
 		t.Fatal(image)
 	}
@@ -80,7 +78,8 @@ func TestNewContainerRunner_config(t *testing.T) {
 	if runner.containerConfig.NetworkDisabled != true {
 		t.Fatal()
 	}
-	var foundUnixSocketGroup, foundUnixSocketDir bool
+	// plugincontainer should override plugin.EnvUnixSocketDir env for the container.
+	var foundUnixSocketDir bool
 	for _, env := range runner.containerConfig.Env {
 		key, value, ok := strings.Cut(env, "=")
 		if !ok {
@@ -92,20 +91,14 @@ func TestNewContainerRunner_config(t *testing.T) {
 				t.Fatalf("Expected %s to be %s, but got %s", plugin.EnvUnixSocketDir, pluginSocketDir, value)
 			}
 		}
-		if key == plugin.EnvUnixSocketGroup {
-			foundUnixSocketGroup = true
-			if value != gid {
-				t.Fatalf("Expected %s to be %s, but got %s", plugin.EnvUnixSocketGroup, gid, value)
-			}
-		}
 	}
-	if !foundUnixSocketDir || !foundUnixSocketGroup {
-		t.Fatalf("Expected both unix socket group and dir env vars, but got: %v, %v\nEnv:\n%v",
-			foundUnixSocketDir, foundUnixSocketGroup, runner.containerConfig.Env)
+	if !foundUnixSocketDir {
+		t.Fatalf("Expected unix socket dir env var, but got: %v; Env: %v",
+			foundUnixSocketDir, runner.containerConfig.Env)
 	}
 
 	// container.HostConfig
-	if runner.hostConfig.GroupAdd[0] != gid {
+	if runner.hostConfig.GroupAdd[0] != fmt.Sprintf("%d", gid) {
 		t.Fatal(runner.hostConfig.GroupAdd)
 	}
 	if runner.hostConfig.Runtime != runtime {
@@ -176,20 +169,19 @@ func testExamplePlugin_WithRuntime(t *testing.T, ociRuntime string) {
 		"image with tag and id":     {"go-plugin-counter", "latest", id},
 	} {
 		t.Run(name, func(t *testing.T) {
+			cfg := &Config{
+				Image:    tc.image,
+				Tag:      tc.tag,
+				SHA256:   tc.sha256,
+				Runtime:  ociRuntime,
+				GroupAdd: os.Getgid(),
+				Debug:    true,
+			}
 			client := plugin.NewClient(&plugin.ClientConfig{
 				HandshakeConfig: shared.Handshake,
 				Plugins:         shared.PluginMap,
 				SkipHostEnv:     true,
 				AutoMTLS:        true,
-				RunnerFunc: func(logger hclog.Logger, cmd *exec.Cmd, tmpDir string) (runner.Runner, error) {
-					cfg := &config.ContainerConfig{
-						Image:           tc.image,
-						SHA256:          tc.sha256,
-						UnixSocketGroup: fmt.Sprintf("%d", os.Getgid()),
-						Runtime:         ociRuntime,
-					}
-					return NewContainerRunner(logger, cmd, cfg, tmpDir)
-				},
 				AllowedProtocols: []plugin.Protocol{
 					plugin.ProtocolGRPC,
 				},
@@ -197,6 +189,10 @@ func testExamplePlugin_WithRuntime(t *testing.T, ociRuntime string) {
 					Name:  t.Name(),
 					Level: hclog.Trace,
 				}),
+				UnixSocketConfig: &plugin.UnixSocketConfig{
+					Group: fmt.Sprintf("%d", cfg.GroupAdd),
+				},
+				RunnerFunc: cfg.NewContainerRunner,
 			})
 			defer client.Kill()
 
@@ -265,12 +261,12 @@ func testExamplePlugin_WithRuntime(t *testing.T, ociRuntime string) {
 			nil,
 			"broken:latest",
 		},
-		// Error should include container environment as part of diagnostics.
+		// Error should include container image as part of diagnostics.
 		"simulated plugin error": {
 			"broken",
 			"",
 			nil,
-			fmt.Sprintf("%s=%s", shared.Handshake.MagicCookieKey, shared.Handshake.MagicCookieValue),
+			"Image: broken",
 		},
 		// The image and sha256 both got built in this test suite, but they
 		// mismatch so error should be SHA256 mismatch.
@@ -282,20 +278,17 @@ func testExamplePlugin_WithRuntime(t *testing.T, ociRuntime string) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
+			cfg := &Config{
+				Image:    tc.image,
+				SHA256:   tc.sha256,
+				Runtime:  ociRuntime,
+				GroupAdd: os.Getgid(),
+			}
 			client := plugin.NewClient(&plugin.ClientConfig{
 				HandshakeConfig: shared.Handshake,
 				Plugins:         shared.PluginMap,
 				SkipHostEnv:     true,
 				AutoMTLS:        true,
-				RunnerFunc: func(logger hclog.Logger, cmd *exec.Cmd, tmpDir string) (runner.Runner, error) {
-					cfg := &config.ContainerConfig{
-						Image:           tc.image,
-						SHA256:          tc.sha256,
-						UnixSocketGroup: fmt.Sprintf("%d", os.Getgid()),
-						Runtime:         ociRuntime,
-					}
-					return NewContainerRunner(logger, cmd, cfg, tmpDir)
-				},
 				AllowedProtocols: []plugin.Protocol{
 					plugin.ProtocolGRPC,
 				},
@@ -303,11 +296,15 @@ func testExamplePlugin_WithRuntime(t *testing.T, ociRuntime string) {
 					Name:  t.Name(),
 					Level: hclog.Trace,
 				}),
+				UnixSocketConfig: &plugin.UnixSocketConfig{
+					Group: fmt.Sprintf("%d", cfg.GroupAdd),
+				},
+				RunnerFunc: cfg.NewContainerRunner,
 			})
 			defer client.Kill()
 
 			// Connect via RPC
-			_, err := client.Client()
+			_, err = client.Client()
 			if err == nil {
 				t.Fatal("Expected error starting fake plugin")
 			}

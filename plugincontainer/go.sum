@@ -27,6 +27,16 @@ github.com/hashicorp/go-hclog v1.5.0 h1:bI2ocEMgcVlz55Oj1xZNBsVi900c7II+fWDyV9o+
 github.com/hashicorp/go-hclog v1.5.0/go.mod h1:W4Qnvbt70Wk/zYJryRzDRU/4r0kIg0PVHBcfoyhpF5M=
 github.com/hashicorp/go-plugin v1.5.0 h1:g6Lj3USwF5LaB8HlvCxPjN2X4nFE08ko2BJNVpl7TIE=
 github.com/hashicorp/go-plugin v1.5.0/go.mod h1:w1sAEES3g3PuV/RzUrgow20W2uErMly84hhD3um1WL4=
+github.com/hashicorp/go-plugin v1.5.1-0.20230901160833-94368a4189aa h1:ouPRP5JQ7Viaecy2WTImjp1UOW7W7D/SZLcngdFr66k=
+github.com/hashicorp/go-plugin v1.5.1-0.20230901160833-94368a4189aa/go.mod h1:w1sAEES3g3PuV/RzUrgow20W2uErMly84hhD3um1WL4=
+github.com/hashicorp/go-plugin v1.5.1-0.20230902194902-80fd66fdb07c h1:s4g4phc+Vzb1Fw6kM2CUK35JRKzpGgVeGmNfYkEtQgE=
+github.com/hashicorp/go-plugin v1.5.1-0.20230902194902-80fd66fdb07c/go.mod h1:w1sAEES3g3PuV/RzUrgow20W2uErMly84hhD3um1WL4=
+github.com/hashicorp/go-plugin v1.5.1-0.20230904102808-483ecf04e37b h1:mWimqz9idOrsNAbmmr9b4s28MWm0V3hxOqXgaIoF2tA=
+github.com/hashicorp/go-plugin v1.5.1-0.20230904102808-483ecf04e37b/go.mod h1:w1sAEES3g3PuV/RzUrgow20W2uErMly84hhD3um1WL4=
+github.com/hashicorp/go-plugin v1.5.1-0.20230904121732-fd6454b7a40b h1:3/YGGyGPTr7DuZY7amCRxv8y4LaQj/udRe2oHneUKxo=
+github.com/hashicorp/go-plugin v1.5.1-0.20230904121732-fd6454b7a40b/go.mod h1:w1sAEES3g3PuV/RzUrgow20W2uErMly84hhD3um1WL4=
+github.com/hashicorp/go-plugin v1.5.1-0.20230904131810-817b3dafdeb1 h1:zoBtvq0JUBWiYNa1V1rMcy7waZEmFESqUJEf2bHN0pQ=
+github.com/hashicorp/go-plugin v1.5.1-0.20230904131810-817b3dafdeb1/go.mod h1:w1sAEES3g3PuV/RzUrgow20W2uErMly84hhD3um1WL4=
 github.com/hashicorp/yamux v0.1.1 h1:yrQxtgseBDrq9Y652vSRDvsKCJKOUD+GzTS4Y0Y8pvE=
 github.com/hashicorp/yamux v0.1.1/go.mod h1:CtWFDAQgb7dxtzFs4tWbplKIe2jSi3+5vKbgIO0SLnQ=
 github.com/jhump/protoreflect v1.15.1 h1:HUMERORf3I3ZdX05WaQ6MIpd/NJ434hTp5YiKgfCL6c=

@@ -1,4 +1,6 @@
-FROM gcr.io/distroless/static-debian11
+FROM ubuntu
+
+RUN groupadd go-plugin
 
 COPY go-plugin-counter /bin/go-plugin-counter
 
