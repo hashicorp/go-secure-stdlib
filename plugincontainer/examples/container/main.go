@@ -8,14 +8,10 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"os/exec"
 	"strconv"
 
-	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-plugin"
-	"github.com/hashicorp/go-plugin/runner"
 	"github.com/hashicorp/go-secure-stdlib/plugincontainer"
-	"github.com/hashicorp/go-secure-stdlib/plugincontainer/config"
 	"github.com/hashicorp/go-secure-stdlib/plugincontainer/examples/container/shared"
 )
 
@@ -27,20 +23,20 @@ func main() {
 
 func run() error {
 	// We're a host. Start by launching the plugin process.
+	cfg := &plugincontainer.Config{
+		Image:    "plugin-counter",
+		GroupAdd: os.Getgid(),
+	}
 	client := plugin.NewClient(&plugin.ClientConfig{
 		HandshakeConfig: shared.Handshake,
 		Plugins:         shared.PluginMap,
-		Cmd:             exec.Command(""),
-		RunnerFunc: func(logger hclog.Logger, cmd *exec.Cmd, tmpDir string) (runner.Runner, error) {
-			cfg := &config.ContainerConfig{
-				Image:           "plugin-counter",
-				UnixSocketGroup: fmt.Sprintf("%d", os.Getgid()),
-			}
-			return plugincontainer.NewContainerRunner(logger, cmd, cfg, tmpDir)
-		},
 		AllowedProtocols: []plugin.Protocol{
 			plugin.ProtocolGRPC,
 		},
+		UnixSocketConfig: &plugin.UnixSocketConfig{
+			Group: fmt.Sprintf("%d", cfg.GroupAdd),
+		},
+		RunnerFunc: cfg.NewContainerRunner,
 	})
 	defer client.Kill()
 
