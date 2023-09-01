@@ -267,26 +267,30 @@ func testExamplePlugin_WithRuntime(t *testing.T, ociRuntime string) {
 		image               string
 		sha256              string
 		expectedErr         error
-		expectedErrContents string
+		expectedErrContents []string
 	}{
 		"no image": {
 			"",
 			"",
 			nil,
-			"",
+			nil,
 		},
 		"image given with tag": {
 			"broken:latest",
 			"",
 			nil,
-			"broken:latest",
+			[]string{"broken:latest"},
 		},
-		// Error should include container image as part of diagnostics.
+		// Error should include container image, env, and logs as part of diagnostics.
 		"simulated plugin error": {
 			"broken",
 			"",
 			nil,
-			"Image: broken",
+			[]string{
+				"Image ref: broken",
+				fmt.Sprintf("%s=%s", shared.Handshake.MagicCookieKey, shared.Handshake.MagicCookieValue),
+				"bye from broken",
+			},
 		},
 		// The image and sha256 both got built in this test suite, but they
 		// mismatch so error should be SHA256 mismatch.
@@ -294,7 +298,7 @@ func testExamplePlugin_WithRuntime(t *testing.T, ociRuntime string) {
 			"broken",
 			sha256,
 			errSHA256Mismatch,
-			"",
+			nil,
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -303,6 +307,7 @@ func testExamplePlugin_WithRuntime(t *testing.T, ociRuntime string) {
 				SHA256:   tc.sha256,
 				Runtime:  ociRuntime,
 				GroupAdd: os.Getgid(),
+				Debug:    true,
 			}
 			client := plugin.NewClient(&plugin.ClientConfig{
 				HandshakeConfig: shared.Handshake,
@@ -331,8 +336,10 @@ func testExamplePlugin_WithRuntime(t *testing.T, ociRuntime string) {
 			if tc.expectedErr != nil && !errors.Is(err, tc.expectedErr) {
 				t.Fatalf("Expected error %s, but got %s", tc.expectedErr, err)
 			}
-			if tc.expectedErrContents != "" && !strings.Contains(err.Error(), tc.expectedErrContents) {
-				t.Fatalf("Expected %s in error, but got %s", tc.expectedErrContents, err)
+			for _, expected := range tc.expectedErrContents {
+				if !strings.Contains(err.Error(), expected) {
+					t.Fatalf("Expected %s in error, but got %s", expected, err)
+				}
 			}
 		})
 	}

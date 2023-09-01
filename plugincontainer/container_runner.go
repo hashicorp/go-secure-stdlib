@@ -1,6 +1,7 @@
 package plugincontainer
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -50,6 +51,7 @@ type containerRunner struct {
 	tag    string
 	sha256 string
 	id     string
+	debug  bool
 }
 
 // NewContainerRunner must be passed a cmd that hasn't yet been started.
@@ -104,7 +106,7 @@ func (cfg *Config) NewContainerRunner(logger hclog.Logger, cmd *exec.Cmd, hostSo
 
 	// Host config.
 	hostConfig := &container.HostConfig{
-		AutoRemove:    true,                      // Plugin containers are ephemeral.
+		AutoRemove:    !cfg.Debug,                // Plugin containers are ephemeral.
 		RestartPolicy: container.RestartPolicy{}, // Empty restart policy means never.
 		Runtime:       cfg.Runtime,               // OCI runtime.
 		Resources: container.Resources{
@@ -153,6 +155,7 @@ func (cfg *Config) NewContainerRunner(logger hclog.Logger, cmd *exec.Cmd, hostSo
 		image:  cfg.Image,
 		tag:    cfg.Tag,
 		sha256: sha256,
+		debug:  cfg.Debug,
 	}, nil
 }
 
@@ -250,6 +253,16 @@ func (c *containerRunner) Kill(ctx context.Context) error {
 	c.logger.Debug("killing container", "image", c.image, "id", c.id)
 	defer c.dockerClient.Close()
 	if c.id != "" {
+		if c.debug {
+			defer func() {
+				err := c.dockerClient.ContainerRemove(ctx, c.id, types.ContainerRemoveOptions{
+					Force: true,
+				})
+				if err != nil {
+					c.logger.Error("error removing container", "error", err)
+				}
+			}()
+		}
 		err := c.dockerClient.ContainerStop(ctx, c.id, container.StopOptions{})
 		if err != nil {
 			// Docker SDK does not seem to expose sentinel errors in a way we can
@@ -301,7 +314,7 @@ func (c *containerRunner) ID() string {
 // plugin for debugging purposes.
 func (c *containerRunner) Diagnose(ctx context.Context) string {
 	notes := "Config:\n"
-	notes += fmt.Sprintf("Image: %s\n", c.containerConfig.Image)
+	notes += fmt.Sprintf("Image ref: %s\n", c.containerConfig.Image)
 	if !emptyStrSlice(c.containerConfig.Entrypoint) {
 		notes += fmt.Sprintf("Entrypoint: %s\n", strings.Join(c.containerConfig.Entrypoint, " "))
 	}
@@ -313,9 +326,92 @@ func (c *containerRunner) Diagnose(ctx context.Context) string {
 	}
 	notes += fmt.Sprintf("GroupAdd: %v\n", c.hostConfig.GroupAdd)
 
+	if c.debug {
+		notes += "Env:\n"
+		const envClientCert = "PLUGIN_CLIENT_CERT"
+		for _, e := range c.containerConfig.Env {
+			notes += e + "\n"
+		}
+
+		info := c.diagnoseContainerInfo(ctx)
+		if info != "" {
+			notes += "\n" + info + "\n"
+		}
+		logs := c.diagnoseLogs(ctx)
+		if logs != "" {
+			notes += logs + "\n"
+		}
+	}
+
 	return notes
 }
 
 func emptyStrSlice(s []string) bool {
 	return len(s) == 0 || len(s) == 1 && s[0] == ""
+}
+
+func (c *containerRunner) diagnoseContainerInfo(ctx context.Context) string {
+	info, err := c.dockerClient.ContainerInspect(ctx, c.id)
+	if err != nil {
+		return ""
+	}
+
+	notes := "Container config:\n"
+	notes += fmt.Sprintf("Image: %s\n", info.Image)
+	if info.Config != nil {
+		notes += fmt.Sprintf("Entrypoint: %s\n", info.Config.Entrypoint)
+		if len(info.Config.Cmd) > 0 && (len(info.Config.Cmd) > 1 || info.Config.Cmd[0] != "") {
+			notes += fmt.Sprintf("Cmd: %s\n", info.Config.Cmd)
+		}
+	}
+
+	if info.State != nil {
+		if info.State.Error != "" {
+			notes += fmt.Sprintf("Container state error: %s\n", info.State.Error)
+		}
+		if info.State.Running {
+			notes += `Plugin is running but may have printed something unexpected to
+stdout, where it should have printed '|' separated protocol negotiation info.
+Check stdout in the logs below.
+`
+		} else {
+			line := fmt.Sprintf("Plugin exited with exit code %d", info.State.ExitCode)
+			switch info.State.ExitCode {
+			case 1:
+				line += "; this may be an error internal to the plugin"
+			case 2:
+				line += "; this may be due to a malformed command, or can also " +
+					"happen when a cgo binary is run without libc bindings available"
+			}
+			notes += line + "\n"
+		}
+	}
+
+	return notes
+}
+
+func (c *containerRunner) diagnoseLogs(ctx context.Context) string {
+	logReader, err := c.dockerClient.ContainerLogs(ctx, c.id, types.ContainerLogsOptions{
+		ShowStdout: true,
+		ShowStderr: true,
+		Follow:     false,
+	})
+	if err != nil {
+		return err.Error()
+	}
+	defer logReader.Close()
+
+	stdout, stderr := &bytes.Buffer{}, &bytes.Buffer{}
+	stdcopy.StdCopy(stdout, stderr, logReader)
+
+	if stdout.Len() == 0 && stderr.Len() == 0 {
+		return "No log lines from container\n"
+	}
+
+	return fmt.Sprintf(`--- Container Logs ---
+Stdout:
+%s
+Stderr:
+%s
+--- End Logs ---`, stdout.String(), stderr.String())
 }
