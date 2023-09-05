@@ -329,7 +329,6 @@ func (c *containerRunner) Diagnose(ctx context.Context) string {
 
 	if c.debug {
 		notes += "Env:\n"
-		const envClientCert = "PLUGIN_CLIENT_CERT"
 		for _, e := range c.containerConfig.Env {
 			notes += e + "\n"
 		}
