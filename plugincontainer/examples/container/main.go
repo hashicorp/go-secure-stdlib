@@ -34,7 +34,7 @@ func run() error {
 			plugin.ProtocolGRPC,
 		},
 		UnixSocketConfig: &plugin.UnixSocketConfig{
-			Group: fmt.Sprintf("%d", cfg.GroupAdd),
+			Group: strconv.Itoa(cfg.GroupAdd),
 		},
 		RunnerFunc: cfg.NewContainerRunner,
 	})
