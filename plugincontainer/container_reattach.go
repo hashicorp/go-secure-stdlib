@@ -28,7 +28,7 @@ func ReattachFunc(logger hclog.Logger, id, hostSocketDir string) (runner.Attache
 		return nil, fmt.Errorf("container with ID %s not found: %w", id, err)
 	}
 
-	return &ContainerRunner{
+	return &containerRunner{
 		dockerClient:  client,
 		logger:        logger,
 		id:            id,

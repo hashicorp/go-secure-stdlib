@@ -1,38 +1,40 @@
 // Copyright (c) HashiCorp, Inc.
 // SPDX-License-Identifier: MPL-2.0
 
-package config
+package plugincontainer
 
 import (
 	"github.com/docker/docker/api/types/network"
 )
 
-// ContainerConfig is used to opt in to running plugins inside a container.
+// Config is used to opt in to running plugins inside a container.
 // Currently only compatible with Linux due to the requirements we have for
-// establising communication over a unix socket.
+// establishing communication over a unix socket.
 //
 // A temporary directory will be mounted into the container and both the host
 // and the plugin will create unix sockets that need to be writable from the
-// other side. To achieve this, there are broadly 3 runtime options (i.e. not
+// other side. To achieve this, there are broadly 2 runtime options (i.e. not
 // including build-time options):
 //
-//  1. Set UnixSocketGroup to tell go-plugin an additional group ID the container
-//     should run as, and that group will be set as the owning group of the socket.
-//  2. Set ContainerConfig.User to run the container with the same user ID as the
-//     client process. Equivalent to docker run --user="$(id -u):$(id -g)" ...
-//  3. Use a rootless container runtime, in which case the container process will
+//  1. Set up a uid or gid common to both the host and container processes, and
+//     ensure the unix socket is writable by that shared id. Set GroupAdd in this
+//     config and go-plugin ClientConfig's UnixSocketConfig Group with the same
+//     numeric gid to set up a common group. go-plugin will handle making all
+//     sockets writable by the gid.
+//  2. Use a rootless container runtime, in which case the container process will
 //     be run as the same unpriveleged user as the client.
-type ContainerConfig struct {
-	// UnixSocketGroup sets the group that should own the unix socket used for
-	// communication with the plugin. Can be a name or numeric gid.
-	//
-	// This is the least invasive option if you are not using a rootless container
-	// runtime. Alternatively, set User to a user name or UID:GID pair matching
-	// the client process.
-	UnixSocketGroup string
+type Config struct {
+	// GroupAdd sets an additional group that the container should run as. Should
+	// match the UnixSocketConfig Group passed to go-plugin. Needs to be set if
+	// the container runtime is not rootless.
+	GroupAdd int
+
+	// Container command/env
+	Entrypoint []string // If specified, replaces the container entrypoint.
+	Args       []string // If specified, replaces the container args.
+	Env        []string // A slice of x=y environment variables to add to the container.
 
 	// container.Config options
-	User           string            // User name or uid:gid to run the container as.
 	Image          string            // Image to run (without the tag), e.g. hashicorp/vault-plugin-auth-jwt
 	Tag            string            // Tag of the image to run, e.g. 0.16.0
 	SHA256         string            // SHA256 digest of the image. Can be a plain sha256 or prefixed with sha256:
