@@ -3,4 +3,4 @@
 
 FROM ubuntu
 
-ENTRYPOINT echo bye; exit 1
+ENTRYPOINT echo "bye from broken"; exit 1

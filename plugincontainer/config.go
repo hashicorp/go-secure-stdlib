@@ -49,4 +49,11 @@ type Config struct {
 
 	// network.NetworkConfig options
 	EndpointsConfig map[string]*network.EndpointSettings // Endpoint configs for each connecting network
+
+	// When set, prints additional debug information when a plugin fails to start.
+	// Debug changes the way the plugin is run so that more information can be
+	// extracted from the plugin container before it is cleaned up. It will also
+	// include plugin environment variables in the error output. Not recommended
+	// for production use.
+	Debug bool
 }
