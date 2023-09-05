@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path"
 	"runtime"
+	"strconv"
 	"strings"
 
 	"github.com/docker/docker/api/types"
@@ -135,7 +136,7 @@ func (cfg *Config) NewContainerRunner(logger hclog.Logger, cmd *exec.Cmd, hostSo
 	}
 
 	if cfg.GroupAdd != 0 {
-		hostConfig.GroupAdd = append(hostConfig.GroupAdd, fmt.Sprintf("%d", cfg.GroupAdd))
+		hostConfig.GroupAdd = append(hostConfig.GroupAdd, strconv.Itoa(cfg.GroupAdd))
 	}
 
 	// Network config.

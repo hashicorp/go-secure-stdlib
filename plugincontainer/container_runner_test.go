@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"reflect"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -119,7 +120,7 @@ func TestNewContainerRunner_config(t *testing.T) {
 	}
 
 	// container.HostConfig
-	if runner.hostConfig.GroupAdd[0] != fmt.Sprintf("%d", gid) {
+	if runner.hostConfig.GroupAdd[0] != strconv.Itoa(gid) {
 		t.Error(runner.hostConfig.GroupAdd)
 	}
 	if runner.hostConfig.Runtime != runtime {
@@ -210,7 +211,7 @@ func testExamplePlugin_WithRuntime(t *testing.T, ociRuntime string) {
 					Level: hclog.Trace,
 				}),
 				UnixSocketConfig: &plugin.UnixSocketConfig{
-					Group: fmt.Sprintf("%d", cfg.GroupAdd),
+					Group: strconv.Itoa(cfg.GroupAdd),
 				},
 				RunnerFunc: cfg.NewContainerRunner,
 			})
@@ -322,7 +323,7 @@ func testExamplePlugin_WithRuntime(t *testing.T, ociRuntime string) {
 					Level: hclog.Trace,
 				}),
 				UnixSocketConfig: &plugin.UnixSocketConfig{
-					Group: fmt.Sprintf("%d", cfg.GroupAdd),
+					Group: strconv.Itoa(cfg.GroupAdd),
 				},
 				RunnerFunc: cfg.NewContainerRunner,
 			})
