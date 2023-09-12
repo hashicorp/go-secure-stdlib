@@ -124,9 +124,13 @@ func (c *CredentialsConfig) CreateAccessKey(ctx context.Context, opt ...Option) 
 	// this if withValidityCheckTimeout is non-zero to ensue that we don't
 	// immediately fail due to eventual consistency.
 	if opts.withValidityCheckTimeout != 0 {
-		newStaticCreds := &CredentialsConfig{
-			AccessKey: *createAccessKeyRes.AccessKey.AccessKeyId,
-			SecretKey: *createAccessKeyRes.AccessKey.SecretAccessKey,
+		newStaticCreds, err := NewCredentialsConfig(
+			WithAccessKey(*createAccessKeyRes.AccessKey.AccessKeyId),
+			WithSecretKey(*createAccessKeyRes.AccessKey.SecretAccessKey),
+			WithRegion(c.Region),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create credential config with new static credential: %w", err)
 		}
 
 		if _, err := newStaticCreds.GetCallerIdentity(
