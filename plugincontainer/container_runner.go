@@ -202,7 +202,9 @@ func (c *containerRunner) Start(ctx context.Context) error {
 	}
 
 	// ContainerLogs combines stdout and stderr.
-	logReader, err := c.dockerClient.ContainerLogs(ctx, c.id, types.ContainerLogsOptions{
+	// Container logs will stream beyond the lifetime of the initial start
+	// context, so we pass it a fresh context with no timeout.
+	logReader, err := c.dockerClient.ContainerLogs(context.Background(), c.id, types.ContainerLogsOptions{
 		Follow:     true,
 		ShowStdout: true,
 		ShowStderr: true,
