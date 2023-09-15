@@ -72,6 +72,12 @@ func (cfg *Config) NewContainerRunner(logger hclog.Logger, cmd *exec.Cmd, hostSo
 		return nil, fmt.Errorf("image %q must not have any ':' characters, use the Tag field to specify a tag", cfg.Image)
 	}
 
+	// aclCmd := exec.Command("setfacl", "-d", "-m", "u:ubuntu:rw", hostSocketDir)
+	// out, err := aclCmd.CombinedOutput()
+	// if err != nil {
+	// 	return nil, fmt.Errorf("failed to set default ACLs on host socket directory, output: %s: %w", string(out), err)
+	// }
+
 	client, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		return nil, err
@@ -118,7 +124,7 @@ func (cfg *Config) NewContainerRunner(logger hclog.Logger, cmd *exec.Cmd, hostSo
 			Memory:       cfg.Memory,       // Memory limit in bytes.
 			CgroupParent: cfg.CgroupParent, // Parent Cgroup for the container.
 		},
-		CapDrop: []string{"ALL"},
+		// CapDrop: []string{"ALL"},
 
 		// Bind mount for 2-way Unix socket communication.
 		Mounts: []mount.Mount{
@@ -187,6 +193,31 @@ func (c *containerRunner) Start(ctx context.Context) error {
 		}
 		if !imageFound {
 			return fmt.Errorf("could not find any locally available images named %s that match with the provided SHA256 hash %s: %w", ref, c.sha256, errSHA256Mismatch)
+		}
+	}
+
+	// aclCmd := exec.Command("setfacl", "-d", "-m", "u:ubuntu:rw", c.hostSocketDir)
+	// out, err := aclCmd.CombinedOutput()
+	// if err != nil {
+	// 	return fmt.Errorf("failed to set default ACLs on host socket directory, output: %s: %w", string(out), err)
+	// }
+	// setxattr(hostSocketDir, "system.posix_acl_default")
+	if len(c.hostConfig.GroupAdd) > 0 {
+		info, err := c.dockerClient.Info(ctx)
+		if err != nil {
+			return err
+		}
+		var rootless bool
+		for _, opt := range info.SecurityOptions {
+			if opt == "name=rootless" {
+				rootless = true
+			}
+		}
+		if rootless {
+			err := setDefaultReadWritePermission(c.hostSocketDir)
+			if err != nil {
+				c.logger.Warn("TODO: warning message")
+			}
 		}
 	}
 

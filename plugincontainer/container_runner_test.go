@@ -200,6 +200,7 @@ func testExamplePlugin_WithRuntime(t *testing.T, ociRuntime string) {
 				SHA256:   tc.sha256,
 				Runtime:  ociRuntime,
 				GroupAdd: os.Getgid(),
+				// Debug:    true,
 			}
 			client := plugin.NewClient(&plugin.ClientConfig{
 				HandshakeConfig: shared.Handshake,

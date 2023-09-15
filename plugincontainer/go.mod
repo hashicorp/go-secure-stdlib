@@ -2,10 +2,14 @@ module github.com/hashicorp/go-secure-stdlib/plugincontainer
 
 go 1.20
 
+//replace github.com/hashicorp/go-plugin => ../../go-plugin
+replace github.com/joshlf/go-acl => ../../go-acl
+
 require (
 	github.com/docker/docker v24.0.5+incompatible
 	github.com/hashicorp/go-hclog v1.5.0
 	github.com/hashicorp/go-plugin v1.5.1
+	github.com/joshlf/go-acl v0.0.0-20200411065538-eae00ae38531
 	google.golang.org/grpc v1.57.0
 	google.golang.org/protobuf v1.31.0
 )
@@ -31,7 +35,7 @@ require (
 	github.com/stretchr/testify v1.8.3 // indirect
 	golang.org/x/mod v0.9.0 // indirect
 	golang.org/x/net v0.9.0 // indirect
-	golang.org/x/sys v0.7.0 // indirect
+	golang.org/x/sys v0.12.0 // indirect
 	golang.org/x/text v0.9.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
 	golang.org/x/tools v0.7.0 // indirect
