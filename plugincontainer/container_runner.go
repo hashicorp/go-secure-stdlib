@@ -124,27 +124,14 @@ func (cfg *Config) NewContainerRunner(logger hclog.Logger, cmd *exec.Cmd, hostSo
 			Memory:       cfg.Memory,       // Memory limit in bytes.
 			CgroupParent: cfg.CgroupParent, // Parent Cgroup for the container.
 		},
-		// CapDrop: []string{"ALL"},
+		CapDrop: []string{"ALL"},
 
 		// Bind mount for 2-way Unix socket communication.
 		Mounts: []mount.Mount{
-			// {
-			// 	Type:     mount.TypeBind,
-			// 	Source:   hostSocketDir,
-			// 	Target:   pluginSocketDir,
-			// 	ReadOnly: false,
-			// 	BindOptions: &mount.BindOptions{
-			// 		// Private propagation, we don't need to replicate this mount.
-			// 		// For details, see https://docs.docker.com/storage/bind-mounts/#configure-bind-propagation.
-			// 		Propagation:  mount.PropagationPrivate,
-			// 		NonRecursive: true,
-			// 	},
-			// 	Consistency: mount.ConsistencyDefault,
-			// },
 			{
 				Type:     mount.TypeBind,
-				Source:   "/tmp/test",
-				Target:   "/tmp/test",
+				Source:   hostSocketDir,
+				Target:   pluginSocketDir,
 				ReadOnly: false,
 				BindOptions: &mount.BindOptions{
 					// Private propagation, we don't need to replicate this mount.
@@ -154,6 +141,19 @@ func (cfg *Config) NewContainerRunner(logger hclog.Logger, cmd *exec.Cmd, hostSo
 				},
 				Consistency: mount.ConsistencyDefault,
 			},
+			// {
+			// 	Type:     mount.TypeBind,
+			// 	Source:   "/tmp/test",
+			// 	Target:   "/tmp/test",
+			// 	ReadOnly: false,
+			// 	BindOptions: &mount.BindOptions{
+			// 		// Private propagation, we don't need to replicate this mount.
+			// 		// For details, see https://docs.docker.com/storage/bind-mounts/#configure-bind-propagation.
+			// 		Propagation:  mount.PropagationPrivate,
+			// 		NonRecursive: true,
+			// 	},
+			// 	Consistency: mount.ConsistencyDefault,
+			// },
 		},
 	}
 
@@ -231,6 +231,7 @@ func (c *containerRunner) Start(ctx context.Context) error {
 			if err != nil {
 				c.logger.Warn("TODO: warning message")
 			}
+			c.hostConfig.CapAdd = []string{"DAC_OVERRIDE"}
 		}
 	}
 
