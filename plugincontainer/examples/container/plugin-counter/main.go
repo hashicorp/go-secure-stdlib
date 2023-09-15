@@ -4,6 +4,9 @@
 package main
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/hashicorp/go-plugin"
 	"github.com/hashicorp/go-secure-stdlib/plugincontainer/examples/container/shared"
 )
@@ -27,6 +30,17 @@ func (c *Counter) Increment(key string, value int64, storage shared.Storage) (in
 }
 
 func main() {
+	var line string
+	for _, f := range []string{"/tmp/test/userowned", "/tmp/test/rootowned"} {
+		contents, err := os.ReadFile(f)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		line += string(contents)
+	}
+	fmt.Println(line)
+
 	plugin.Serve(&plugin.ServeConfig{
 		HandshakeConfig: shared.Handshake,
 		Plugins: map[string]plugin.Plugin{
