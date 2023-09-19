@@ -2,7 +2,7 @@ module github.com/hashicorp/go-secure-stdlib/plugincontainer
 
 go 1.20
 
-//replace github.com/hashicorp/go-plugin => ../../go-plugin
+replace github.com/hashicorp/go-plugin => ../../go-plugin
 replace github.com/joshlf/go-acl => ../../go-acl
 
 require (

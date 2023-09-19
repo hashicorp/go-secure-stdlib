@@ -32,6 +32,11 @@ func setDefaultReadWritePermission(dir string) error {
 		Perms:     0o006,
 	})
 	a = append(a, acl.Entry{
+		Tag:       acl.TagGroup,
+		Qualifier: strconv.Itoa(100999),
+		Perms:     0o006,
+	})
+	a = append(a, acl.Entry{
 		Tag:       acl.TagMask,
 		Qualifier: "",
 		Perms:     0o006,

@@ -38,6 +38,14 @@ func main() {
 	// }
 	// fmt.Println(line)
 
+	// aclCmd := exec.Command("getfacl", os.Getenv(plugin.EnvUnixSocketDir))
+	// out, err := aclCmd.CombinedOutput()
+	// if err != nil {
+	// 	fmt.Println(err)
+	// 	os.Exit(1)
+	// }
+	// fmt.Println(string(out))
+
 	plugin.Serve(&plugin.ServeConfig{
 		HandshakeConfig: shared.Handshake,
 		Plugins: map[string]plugin.Plugin{

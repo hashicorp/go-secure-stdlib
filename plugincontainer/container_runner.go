@@ -227,11 +227,27 @@ func (c *containerRunner) Start(ctx context.Context) error {
 			}
 		}
 		if rootless {
+			fmt.Println("IN HERE")
 			err := setDefaultReadWritePermission(c.hostSocketDir)
 			if err != nil {
 				c.logger.Warn("TODO: warning message")
+				return err
 			}
 			c.hostConfig.CapAdd = []string{"DAC_OVERRIDE"}
+			// aclCmd := exec.Command("getfacl", c.hostSocketDir)
+			// out, err := aclCmd.CombinedOutput()
+			// if err != nil {
+			// 	return fmt.Errorf("failed to set default ACLs on host socket directory, output: %s: %w", string(out), err)
+			// }
+			// fmt.Println(string(out))
+			// err = os.Chmod(c.hostSocketDir, 0o4770)
+			// if err != nil {
+			// 	return err
+			// }
+			// err = os.Chown(c.hostSocketDir, -1, 100999)
+			// if err != nil {
+			// 	return err
+			// }
 		}
 	}
 
@@ -247,7 +263,7 @@ func (c *containerRunner) Start(ctx context.Context) error {
 	}
 
 	// ContainerLogs combines stdout and stderr.
-	logReader, err := c.dockerClient.ContainerLogs(ctx, c.id, types.ContainerLogsOptions{
+	logReader, err := c.dockerClient.ContainerLogs(context.Background(), c.id, types.ContainerLogsOptions{
 		Follow:     true,
 		ShowStdout: true,
 		ShowStderr: true,
