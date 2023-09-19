@@ -1,4 +1,4 @@
-module github.com/hashicorp/go-secure-stdlib/awsutil
+module github.com/hashicorp/go-secure-stdlib/awsutil/v2
 
 go 1.20
 
