@@ -31,7 +31,7 @@ var (
 	_ runner.Runner = (*containerRunner)(nil)
 
 	errUnsupportedOS  = errors.New("plugincontainer currently only supports Linux")
-	errSHA256Mismatch = errors.New("SHA256 mismatch")
+	ErrSHA256Mismatch = errors.New("SHA256 mismatch")
 )
 
 const pluginSocketDir = "/tmp/go-plugin-container"
@@ -142,6 +142,10 @@ func (cfg *Config) NewContainerRunner(logger hclog.Logger, cmd *exec.Cmd, hostSo
 		hostConfig.GroupAdd = append(hostConfig.GroupAdd, strconv.Itoa(cfg.GroupAdd))
 	}
 
+	if cfg.CapIPCLock {
+		hostConfig.CapAdd = append(hostConfig.CapAdd, "IPC_LOCK")
+	}
+
 	// Network config.
 	networkConfig := &network.NetworkingConfig{
 		EndpointsConfig: cfg.EndpointsConfig,
@@ -186,19 +190,19 @@ func (c *containerRunner) Start(ctx context.Context) error {
 			}
 		}
 		if !imageFound {
-			return fmt.Errorf("could not find any locally available images named %s that match with the provided SHA256 hash %s: %w", ref, c.sha256, errSHA256Mismatch)
+			return fmt.Errorf("could not find any locally available images named %s that match with the provided SHA256 hash %s: %w", ref, c.sha256, ErrSHA256Mismatch)
 		}
 	}
 
 	resp, err := c.dockerClient.ContainerCreate(ctx, c.containerConfig, c.hostConfig, c.networkConfig, nil, "")
 	if err != nil {
-		return err
+		return fmt.Errorf("error creating container: %w", err)
 	}
 	c.id = resp.ID
 	c.logger.Trace("created container", "image", c.image, "id", c.id)
 
 	if err := c.dockerClient.ContainerStart(ctx, c.id, types.ContainerStartOptions{}); err != nil {
-		return err
+		return fmt.Errorf("error starting container: %w", err)
 	}
 
 	// ContainerLogs combines stdout and stderr.
@@ -296,7 +300,7 @@ func (c *containerRunner) Stderr() io.ReadCloser {
 func (c *containerRunner) PluginToHost(pluginNet, pluginAddr string) (hostNet string, hostAddr string, err error) {
 	if path.Dir(pluginAddr) != pluginSocketDir {
 		return "", "", fmt.Errorf("expected address to be in directory %s, but was %s; "+
-			"the plugin may need to be recompiled with the latest go-plugin version", c.hostSocketDir, pluginAddr)
+			"the plugin may need to be recompiled with the latest go-plugin version", pluginSocketDir, pluginAddr)
 	}
 	return pluginNet, path.Join(c.hostSocketDir, path.Base(pluginAddr)), nil
 }

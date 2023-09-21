@@ -42,24 +42,23 @@ jobs:
       run: |
         (
           set -e
-          ARCH=$(uname -m)
-          URL=https://storage.googleapis.com/gvisor/releases/release/latest/${ARCH}
-          wget --quiet ${URL}/runsc ${URL}/runsc.sha512 \
-            ${URL}/containerd-shim-runsc-v1 ${URL}/containerd-shim-runsc-v1.sha512
+          ARCH="$(uname -m)"
+          URL="https://storage.googleapis.com/gvisor/releases/release/latest/${ARCH}"
+          wget --quiet "${URL}/runsc" "${URL}/runsc.sha512" \
+            "${URL}/containerd-shim-runsc-v1" "${URL}/containerd-shim-runsc-v1.sha512"
           sha512sum -c runsc.sha512 \
             -c containerd-shim-runsc-v1.sha512
-          rm -f *.sha512
+          rm -f -- *.sha512
           chmod a+rx runsc containerd-shim-runsc-v1
           sudo mv runsc containerd-shim-runsc-v1 /usr/local/bin
         )
-        cat | sudo tee /etc/docker/daemon.json <<EOF
+        sudo tee /etc/docker/daemon.json <<EOF
         {
           "runtimes": {
             "runsc": {
               "path": "/usr/local/bin/runsc",
               "runtimeArgs": [
-                "--host-uds=all",
-                "--host-fifo=open"
+                "--host-uds=all"
               ]
             }
           }
@@ -68,6 +67,42 @@ jobs:
 
         sudo systemctl reload docker
 
+    - name: Install rootless docker
+      if: ${{ matrix.module == 'plugincontainer' }}
+      run: |
+        sudo apt-get install -y uidmap dbus-user-session
+        cat /etc/subuid /etc/subgid
+        export FORCE_ROOTLESS_INSTALL=1
+        curl -fsSL https://get.docker.com/rootless | sh
+        mkdir -p ~/.config/docker/
+        tee ~/.config/docker/daemon.json  <<EOF
+        {
+          "runtimes": {
+            "runsc": {
+              "path": "/usr/local/bin/runsc",
+              "runtimeArgs": [
+                "--host-uds=all",
+                "--ignore-cgroups"
+              ]
+            }
+          }
+        }
+        EOF
+        systemctl --user restart docker
+    
+    - name: Install rootless podman
+      if: ${{ matrix.module == 'plugincontainer' }}
+      run: |
+        sudo apt-get install -y podman slirp4netns fuse-overlayfs
+        mkdir -p ~/local/bin
+        RUNSC_SCRIPT=~/local/bin/runsc.podman
+        tee "${RUNSC_SCRIPT}" <<EOF
+        #!/bin/bash
+        /usr/local/bin/runsc --host-uds=all --ignore-cgroups "\$@"
+        EOF
+        chmod u+x "${RUNSC_SCRIPT}"
+        podman --runtime "${RUNSC_SCRIPT}" system service -t 0 &
+    
     - name: Test
       run: cd ${{ matrix.module }} && go test ./...
 
