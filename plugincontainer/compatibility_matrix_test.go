@@ -127,6 +127,7 @@ func runExamplePlugin(t *testing.T, i matrixInput) {
 		Image:    goPluginCounterImage,
 		Tag:      tag,
 		GroupAdd: os.Getgid(),
+		Debug:    true,
 
 		// Test inputs
 		Runtime:    i.containerRuntime,

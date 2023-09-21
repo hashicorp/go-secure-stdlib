@@ -134,7 +134,6 @@ func testExamplePlugin_WithRuntime(t *testing.T, ociRuntime, id, sha256 string) 
 		t.Run(name, func(t *testing.T) {
 			cfg := &plugincontainer.Config{
 				Image:    tc.image,
-				Tag:      "v1",
 				SHA256:   tc.sha256,
 				Runtime:  ociRuntime,
 				GroupAdd: os.Getgid(),
