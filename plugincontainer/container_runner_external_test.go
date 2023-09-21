@@ -28,6 +28,9 @@ const (
 )
 
 func TestExamplePlugin(t *testing.T) {
+	// When both rootful and rootless docker is installed together, the CLI defaults
+	// to rootless and the SDK defaults to rootful, so set DOCKER_HOST to align them
+	// both on the same engine.
 	t.Setenv("DOCKER_HOST", "unix:///var/run/docker.sock")
 	runCmd(t, "go", "build", "-o=examples/container/go-plugin-counter", "./examples/container/plugin-counter")
 	runCmd(t, "docker", "build", "--tag="+goPluginCounterImage, "--target=root", "--file=examples/container/Dockerfile", "examples/container")

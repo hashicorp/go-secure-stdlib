@@ -83,15 +83,18 @@ func (cfg *Config) NewContainerRunner(logger hclog.Logger, cmd *exec.Cmd, hostSo
 
 	// Default to using the SHA256 for secure pinning of images, but allow users
 	// to omit the SHA256 as well.
-	var imageArg string
+	var imageRef string
 	if sha256 != "" {
-		imageArg = "sha256:" + sha256
+		imageRef = "sha256:" + sha256
 	} else {
-		imageArg = cfg.Image
+		imageRef = cfg.Image
+		if cfg.Tag != "" {
+			imageRef += ":" + cfg.Tag
+		}
 	}
 	// Container config.
 	containerConfig := &container.Config{
-		Image:           imageArg,
+		Image:           imageRef,
 		Env:             cmd.Env,
 		NetworkDisabled: cfg.DisableNetwork,
 		Labels:          cfg.Labels,

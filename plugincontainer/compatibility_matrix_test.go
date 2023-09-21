@@ -113,15 +113,16 @@ func setDockerHost(t *testing.T, containerEngine string, rootlessEngine bool) {
 func runExamplePlugin(t *testing.T, i matrixInput) {
 	skipIfUnsupported(t, i)
 	setDockerHost(t, i.containerEngine, i.rootlessEngine)
-	tag := goPluginCounterImage
+	imageRef := goPluginCounterImage
+	var tag string
 	target := "root"
 	if i.rootlessUser {
-		tag += ":nonroot"
+		tag = "nonroot"
+		imageRef += ":" + tag
 		target = "nonroot"
 	}
-	runCmd(t, i.containerEngine, "build", "--tag="+tag, "--target="+target, "--file=examples/container/Dockerfile", "examples/container")
+	runCmd(t, i.containerEngine, "build", "--tag="+imageRef, "--target="+target, "--file=examples/container/Dockerfile", "examples/container")
 
-	// TODO: Install rootless and podman on CI
 	cfg := &plugincontainer.Config{
 		Image:    goPluginCounterImage,
 		Tag:      tag,
