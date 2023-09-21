@@ -28,7 +28,7 @@ const (
 )
 
 func TestExamplePlugin(t *testing.T) {
-	// When both rootful and rootless docker is installed together, the CLI defaults
+	// When both rootful and rootless docker are installed together, the CLI defaults
 	// to rootless and the SDK defaults to rootful, so set DOCKER_HOST to align them
 	// both on the same engine.
 	t.Setenv("DOCKER_HOST", "unix:///var/run/docker.sock")

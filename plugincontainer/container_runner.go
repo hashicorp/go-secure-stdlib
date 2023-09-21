@@ -30,7 +30,10 @@ import (
 var (
 	_ runner.Runner = (*containerRunner)(nil)
 
-	errUnsupportedOS  = errors.New("plugincontainer currently only supports Linux")
+	errUnsupportedOS = errors.New("plugincontainer currently only supports Linux")
+
+	// ErrSHA256Mismatch is returned when starting a container without any
+	// images available where the provided sha256 matches the image and tag.
 	ErrSHA256Mismatch = errors.New("SHA256 mismatch")
 )
 

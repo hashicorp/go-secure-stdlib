@@ -122,11 +122,9 @@ func runExamplePlugin(t *testing.T, i matrixInput) {
 	setDockerHost(t, i.containerEngine, i.rootlessEngine)
 
 	imageRef := goPluginCounterImage
-	var tag string
 	target := "root"
 	if i.rootlessUser {
-		tag = "nonroot"
-		imageRef += ":" + tag
+		imageRef += ":nonroot"
 		if i.mlock {
 			target = "nonroot-mlock"
 		} else {
@@ -137,7 +135,6 @@ func runExamplePlugin(t *testing.T, i matrixInput) {
 
 	cfg := &plugincontainer.Config{
 		Image:    goPluginCounterImage,
-		Tag:      tag,
 		GroupAdd: os.Getgid(),
 		Debug:    true,
 
