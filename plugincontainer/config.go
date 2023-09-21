@@ -42,10 +42,11 @@ type Config struct {
 	Labels         map[string]string // Arbitrary metadata to facilitate querying containers.
 
 	// container.HostConfig options
-	Runtime      string // OCI runtime.
+	Runtime      string // OCI runtime. NOTE: Has no effect if using podman's system service API
 	CgroupParent string // Parent Cgroup for the container
 	NanoCpus     int64  // CPU quota in billionths of a CPU core
 	Memory       int64  // Memory quota in bytes
+	CapIPCLock   bool   // Whether to add the capability IPC_LOCK, to allow the mlockall(2) syscall
 
 	// network.NetworkConfig options
 	EndpointsConfig map[string]*network.EndpointSettings // Endpoint configs for each connecting network
