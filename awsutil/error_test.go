@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws/awserr"
+	awserr "github.com/aws/smithy-go"
 	multierror "github.com/hashicorp/go-multierror"
 )
 
@@ -23,12 +23,16 @@ func Test_CheckAWSError(t *testing.T) {
 		},
 		{
 			Name:     "Upstream throttle error",
-			Err:      awserr.New("Throttling", "", nil),
+			Err:      MockAWSThrottleErr(),
 			Expected: ErrUpstreamRateLimited,
 		},
 		{
-			Name:     "Upstream RequestLimitExceeded",
-			Err:      awserr.New("RequestLimitExceeded", "Request rate limited", nil),
+			Name: "Upstream RequestLimitExceeded",
+			Err: &MockAWSErr{
+				Code:    "RequestLimitExceeded",
+				Message: "Request rate limited",
+				Fault:   awserr.FaultServer,
+			},
 			Expected: ErrUpstreamRateLimited,
 		},
 	}
@@ -50,7 +54,7 @@ func Test_CheckAWSError(t *testing.T) {
 }
 
 func Test_AppendRateLimitedError(t *testing.T) {
-	awsErr := awserr.New("Throttling", "", nil)
+	throttleErr := MockAWSThrottleErr()
 	testCases := []struct {
 		Name     string
 		Err      error
@@ -63,8 +67,8 @@ func Test_AppendRateLimitedError(t *testing.T) {
 		},
 		{
 			Name:     "Upstream throttle error",
-			Err:      awsErr,
-			Expected: multierror.Append(awsErr, ErrUpstreamRateLimited),
+			Err:      throttleErr,
+			Expected: multierror.Append(throttleErr, ErrUpstreamRateLimited),
 		},
 		{
 			Name: "Nil",

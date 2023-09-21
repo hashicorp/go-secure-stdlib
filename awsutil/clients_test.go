@@ -4,31 +4,24 @@
 package awsutil
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"testing"
 
-	"github.com/aws/aws-sdk-go/service/iam"
-	"github.com/aws/aws-sdk-go/service/iam/iamiface"
-	"github.com/aws/aws-sdk-go/service/sts"
-	"github.com/aws/aws-sdk-go/service/sts/stsiface"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/stretchr/testify/require"
 )
 
 const testOptionErr = "test option error"
-const testBadClientType = "badclienttype"
-
-func testWithBadClientType(o *options) error {
-	o.withClientType = testBadClientType
-	return nil
-}
 
 func TestCredentialsConfigIAMClient(t *testing.T) {
 	cases := []struct {
 		name              string
 		credentialsConfig *CredentialsConfig
 		opts              []Option
-		require           func(t *testing.T, actual iamiface.IAMAPI)
+		require           func(t *testing.T, actual IAMClient)
 		requireErr        string
 	}{
 		{
@@ -38,16 +31,10 @@ func TestCredentialsConfigIAMClient(t *testing.T) {
 			requireErr:        fmt.Sprintf("error reading options: %s", testOptionErr),
 		},
 		{
-			name:              "session error",
-			credentialsConfig: &CredentialsConfig{},
-			opts:              []Option{testWithBadClientType},
-			requireErr:        fmt.Sprintf("error calling GetSession: unknown client type %q in GetSession", testBadClientType),
-		},
-		{
 			name:              "with mock IAM session",
 			credentialsConfig: &CredentialsConfig{},
 			opts:              []Option{WithIAMAPIFunc(NewMockIAM())},
-			require: func(t *testing.T, actual iamiface.IAMAPI) {
+			require: func(t *testing.T, actual IAMClient) {
 				t.Helper()
 				require := require.New(t)
 				require.Equal(&MockIAM{}, actual)
@@ -57,10 +44,10 @@ func TestCredentialsConfigIAMClient(t *testing.T) {
 			name:              "no mock client",
 			credentialsConfig: &CredentialsConfig{},
 			opts:              []Option{},
-			require: func(t *testing.T, actual iamiface.IAMAPI) {
+			require: func(t *testing.T, actual IAMClient) {
 				t.Helper()
 				require := require.New(t)
-				require.IsType(&iam.IAM{}, actual)
+				require.IsType(&iam.Client{}, actual)
 			},
 		},
 	}
@@ -69,7 +56,7 @@ func TestCredentialsConfigIAMClient(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
-			actual, err := tc.credentialsConfig.IAMClient(tc.opts...)
+			actual, err := tc.credentialsConfig.IAMClient(context.TODO(), tc.opts...)
 			if tc.requireErr != "" {
 				require.EqualError(err, tc.requireErr)
 				return
@@ -86,7 +73,7 @@ func TestCredentialsConfigSTSClient(t *testing.T) {
 		name              string
 		credentialsConfig *CredentialsConfig
 		opts              []Option
-		require           func(t *testing.T, actual stsiface.STSAPI)
+		require           func(t *testing.T, actual STSClient)
 		requireErr        string
 	}{
 		{
@@ -96,16 +83,10 @@ func TestCredentialsConfigSTSClient(t *testing.T) {
 			requireErr:        fmt.Sprintf("error reading options: %s", testOptionErr),
 		},
 		{
-			name:              "session error",
-			credentialsConfig: &CredentialsConfig{},
-			opts:              []Option{testWithBadClientType},
-			requireErr:        fmt.Sprintf("error calling GetSession: unknown client type %q in GetSession", testBadClientType),
-		},
-		{
 			name:              "with mock STS session",
 			credentialsConfig: &CredentialsConfig{},
 			opts:              []Option{WithSTSAPIFunc(NewMockSTS())},
-			require: func(t *testing.T, actual stsiface.STSAPI) {
+			require: func(t *testing.T, actual STSClient) {
 				t.Helper()
 				require := require.New(t)
 				require.Equal(&MockSTS{}, actual)
@@ -115,10 +96,10 @@ func TestCredentialsConfigSTSClient(t *testing.T) {
 			name:              "no mock client",
 			credentialsConfig: &CredentialsConfig{},
 			opts:              []Option{},
-			require: func(t *testing.T, actual stsiface.STSAPI) {
+			require: func(t *testing.T, actual STSClient) {
 				t.Helper()
 				require := require.New(t)
-				require.IsType(&sts.STS{}, actual)
+				require.IsType(&sts.Client{}, actual)
 			},
 		},
 	}
@@ -127,7 +108,7 @@ func TestCredentialsConfigSTSClient(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
-			actual, err := tc.credentialsConfig.STSClient(tc.opts...)
+			actual, err := tc.credentialsConfig.STSClient(context.TODO(), tc.opts...)
 			if tc.requireErr != "" {
 				require.EqualError(err, tc.requireErr)
 				return

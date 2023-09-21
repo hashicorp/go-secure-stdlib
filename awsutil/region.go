@@ -4,13 +4,11 @@
 package awsutil
 
 import (
-	"net/http"
-	"time"
+	"context"
+	"fmt"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/ec2metadata"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/hashicorp/errwrap"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
 )
 
 // "us-east-1 is used because it's where AWS first provides support for new features,
@@ -40,38 +38,27 @@ Our chosen approach is:
 
 This approach should be used in future updates to this logic.
 */
-func GetRegion(configuredRegion string) (string, error) {
+func GetRegion(ctx context.Context, configuredRegion string) (string, error) {
 	if configuredRegion != "" {
 		return configuredRegion, nil
 	}
 
-	sess, err := session.NewSessionWithOptions(session.Options{
-		SharedConfigState: session.SharedConfigEnable,
-	})
+	cfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
-		return "", errwrap.Wrapf("got error when starting session: {{err}}", err)
+		return "", fmt.Errorf("got error when loading default configuration: %w", err)
+	}
+	if cfg.Region != "" {
+		return cfg.Region, nil
 	}
 
-	region := aws.StringValue(sess.Config.Region)
-	if region != "" {
-		return region, nil
-	}
-
-	metadata := ec2metadata.New(sess, &aws.Config{
-		Endpoint:                          ec2Endpoint,
-		EC2MetadataDisableTimeoutOverride: aws.Bool(true),
-		HTTPClient: &http.Client{
-			Timeout: time.Second,
-		},
-	})
-	if !metadata.Available() {
-		return DefaultRegion, nil
-	}
-
-	region, err = metadata.Region()
+	client := imds.NewFromConfig(cfg)
+	resp, err := client.GetRegion(ctx, &imds.GetRegionInput{})
 	if err != nil {
-		return "", errwrap.Wrapf("unable to retrieve region from instance metadata: {{err}}", err)
+		return "", fmt.Errorf("unable to retrieve region from instance metadata: %w", err)
+	}
+	if resp.Region != "" {
+		return resp.Region, nil
 	}
 
-	return region, nil
+	return DefaultRegion, nil
 }

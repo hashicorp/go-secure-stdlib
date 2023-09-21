@@ -4,24 +4,20 @@
 package awsutil
 
 import (
-	"encoding/base64"
-	"encoding/json"
+	"context"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"os"
-	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
-	"github.com/aws/aws-sdk-go/aws/defaults"
-	"github.com/aws/aws-sdk-go/aws/endpoints"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/aws/aws-sdk-go-v2/service/sts/types"
 	"github.com/hashicorp/go-cleanhttp"
 	"github.com/hashicorp/go-hclog"
-	"github.com/pkg/errors"
 )
 
 const iamServerIdHeader = "X-Vault-AWS-IAM-Server-ID"
@@ -36,11 +32,11 @@ type CredentialsConfig struct {
 	// The session token if it is being used
 	SessionToken string
 
-	// The IAM endpoint to use; if not set will use the default
-	IAMEndpoint string
+	// The IAM endpoint resolver to use; if not set will use the default
+	IAMEndpointResolver iam.EndpointResolverV2
 
-	// The STS endpoint to use; if not set will use the default
-	STSEndpoint string
+	// The STS endpoint resolver to use; if not set will use the default
+	STSEndpointResolver sts.EndpointResolverV2
 
 	// If specified, the region will be provided to the config of the
 	// EC2RoleProvider's client. This may be useful if you want to e.g. reuse
@@ -87,10 +83,11 @@ type CredentialsConfig struct {
 	Logger hclog.Logger
 }
 
-// NewCredentialsConfig creates a CredentialsConfig with the provided options.
+// GenerateCredentialChain uses the config to generate a credential chain
+// suitable for creating AWS sessions and clients.
 //
-// Supported options: WithAccessKey, WithSecretKey, WithLogger, WithStsEndpoint,
-// WithIamEndpoint, WithMaxRetries, WithRegion, WithHttpClient, WithRoleArn,
+// Supported options: WithAccessKey, WithSecretKey, WithLogger, WithStsEndpointResolver,
+// WithIamEndpointResolver, WithMaxRetries, WithRegion, WithHttpClient, WithRoleArn,
 // WithRoleSessionName, WithRoleExternalId, WithRoleTags, WithWebIdentityTokenFile,
 // WithWebIdentityToken.
 func NewCredentialsConfig(opt ...Option) (*CredentialsConfig, error) {
@@ -100,14 +97,14 @@ func NewCredentialsConfig(opt ...Option) (*CredentialsConfig, error) {
 	}
 
 	c := &CredentialsConfig{
-		AccessKey:      opts.withAccessKey,
-		SecretKey:      opts.withSecretKey,
-		Logger:         opts.withLogger,
-		STSEndpoint:    opts.withStsEndpoint,
-		IAMEndpoint:    opts.withIamEndpoint,
-		MaxRetries:     opts.withMaxRetries,
-		RoleExternalId: opts.withRoleExternalId,
-		RoleTags:       opts.withRoleTags,
+		AccessKey:           opts.withAccessKey,
+		SecretKey:           opts.withSecretKey,
+		Logger:              opts.withLogger,
+		STSEndpointResolver: opts.withStsEndpointResolver,
+		IAMEndpointResolver: opts.withIamEndpointResolver,
+		MaxRetries:          opts.withMaxRetries,
+		RoleExternalId:      opts.withRoleExternalId,
+		RoleTags:            opts.withRoleTags,
 	}
 
 	c.Region = opts.withRegion
@@ -167,42 +164,22 @@ func (c *CredentialsConfig) log(level hclog.Level, msg string, args ...interface
 	}
 }
 
-// GenerateCredentialChain uses the config to generate a credential chain
-// suitable for creating AWS sessions and clients.
-//
-// Supported options: WithEnvironmentCredentials, WithSharedCredentials,
-// WithSkipWebIdentityValidity
-func (c *CredentialsConfig) GenerateCredentialChain(opt ...Option) (*credentials.Credentials, error) {
-	opts, err := getOpts(opt...)
-	if err != nil {
-		return nil, fmt.Errorf("error reading options in GenerateCredentialChain: %w", err)
+func (c *CredentialsConfig) generateAwsConfigOptions(opts options) []func(*config.LoadOptions) error {
+	var cfgOpts []func(*config.LoadOptions) error
+
+	if c.Region != "" {
+		cfgOpts = append(cfgOpts, config.WithRegion(c.Region))
 	}
 
-	var providers []credentials.Provider
-
-	// Have one or the other but not both and not neither
-	if (c.AccessKey != "" && c.SecretKey == "") || (c.AccessKey == "" && c.SecretKey != "") {
-		return nil, fmt.Errorf("static AWS client credentials haven't been properly configured (the access key or secret key were provided but not both)")
-	}
-	// Add the static credential provider
-	if c.AccessKey != "" && c.SecretKey != "" {
-		providers = append(providers, &credentials.StaticProvider{
-			Value: credentials.Value{
-				AccessKeyID:     c.AccessKey,
-				SecretAccessKey: c.SecretKey,
-				SessionToken:    c.SessionToken,
-			},
-		})
-		c.log(hclog.Debug, "added static credential provider", "AccessKey", c.AccessKey)
+	if c.MaxRetries != nil {
+		cfgOpts = append(cfgOpts, config.WithRetryMaxAttempts(*c.MaxRetries))
 	}
 
-	// Add the environment credential provider
-	if opts.withEnvironmentCredentials {
-		providers = append(providers, &credentials.EnvProvider{})
-		c.log(hclog.Debug, "added environment variable credential provider")
+	if c.HTTPClient != nil {
+		cfgOpts = append(cfgOpts, config.WithHTTPClient(c.HTTPClient))
 	}
 
-	// Add the shared credentials provider
+	// Add the shared credentials
 	if opts.withSharedCredentials {
 		profile := os.Getenv("AWS_PROFILE")
 		if profile != "" {
@@ -211,222 +188,110 @@ func (c *CredentialsConfig) GenerateCredentialChain(opt ...Option) (*credentials
 		if c.Profile == "" {
 			c.Profile = "default"
 		}
-		providers = append(providers, &credentials.SharedCredentialsProvider{
-			Filename: c.Filename,
-			Profile:  c.Profile,
-		})
-		c.log(hclog.Debug, "added shared credential provider")
+		cfgOpts = append(cfgOpts, config.WithSharedConfigProfile(c.Profile))
+		cfgOpts = append(cfgOpts, config.WithSharedCredentialsFiles([]string{c.Filename}))
+		c.log(hclog.Debug, "added shared profile credential provider")
+	}
+
+	// Add the static credential
+	if c.AccessKey != "" && c.SecretKey != "" {
+		staticCred := credentials.NewStaticCredentialsProvider(c.AccessKey, c.SecretKey, c.SessionToken)
+		cfgOpts = append(cfgOpts, config.WithCredentialsProvider(staticCred))
+		c.log(hclog.Debug, "added static credential provider", "AccessKey", c.AccessKey)
 	}
 
 	// Add the assume role provider
-	roleARN := c.RoleARN
-	if roleARN == "" {
-		roleARN = os.Getenv("AWS_ROLE_ARN")
-	}
-	tokenPath := c.WebIdentityTokenFile
-	if tokenPath == "" {
-		tokenPath = os.Getenv("AWS_WEB_IDENTITY_TOKEN_FILE")
-	}
-	roleSessionName := c.RoleSessionName
-	if roleSessionName == "" {
-		roleSessionName = os.Getenv("AWS_ROLE_SESSION_NAME")
-	}
-	if roleARN != "" {
-		if tokenPath != "" {
+	if c.RoleARN != "" {
+		if c.WebIdentityTokenFile != "" {
 			// this session is only created to create the WebIdentityRoleProvider, variables used to
 			// assume a role are pulled from values provided in options. If the option values are
 			// not set, then the provider will default to using the environment variables.
-			c.log(hclog.Debug, "adding web identity provider", "roleARN", roleARN)
-			sess, err := session.NewSession()
-			if err != nil {
-				return nil, errors.Wrap(err, "error creating a new session to create a WebIdentityRoleProvider")
-			}
-			webIdentityProvider := stscreds.NewWebIdentityRoleProvider(sts.New(sess), roleARN, roleSessionName, tokenPath)
-
-			if opts.withSkipWebIdentityValidity {
-				// Add the web identity role credential provider without
-				// generating credentials to check validity first
-				providers = append(providers, webIdentityProvider)
-			} else {
-				// Check if the webIdentityProvider can successfully retrieve
-				// credentials (via sts:AssumeRole), and warn if there's a problem.
-				if _, err := webIdentityProvider.Retrieve(); err != nil {
-					c.log(hclog.Warn, "error assuming role", "roleARN", roleARN, "tokenPath", tokenPath, "sessionName", roleSessionName, "err", err)
-				} else {
-					// Add the web identity role credential provider
-					providers = append(providers, webIdentityProvider)
-				}
-			}
+			webIdentityRoleCred := config.WithWebIdentityRoleCredentialOptions(func(options *stscreds.WebIdentityRoleOptions) {
+				options.RoleARN = c.RoleARN
+				options.RoleSessionName = c.RoleSessionName
+				options.TokenRetriever = stscreds.IdentityTokenFile(c.WebIdentityTokenFile)
+			})
+			cfgOpts = append(cfgOpts, webIdentityRoleCred)
+			c.log(hclog.Debug, "added web identity provider", "roleARN", c.RoleARN)
 		} else if c.WebIdentityToken != "" {
-			c.log(hclog.Debug, "adding web identity provider with token", "roleARN", roleARN)
-			sess, err := session.NewSession()
-			if err != nil {
-				return nil, errors.Wrap(err, "error creating a new session to create a WebIdentityRoleProvider with token")
-			}
-			webIdentityProvider := stscreds.NewWebIdentityRoleProviderWithToken(sts.New(sess), roleARN, roleSessionName, FetchTokenContents(c.WebIdentityToken))
-
-			if opts.withSkipWebIdentityValidity {
-				// Add the web identity role credential provider without
-				// generating credentials to check validity first
-				providers = append(providers, webIdentityProvider)
-			} else {
-				// Check if the webIdentityProvider can successfully retrieve
-				// credentials (via sts:AssumeRole), and warn if there's a problem.
-				if _, err := webIdentityProvider.Retrieve(); err != nil {
-					c.log(hclog.Warn, "error assuming role with WebIdentityToken", "roleARN", roleARN, "sessionName", roleSessionName, "err", err)
-				} else {
-					// Add the web identity role credential provider
-					providers = append(providers, webIdentityProvider)
-				}
-			}
+			webIdentityRoleCred := config.WithWebIdentityRoleCredentialOptions(func(options *stscreds.WebIdentityRoleOptions) {
+				options.RoleARN = c.RoleARN
+				options.RoleSessionName = c.RoleSessionName
+				options.TokenRetriever = FetchTokenContents(c.WebIdentityToken)
+			})
+			cfgOpts = append(cfgOpts, webIdentityRoleCred)
+			c.log(hclog.Debug, "added web identity provider with token", "roleARN", c.RoleARN)
 		} else {
 			// this session is only created to create the AssumeRoleProvider, variables used to
 			// assume a role are pulled from values provided in options. If the option values are
 			// not set, then the provider will default to using the environment variables.
-			c.log(hclog.Debug, "adding ec2-instance role provider", "roleARN", roleARN)
-			sess, err := session.NewSession()
-			if err != nil {
-				return nil, errors.Wrap(err, "error creating a new session for ec2 instance role credentials")
-			}
-			assumedRoleCredentials := stscreds.NewCredentials(sess, roleARN, func(p *stscreds.AssumeRoleProvider) {
-				p.RoleSessionName = roleSessionName
-				if c.RoleExternalId != "" {
-					p.ExternalID = aws.String(c.RoleExternalId)
-				}
-				if len(c.RoleTags) != 0 {
-					p.Tags = []*sts.Tag{}
-					for k, v := range c.RoleTags {
-						p.Tags = append(p.Tags, &sts.Tag{
-							Key:   aws.String(k),
-							Value: aws.String(v),
-						})
-					}
+			assumeRoleCred := config.WithAssumeRoleCredentialOptions(func(options *stscreds.AssumeRoleOptions) {
+				options.RoleARN = c.RoleARN
+				options.RoleSessionName = c.RoleSessionName
+				options.ExternalID = aws.String(c.RoleExternalId)
+				for k, v := range c.RoleTags {
+					options.Tags = append(options.Tags, types.Tag{
+						Key:   aws.String(k),
+						Value: aws.String(v),
+					})
 				}
 			})
-			// Check if the credentials are successfully retrieved
-			// (via sts:AssumeRole), and warn if there's a problem.
-			creds, err := assumedRoleCredentials.Get()
-			if err != nil {
-				c.log(hclog.Warn, "error assuming role", "roleARN", roleARN, "sessionName", roleSessionName, "err", err)
-			} else {
-				providers = append(providers, &credentials.StaticProvider{
-					Value: creds,
-				})
-			}
+			cfgOpts = append(cfgOpts, assumeRoleCred)
+			c.log(hclog.Debug, "added ec2-instance role provider", "roleARN", c.RoleARN)
 		}
 	}
 
-	// Add the remote provider
-	def := defaults.Get()
-	if c.Region != "" {
-		def.Config.Region = aws.String(c.Region)
-	}
-	// We are taking care of this in the New() function but for legacy reasons
-	// we also set this here
-	if c.HTTPClient != nil {
-		def.Config.HTTPClient = c.HTTPClient
-		_, checkFullURI := os.LookupEnv("AWS_CONTAINER_CREDENTIALS_FULL_URI")
-		_, checkRelativeURI := os.LookupEnv("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI")
-		if !checkFullURI && !checkRelativeURI {
-			// match the sdk defaults from https://github.com/aws/aws-sdk-go/pull/3066
-			def.Config.HTTPClient.Timeout = 1 * time.Second
-			def.Config.MaxRetries = aws.Int(2)
-		}
-	}
-
-	providers = append(providers, defaults.RemoteCredProvider(*def.Config, def.Handlers))
-
-	// Create the credentials required to access the API.
-	creds := credentials.NewChainCredentials(providers)
-	if creds == nil {
-		return nil, fmt.Errorf("could not compile valid credential providers from static config, environment, shared, web identity or instance metadata")
-	}
-
-	return creds, nil
+	return cfgOpts
 }
 
-func RetrieveCreds(accessKey, secretKey, sessionToken string, logger hclog.Logger) (*credentials.Credentials, error) {
+// GenerateCredentialChain uses the config to generate a credential chain
+// suitable for creating AWS clients. This will by default load configuration
+// values from environment variables and append additional configuration options
+// provided to the CredentialsConfig.
+//
+// Supported options: WithSharedCredentials, WithCredentialsProvider
+func (c *CredentialsConfig) GenerateCredentialChain(ctx context.Context, opt ...Option) (*aws.Config, error) {
+	opts, err := getOpts(opt...)
+	if err != nil {
+		return nil, fmt.Errorf("error reading options in GenerateCredentialChain: %w", err)
+	}
+
+	// Have one or the other but not both and not neither
+	if (c.AccessKey != "" && c.SecretKey == "") || (c.AccessKey == "" && c.SecretKey != "") {
+		return nil, fmt.Errorf("static AWS client credentials haven't been properly configured (the access key or secret key were provided but not both)")
+	}
+
+	awsConfig, err := config.LoadDefaultConfig(ctx, c.generateAwsConfigOptions(opts)...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load SDK's default configurations with given credential options")
+	}
+
+	if opts.withCredentialsProvider != nil {
+		awsConfig.Credentials = opts.withCredentialsProvider
+	}
+
+	return &awsConfig, nil
+}
+
+func RetrieveCreds(ctx context.Context, accessKey, secretKey, sessionToken string, logger hclog.Logger, opt ...Option) (*aws.Config, error) {
 	credConfig := CredentialsConfig{
 		AccessKey:    accessKey,
 		SecretKey:    secretKey,
 		SessionToken: sessionToken,
 		Logger:       logger,
 	}
-	creds, err := credConfig.GenerateCredentialChain()
+	creds, err := credConfig.GenerateCredentialChain(ctx, opt...)
 	if err != nil {
 		return nil, err
 	}
 	if creds == nil {
 		return nil, fmt.Errorf("could not compile valid credential providers from static config, environment, shared, or instance metadata")
 	}
-
-	_, err = creds.Get()
+	_, err = creds.Credentials.Retrieve(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve credentials from credential chain: %w", err)
 	}
 	return creds, nil
-}
-
-// GenerateLoginData populates the necessary data to send to the Vault server for generating a token
-// This is useful for other API clients to use
-func GenerateLoginData(creds *credentials.Credentials, headerValue, configuredRegion string, logger hclog.Logger) (map[string]interface{}, error) {
-	loginData := make(map[string]interface{})
-
-	// Use the credentials we've found to construct an STS session
-	region, err := GetRegion(configuredRegion)
-	if err != nil {
-		logger.Warn(fmt.Sprintf("defaulting region to %q due to %s", DefaultRegion, err.Error()))
-		region = DefaultRegion
-	}
-	stsSession, err := session.NewSessionWithOptions(session.Options{
-		Config: aws.Config{
-			Credentials:      creds,
-			Region:           &region,
-			EndpointResolver: endpoints.ResolverFunc(stsSigningResolver),
-		},
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	var params *sts.GetCallerIdentityInput
-	svc := sts.New(stsSession)
-	stsRequest, _ := svc.GetCallerIdentityRequest(params)
-
-	// Inject the required auth header value, if supplied, and then sign the request including that header
-	if headerValue != "" {
-		stsRequest.HTTPRequest.Header.Add(iamServerIdHeader, headerValue)
-	}
-	stsRequest.Sign()
-
-	// Now extract out the relevant parts of the request
-	headersJson, err := json.Marshal(stsRequest.HTTPRequest.Header)
-	if err != nil {
-		return nil, err
-	}
-	requestBody, err := ioutil.ReadAll(stsRequest.HTTPRequest.Body)
-	if err != nil {
-		return nil, err
-	}
-	loginData["iam_http_request_method"] = stsRequest.HTTPRequest.Method
-	loginData["iam_request_url"] = base64.StdEncoding.EncodeToString([]byte(stsRequest.HTTPRequest.URL.String()))
-	loginData["iam_request_headers"] = base64.StdEncoding.EncodeToString(headersJson)
-	loginData["iam_request_body"] = base64.StdEncoding.EncodeToString(requestBody)
-
-	return loginData, nil
-}
-
-// STS is a really weird service that used to only have global endpoints but now has regional endpoints as well.
-// For backwards compatibility, even if you request a region other than us-east-1, it'll still sign for us-east-1.
-// See, e.g., https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp_enable-regions.html#id_credentials_temp_enable-regions_writing_code
-// So we have to shim in this EndpointResolver to force it to sign for the right region
-func stsSigningResolver(service, region string, optFns ...func(*endpoints.Options)) (endpoints.ResolvedEndpoint, error) {
-	defaultEndpoint, err := endpoints.DefaultResolver().EndpointFor(service, region, optFns...)
-	if err != nil {
-		return defaultEndpoint, err
-	}
-	defaultEndpoint.SigningRegion = region
-	return defaultEndpoint, nil
 }
 
 // FetchTokenContents allows the use of the content of a token in the
@@ -434,8 +299,8 @@ func stsSigningResolver(service, region string, optFns ...func(*endpoints.Option
 // serviceaccount token requested directly from the EKS/K8s API, for example.
 type FetchTokenContents []byte
 
-var _ stscreds.TokenFetcher = (*FetchTokenContents)(nil)
+var _ stscreds.IdentityTokenRetriever = (*FetchTokenContents)(nil)
 
-func (f FetchTokenContents) FetchToken(_ aws.Context) ([]byte, error) {
+func (f FetchTokenContents) GetIdentityToken() ([]byte, error) {
 	return f, nil
 }
