@@ -32,7 +32,7 @@ func (c *Counter) Increment(key string, value int64, storage shared.Storage) (in
 }
 
 func main() {
-	if _, mlock := os.LookupEnv("MLOCK"); mlock {
+	if mlock := os.Getenv("MLOCK"); mlock == "true" || mlock == "1" {
 		err := unix.Mlockall(syscall.MCL_CURRENT | syscall.MCL_FUTURE)
 		if err != nil {
 			log.Fatalf("failed to call unix.Mlockall: %s", err)

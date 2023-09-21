@@ -6,6 +6,7 @@ package plugincontainer_test
 import (
 	"fmt"
 	"os"
+	"runtime"
 	"testing"
 
 	"github.com/hashicorp/go-secure-stdlib/plugincontainer"
@@ -46,6 +47,10 @@ func (m matrixInput) String() string {
 }
 
 func TestCompatibilityMatrix(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("Only linux is supported for now")
+	}
+
 	runCmd(t, "go", "build", "-o=examples/container/go-plugin-counter", "./examples/container/plugin-counter")
 
 	for _, engine := range []string{engineDocker, enginePodman} {
