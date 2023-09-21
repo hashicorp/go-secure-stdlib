@@ -11,6 +11,18 @@ FROM docker.mirror.hashicorp.services/alpine as nonroot
 
 COPY go-plugin-counter /bin/go-plugin-counter
 
+RUN addgroup -S nonroot && \
+    adduser -S -G nonroot nonroot && \
+    chown -R nonroot:nonroot /bin/go-plugin-counter
+
+USER nonroot
+
+ENTRYPOINT [ "/bin/go-plugin-counter" ]
+
+FROM docker.mirror.hashicorp.services/alpine as nonroot-mlock
+
+COPY go-plugin-counter /bin/go-plugin-counter
+
 RUN apk add libcap && \
     addgroup -S nonroot && \
     adduser -S -G nonroot nonroot && \

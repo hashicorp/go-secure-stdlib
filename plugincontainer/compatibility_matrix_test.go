@@ -56,6 +56,8 @@ func TestCompatibilityMatrix(t *testing.T) {
 						if engine == enginePodman && runtime == runtimeRunsc {
 							// Podman does not support configuring the runtime from the SDK,
 							// so only run 1 of the set of runtime test cases against it.
+							// TODO: See if we can run two instances of podman to support one
+							// runtime each.
 							continue
 						}
 						i := matrixInput{
@@ -113,13 +115,18 @@ func setDockerHost(t *testing.T, containerEngine string, rootlessEngine bool) {
 func runExamplePlugin(t *testing.T, i matrixInput) {
 	skipIfUnsupported(t, i)
 	setDockerHost(t, i.containerEngine, i.rootlessEngine)
+
 	imageRef := goPluginCounterImage
 	var tag string
 	target := "root"
 	if i.rootlessUser {
 		tag = "nonroot"
 		imageRef += ":" + tag
-		target = "nonroot"
+		if i.mlock {
+			target = "nonroot-mlock"
+		} else {
+			target = "nonroot"
+		}
 	}
 	runCmd(t, i.containerEngine, "build", "--tag="+imageRef, "--target="+target, "--file=examples/container/Dockerfile", "examples/container")
 
@@ -129,8 +136,6 @@ func runExamplePlugin(t *testing.T, i matrixInput) {
 		GroupAdd: os.Getgid(),
 		Debug:    true,
 
-		// Test inputs
-		Runtime:    i.containerRuntime,
 		CapIPCLock: i.mlock,
 	}
 	if i.mlock {
@@ -138,6 +143,9 @@ func runExamplePlugin(t *testing.T, i matrixInput) {
 	}
 	if i.rootlessUser {
 		cfg.Tag = "nonroot"
+	}
+	if i.containerEngine != enginePodman {
+		cfg.Runtime = i.containerRuntime
 	}
 	exerciseExamplePlugin(t, cfg)
 }
