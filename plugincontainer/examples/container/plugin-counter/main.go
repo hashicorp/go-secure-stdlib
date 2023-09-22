@@ -4,8 +4,13 @@
 package main
 
 import (
+	"log"
+	"os"
+	"syscall"
+
 	"github.com/hashicorp/go-plugin"
 	"github.com/hashicorp/go-secure-stdlib/plugincontainer/examples/container/shared"
+	"golang.org/x/sys/unix"
 )
 
 type Counter struct {
@@ -27,6 +32,12 @@ func (c *Counter) Increment(key string, value int64, storage shared.Storage) (in
 }
 
 func main() {
+	if mlock := os.Getenv("MLOCK"); mlock == "true" || mlock == "1" {
+		err := unix.Mlockall(syscall.MCL_CURRENT | syscall.MCL_FUTURE)
+		if err != nil {
+			log.Fatalf("failed to call unix.Mlockall: %s", err)
+		}
+	}
 	plugin.Serve(&plugin.ServeConfig{
 		HandshakeConfig: shared.Handshake,
 		Plugins: map[string]plugin.Plugin{
