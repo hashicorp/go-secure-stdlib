@@ -11,6 +11,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"runtime"
 	"strings"
 )
 
@@ -50,7 +51,25 @@ func readline(f *os.File) (string, error) {
 		if err != nil && err != io.EOF {
 			return "", err
 		}
-		if n == 0 || buf[0] == '\n' || buf[0] == '\r' {
+		if n == 0 {
+			break
+		}
+		if buf[0] == '\r' {
+			// If we see a carriage return we may be at the end of the line on
+			// Windows. However, if we do not consume the newline, the next
+			// invocation of this command will instantly exit with that newline
+			// character. So we continue on through the loop. This makes an
+			// assumption that is probably reasonable that a password will not
+			// normally contain a carriage return and that if we do see a
+			// carriage return we should always see it paired with a newline
+			// after.
+			if runtime.GOOS == "windows" {
+				continue
+			}
+			// Otherwise, we're done.
+			break
+		}
+		if buf[0] == '\n' {
 			break
 		}
 

@@ -1,6 +1,7 @@
 // Copyright (c) HashiCorp, Inc.
 // SPDX-License-Identifier: MPL-2.0
 
+//go:build linux || darwin || freebsd || netbsd || openbsd || dragonfly
 // +build linux darwin freebsd netbsd openbsd dragonfly
 
 package password
