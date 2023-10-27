@@ -5,7 +5,8 @@ go 1.20
 require (
 	github.com/docker/docker v24.0.5+incompatible
 	github.com/hashicorp/go-hclog v1.5.0
-	github.com/hashicorp/go-plugin v1.5.1
+	github.com/hashicorp/go-plugin v1.5.3-0.20231025163852-0b28f225bcb4
+	github.com/joshlf/go-acl v0.0.0-20200411065538-eae00ae38531
 	golang.org/x/sys v0.13.0
 	google.golang.org/grpc v1.57.1
 	google.golang.org/protobuf v1.31.0
@@ -20,6 +21,7 @@ require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/hashicorp/yamux v0.1.1 // indirect
+	github.com/joshlf/testutil v0.0.0-20170608050642-b5d8aa79d93d // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.17 // indirect
 	github.com/mitchellh/go-testing-interface v1.14.1 // indirect
