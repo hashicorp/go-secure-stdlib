@@ -85,11 +85,7 @@ func runExamplePlugin(t *testing.T, i matrixInput) {
 
 	target := "root"
 	if i.rootlessUser {
-		if i.mlock {
-			target = "nonroot-mlock"
-		} else {
-			target = "nonroot"
-		}
+		target = "nonroot"
 	}
 	runCmd(t, "docker", "build", fmt.Sprintf("--tag=%s:%s", goPluginCounterImage, target), "--target="+target, "--file=examples/container/Dockerfile", "examples/container")
 
