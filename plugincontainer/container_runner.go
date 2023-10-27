@@ -210,15 +210,16 @@ func (c *containerRunner) Start(ctx context.Context) error {
 	for _, opt := range info.SecurityOptions {
 		if opt == "name=rootless" {
 			rootless = true
+			break
 		}
 	}
 	// If container runtime is rootless, our GroupAdd trick to make the Unix
-	// socket writable from both sides stops working and we have two options:
+	// socket writable from both sides stops working:
 	//
-	// 1. Run as root within the container. The container's root user is not
-	//    mapped to a different host user, so we get:
+	// 1. Run as root within the container still works. The container's root
+	//    user is not mapped to a different host user, so we get:
 	//    Host view: Running as unprivileged user, folder owned by the same user.
-	//    Container view: Running ass root, folder owned by root.
+	//    Container view: Running as root, folder owned by root.
 	//
 	// 2. Run as non-root within the container. The container runs as a
 	//    subordinate uid, with the mapping defined by /etc/subuid. e.g. if the
