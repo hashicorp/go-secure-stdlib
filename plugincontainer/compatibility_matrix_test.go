@@ -66,17 +66,6 @@ func TestCompatibilityMatrix(t *testing.T) {
 	}
 }
 
-func skipIfUnsupported(t *testing.T, i matrixInput) {
-	switch {
-	case i.mlock && i.rootlessEngine:
-		if i.containerRuntime == runtimeRunsc {
-			// runsc works in rootless because it has its own userspace implementation of mlockall(2)
-		} else {
-			t.Skip("TODO: These tests should work if the rootless engine is given the IPC_LOCK capability")
-		}
-	}
-}
-
 func setDockerHost(t *testing.T, rootlessEngine bool) {
 	var socketFile string
 	switch {
@@ -92,7 +81,6 @@ func setDockerHost(t *testing.T, rootlessEngine bool) {
 }
 
 func runExamplePlugin(t *testing.T, i matrixInput) {
-	skipIfUnsupported(t, i)
 	setDockerHost(t, i.rootlessEngine)
 
 	imageRef := goPluginCounterImage
