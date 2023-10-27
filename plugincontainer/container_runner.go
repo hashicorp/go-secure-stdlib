@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"os/exec"
 	"path"
 	"runtime"
@@ -247,10 +246,10 @@ func (c *containerRunner) Start(ctx context.Context) error {
 		// inside rootless container engines because the process runs as an
 		// unmapped user from the host's point of view, so it won't be able to
 		// write to any directory that only gives permissions to user and group.
-		err = os.Chmod(c.hostSocketDir, 0o777)
-		if err != nil {
-			return err
-		}
+		// err = os.Chmod(c.hostSocketDir, 0o777)
+		// if err != nil {
+		// 	return err
+		// }
 	}
 
 	resp, err := c.dockerClient.ContainerCreate(ctx, c.containerConfig, c.hostConfig, c.networkConfig, nil, "")
