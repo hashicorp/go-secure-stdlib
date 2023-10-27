@@ -177,10 +177,11 @@ func testExamplePlugin_WithRuntime(t *testing.T, ociRuntime, id, sha256 string) 
 
 func exerciseExamplePlugin(t *testing.T, cfg *plugincontainer.Config) {
 	client := plugin.NewClient(&plugin.ClientConfig{
-		HandshakeConfig: shared.Handshake,
-		Plugins:         shared.PluginMap,
-		SkipHostEnv:     true,
-		AutoMTLS:        true,
+		HandshakeConfig:     shared.Handshake,
+		Plugins:             shared.PluginMap,
+		SkipHostEnv:         true,
+		AutoMTLS:            true,
+		GRPCBrokerMultiplex: true,
 		AllowedProtocols: []plugin.Protocol{
 			plugin.ProtocolGRPC,
 		},

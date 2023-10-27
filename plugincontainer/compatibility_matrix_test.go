@@ -30,7 +30,7 @@ type matrixInput struct {
 func (m matrixInput) String() string {
 	var s string
 	if m.rootlessEngine {
-		s = "rootless "
+		s = "rootless_"
 	}
 	s += m.containerEngine
 	// Podman does not support configuring the runtime from the SDK.
@@ -84,8 +84,6 @@ func TestCompatibilityMatrix(t *testing.T) {
 
 func skipIfUnsupported(t *testing.T, i matrixInput) {
 	switch {
-	case i.rootlessEngine && i.rootlessUser:
-		t.Skip("Unix socket permissions not yet working for rootless engine + nonroot container user")
 	case i.containerEngine == enginePodman && !i.rootlessEngine:
 		t.Skip("TODO: These tests would pass but CI doesn't have the environment set up yet")
 	case i.mlock && i.rootlessEngine:

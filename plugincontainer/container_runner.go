@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"path"
 	"runtime"
@@ -25,6 +26,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-plugin"
 	"github.com/hashicorp/go-plugin/runner"
+	"github.com/joshlf/go-acl"
 )
 
 var (
@@ -197,6 +199,57 @@ func (c *containerRunner) Start(ctx context.Context) error {
 		}
 		if !imageFound {
 			return fmt.Errorf("could not find any locally available images named %s that match with the provided SHA256 hash %s: %w", ref, c.sha256, ErrSHA256Mismatch)
+		}
+	}
+
+	info, err := c.dockerClient.Info(ctx)
+	if err != nil {
+		return err
+	}
+	var rootless bool
+	for _, opt := range info.SecurityOptions {
+		if opt == "name=rootless" {
+			rootless = true
+		}
+	}
+	// If container runtime is rootless, our GroupAdd trick to make the Unix
+	// socket writable from both sides stops working and we have two options:
+	//
+	// 1. Run as root within the container. The container's root user is not
+	//    mapped to a different host user, so we get:
+	//    Host view: Running as unpriveleged user, folder owned by the same user.
+	//    Container view: Running ass root, folder owned by root.
+	//
+	// 2. Run as non-root within the container. The container runs as a
+	//    subordinate uid, with the mapping defined by /etc/subuid. e.g. if the
+	//    unprivileged user is 1000(ubuntu), and /etc/suduid has the following entry:
+	//    ubuntu:100000:65536
+	//    Then running as user 1 inside the container will map to user 100000
+	//    on the host, and user 1000 will map to 100999.
+	if rootless {
+		// Setting de
+		a := acl.FromUnix(0o660)
+		a = append(a, acl.Entry{
+			Tag:       acl.TagUser,
+			Qualifier: strconv.Itoa(os.Getuid()),
+			Perms:     0o006,
+		})
+		a = append(a, acl.Entry{
+			Tag:   acl.TagMask,
+			Perms: 0o006,
+		})
+		err = acl.SetDefault(c.hostSocketDir, a)
+		if err != nil {
+			return err
+		}
+		// We give rwx permissions _only_ to the directory. The socket file
+		// itself will have 0o660. 0o777 is required for nonroot container users
+		// inside rootless container engines because the process runs as an
+		// unmapped user from the host's point of view, so it won't be able to
+		// write to any directory that only gives permissions to user and group.
+		err = os.Chmod(c.hostSocketDir, 0o777)
+		if err != nil {
+			return err
 		}
 	}
 

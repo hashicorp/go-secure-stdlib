@@ -7,6 +7,16 @@ COPY go-plugin-counter /bin/go-plugin-counter
 
 ENTRYPOINT [ "/bin/go-plugin-counter" ]
 
+# FROM ubuntu as nonroot
+
+# COPY go-plugin-counter /bin/go-plugin-counter
+
+# RUN addgroup --gid 1000 ubuntu
+# RUN adduser --system --uid 1000 --gid 1000 ubuntu
+# RUN chown -R ubuntu:ubuntu /bin/go-plugin-counter
+
+# USER ubuntu
+
 FROM docker.mirror.hashicorp.services/alpine as nonroot
 
 COPY go-plugin-counter /bin/go-plugin-counter
