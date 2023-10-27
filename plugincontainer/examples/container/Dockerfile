@@ -16,7 +16,7 @@ RUN apk add libcap && \
     adduser -S -G nonroot nonroot && \
     chown -R nonroot:nonroot /bin/go-plugin-counter && \
     cp /bin/go-plugin-counter /bin/go-plugin-counter-mlock && \
-    setcap cap_ipc_lock=+ep /bin/go-plugin-counter-mlock
+    setcap cap_ipc_lock=+p /bin/go-plugin-counter-mlock
 
 USER nonroot
 

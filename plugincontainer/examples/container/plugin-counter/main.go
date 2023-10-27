@@ -6,6 +6,7 @@ package main
 import (
 	"log"
 	"os"
+	"strconv"
 	"syscall"
 
 	"github.com/hashicorp/go-plugin"
@@ -32,9 +33,11 @@ func (c *Counter) Increment(key string, value int64, storage shared.Storage) (in
 }
 
 func main() {
-	if mlock := os.Getenv("MLOCK"); mlock == "true" || mlock == "1" {
-		err := unix.Mlockall(syscall.MCL_CURRENT | syscall.MCL_FUTURE)
-		if err != nil {
+	if mlock, _ := strconv.ParseBool(os.Getenv("MLOCK")); mlock {
+		if err := capset(); err != nil {
+			log.Fatalf("failed to set IPC_LOCK capability: %s", err)
+		}
+		if err := unix.Mlockall(syscall.MCL_CURRENT | syscall.MCL_FUTURE); err != nil {
 			log.Fatalf("failed to call unix.Mlockall: %s", err)
 		}
 	}
@@ -47,4 +50,18 @@ func main() {
 		// A non-nil value here enables gRPC serving for this plugin...
 		GRPCServer: plugin.DefaultGRPCServer,
 	})
+}
+
+func capset() error {
+	hdr := unix.CapUserHeader{Version: unix.LINUX_CAPABILITY_VERSION_3}
+	var data [2]unix.CapUserData
+	if err := unix.Capget(&hdr, &data[0]); err != nil {
+		return err
+	}
+	data[0].Effective |= 1 << unix.CAP_IPC_LOCK
+	if err := unix.Capset(&hdr, &data[0]); err != nil {
+		return err
+	}
+
+	return nil
 }
