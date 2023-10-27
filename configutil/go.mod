@@ -8,9 +8,9 @@ require (
 	github.com/hashicorp/go-kms-wrapping/v2 v2.0.14
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/go-plugin v1.5.2
-	github.com/hashicorp/go-secure-stdlib/listenerutil v0.1.8
+	github.com/hashicorp/go-secure-stdlib/listenerutil v0.1.9
 	github.com/hashicorp/go-secure-stdlib/parseutil v0.1.8
-	github.com/hashicorp/go-secure-stdlib/pluginutil/v2 v2.0.5
+	github.com/hashicorp/go-secure-stdlib/pluginutil/v2 v2.0.6
 	github.com/hashicorp/hcl v1.0.0
 	github.com/stretchr/testify v1.8.4
 	golang.org/x/crypto v0.14.0
