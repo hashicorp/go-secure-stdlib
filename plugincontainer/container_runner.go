@@ -202,56 +202,8 @@ func (c *containerRunner) Start(ctx context.Context) error {
 		}
 	}
 
-	info, err := c.dockerClient.Info(ctx)
-	if err != nil {
+	if err := c.configureFilePermissionsIfRootless(ctx); err != nil {
 		return err
-	}
-	var rootless bool
-	for _, opt := range info.SecurityOptions {
-		if opt == "name=rootless" {
-			rootless = true
-			break
-		}
-	}
-	// If container runtime is rootless, our GroupAdd trick to make the Unix
-	// socket writable from both sides stops working:
-	//
-	// 1. Run as root within the container still works. The container's root
-	//    user is not mapped to a different host user, so we get:
-	//    Host view: Running as unprivileged user, folder owned by the same user.
-	//    Container view: Running as root, folder owned by root.
-	//
-	// 2. Run as non-root within the container. The container runs as a
-	//    subordinate uid, with the mapping defined by /etc/subuid. e.g. if the
-	//    unprivileged user is 1000(ubuntu), and /etc/suduid has the following entry:
-	//    ubuntu:100000:65536
-	//    Then running as user 1 inside the container will map to user 100000
-	//    on the host, and user 1000 will map to 100999.
-	if rootless {
-		// Setting de
-		a := acl.FromUnix(0o660)
-		a = append(a, acl.Entry{
-			Tag:       acl.TagUser,
-			Qualifier: strconv.Itoa(os.Getuid()),
-			Perms:     0o006,
-		})
-		a = append(a, acl.Entry{
-			Tag:   acl.TagMask,
-			Perms: 0o006,
-		})
-		err = acl.SetDefault(c.hostSocketDir, a)
-		if err != nil {
-			return err
-		}
-		// We give rwx permissions _only_ to the directory. The socket file
-		// itself will have 0o660. 0o777 is required for nonroot container users
-		// inside rootless container engines because the process runs as an
-		// unmapped user from the host's point of view, so it won't be able to
-		// write to any directory that only gives permissions to user and group.
-		err = os.Chmod(c.hostSocketDir, 0o777)
-		if err != nil {
-			return err
-		}
 	}
 
 	resp, err := c.dockerClient.ContainerCreate(ctx, c.containerConfig, c.hostConfig, c.networkConfig, nil, "")
@@ -483,4 +435,78 @@ Stdout:
 Stderr:
 %s
 --- End Logs ---`, stdout.String(), stderr.String())
+}
+
+// If the container runtime is rootless, our GroupAdd trick to make the Unix
+// socket and folder writable from both sides stops working. Instead we have:
+//
+//  1. Run as root within the container still works. The container's root
+//     user is not mapped to a different host user, so we get:
+//
+//     Host view: Running as 1000, container running as 1000, folder and socket owned by 1000.
+//     Container view: Running as 0, folder and socket owned by 0.
+//
+//  2. Run as non-root within the container fails. The container runs as a
+//     subordinate uid, with the mapping defined by /etc/subuid. e.g. if the host
+//     unprivileged user is 1000(ubuntu), and /etc/suduid has the following entry:
+//     ubuntu:100000:65536
+//
+//     Then running as user 1 inside the container will map to user 100000
+//     on the host, and user 1001 will map to 101000.
+//
+//     Host view: Running as 1000, container running as 101000,
+//     folder owned by 1000, socket owned by 101000.
+//     => We need to make the socket writable for the host.
+//
+//     Container view: Running as 1001, folder owned by 0, socket owned by 1001.
+//     => We need to make the folder writable for the container.
+//
+//     To fix the host permissions, we set default permissions on the
+//     already-writable folder so that any files created are automatically
+//     also writable.
+//
+//     To fix the container permissions, we give _only_ the folder 0o777
+//     permissions. The socket will be 0o660.
+//
+// Note that the gVisor picture looks a little more complex in terms of how the
+// process looks on the host as gVisor adds an extra layer between the container
+// and the host, but the same file permission principles apply.
+func (c *containerRunner) configureFilePermissionsIfRootless(ctx context.Context) error {
+	info, err := c.dockerClient.Info(ctx)
+	if err != nil {
+		return err
+	}
+	var rootless bool
+	for _, opt := range info.SecurityOptions {
+		if opt == "name=rootless" {
+			rootless = true
+			break
+		}
+	}
+
+	if rootless {
+		// Setting default ACLs for the socket folder using unix xattr.
+		a := acl.FromUnix(0o660)
+		a = append(a, acl.Entry{
+			Tag:       acl.TagUser,
+			Qualifier: strconv.Itoa(os.Getuid()),
+			Perms:     0o006,
+		})
+		a = append(a, acl.Entry{
+			Tag:   acl.TagMask,
+			Perms: 0o006,
+		})
+		err = acl.SetDefault(c.hostSocketDir, a)
+		if err != nil {
+			return fmt.Errorf("rootless container runtime detected, but failed to set default ACLs on socket directory: %w", err)
+		}
+		// We give rwx permissions _only_ to the directory. The socket file
+		// itself will have 0o660.
+		err = os.Chmod(c.hostSocketDir, 0o777)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
