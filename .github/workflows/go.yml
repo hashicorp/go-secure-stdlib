@@ -87,6 +87,9 @@ jobs:
           }
         }
         EOF
+
+        export PATH="$HOME/bin:$PATH"
+        sudo setcap cap_ipc_lock=ep "$(which rootlesskit)"
         systemctl --user restart docker
     
     - name: Test
