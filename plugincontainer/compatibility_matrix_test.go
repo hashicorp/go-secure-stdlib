@@ -13,14 +13,11 @@ import (
 )
 
 const (
-	engineDocker = "docker"
-	enginePodman = "podman"
 	runtimeRunc  = "runc"
 	runtimeRunsc = "runsc"
 )
 
 type matrixInput struct {
-	containerEngine  string
 	containerRuntime string
 	rootlessEngine   bool
 	rootlessUser     bool
@@ -32,11 +29,8 @@ func (m matrixInput) String() string {
 	if m.rootlessEngine {
 		s = "rootless_"
 	}
-	s += m.containerEngine
-	// Podman does not support configuring the runtime from the SDK.
-	if m.containerEngine != enginePodman {
-		s += ":" + m.containerRuntime
-	}
+	s += "docker"
+	s += ":" + m.containerRuntime
 	if m.rootlessUser {
 		s += ":" + "nonroot"
 	}
@@ -53,29 +47,19 @@ func TestCompatibilityMatrix(t *testing.T) {
 
 	runCmd(t, "go", "build", "-o=examples/container/go-plugin-counter", "./examples/container/plugin-counter")
 
-	for _, engine := range []string{engineDocker, enginePodman} {
-		for _, runtime := range []string{runtimeRunc, runtimeRunsc} {
-			for _, rootlessEngine := range []bool{true, false} {
-				for _, rootlessUser := range []bool{true, false} {
-					for _, mlock := range []bool{true, false} {
-						if engine == enginePodman && runtime == runtimeRunsc {
-							// Podman does not support configuring the runtime from the SDK,
-							// so only run 1 of the set of runtime test cases against it.
-							// TODO: See if we can run two instances of podman to support one
-							// runtime each.
-							continue
-						}
-						i := matrixInput{
-							containerEngine:  engine,
-							containerRuntime: runtime,
-							rootlessEngine:   rootlessEngine,
-							rootlessUser:     rootlessUser,
-							mlock:            mlock,
-						}
-						t.Run(i.String(), func(t *testing.T) {
-							runExamplePlugin(t, i)
-						})
+	for _, runtime := range []string{runtimeRunc, runtimeRunsc} {
+		for _, rootlessEngine := range []bool{true, false} {
+			for _, rootlessUser := range []bool{true, false} {
+				for _, mlock := range []bool{true, false} {
+					i := matrixInput{
+						containerRuntime: runtime,
+						rootlessEngine:   rootlessEngine,
+						rootlessUser:     rootlessUser,
+						mlock:            mlock,
 					}
+					t.Run(i.String(), func(t *testing.T) {
+						runExamplePlugin(t, i)
+					})
 				}
 			}
 		}
@@ -84,30 +68,22 @@ func TestCompatibilityMatrix(t *testing.T) {
 
 func skipIfUnsupported(t *testing.T, i matrixInput) {
 	switch {
-	case i.containerEngine == enginePodman && !i.rootlessEngine:
-		t.Skip("TODO: These tests would pass but CI doesn't have the environment set up yet")
 	case i.mlock && i.rootlessEngine:
-		if i.containerEngine == engineDocker && i.containerRuntime == runtimeRunsc {
-			// runsc works in rootless because it has its own implementation of mlockall(2)
+		if i.containerRuntime == runtimeRunsc {
+			// runsc works in rootless because it has its own userspace implementation of mlockall(2)
 		} else {
 			t.Skip("TODO: These tests should work if the rootless engine is given the IPC_LOCK capability")
 		}
 	}
 }
 
-func setDockerHost(t *testing.T, containerEngine string, rootlessEngine bool) {
+func setDockerHost(t *testing.T, rootlessEngine bool) {
 	var socketFile string
 	switch {
-	case containerEngine == engineDocker && !rootlessEngine:
+	case !rootlessEngine:
 		socketFile = "/var/run/docker.sock"
-	case containerEngine == engineDocker && rootlessEngine:
+	case rootlessEngine:
 		socketFile = fmt.Sprintf("/run/user/%d/docker.sock", os.Getuid())
-	case containerEngine == enginePodman && !rootlessEngine:
-		socketFile = "/var/run/podman/podman.sock"
-	case containerEngine == enginePodman && rootlessEngine:
-		socketFile = fmt.Sprintf("/run/user/%d/podman/podman.sock", os.Getuid())
-	default:
-		t.Fatalf("Unsupported combination: %s, %v", containerEngine, rootlessEngine)
 	}
 	if _, err := os.Stat(socketFile); err != nil {
 		t.Fatal("Did not find expected socket file:", err)
@@ -117,7 +93,7 @@ func setDockerHost(t *testing.T, containerEngine string, rootlessEngine bool) {
 
 func runExamplePlugin(t *testing.T, i matrixInput) {
 	skipIfUnsupported(t, i)
-	setDockerHost(t, i.containerEngine, i.rootlessEngine)
+	setDockerHost(t, i.rootlessEngine)
 
 	imageRef := goPluginCounterImage
 	target := "root"
@@ -129,10 +105,11 @@ func runExamplePlugin(t *testing.T, i matrixInput) {
 			target = "nonroot"
 		}
 	}
-	runCmd(t, i.containerEngine, "build", "--tag="+imageRef, "--target="+target, "--file=examples/container/Dockerfile", "examples/container")
+	runCmd(t, "docker", "build", "--tag="+imageRef, "--target="+target, "--file=examples/container/Dockerfile", "examples/container")
 
 	cfg := &plugincontainer.Config{
 		Image:    goPluginCounterImage,
+		Runtime:  i.containerRuntime,
 		GroupAdd: os.Getgid(),
 		Debug:    true,
 
@@ -143,9 +120,6 @@ func runExamplePlugin(t *testing.T, i matrixInput) {
 	}
 	if i.rootlessUser {
 		cfg.Tag = "nonroot"
-	}
-	if i.containerEngine != enginePodman {
-		cfg.Runtime = i.containerRuntime
 	}
 	exerciseExamplePlugin(t, cfg)
 }
