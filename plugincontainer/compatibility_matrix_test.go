@@ -83,20 +83,19 @@ func setDockerHost(t *testing.T, rootlessEngine bool) {
 func runExamplePlugin(t *testing.T, i matrixInput) {
 	setDockerHost(t, i.rootlessEngine)
 
-	imageRef := goPluginCounterImage
 	target := "root"
 	if i.rootlessUser {
-		imageRef += ":nonroot"
 		if i.mlock {
 			target = "nonroot-mlock"
 		} else {
 			target = "nonroot"
 		}
 	}
-	runCmd(t, "docker", "build", "--tag="+imageRef, "--target="+target, "--file=examples/container/Dockerfile", "examples/container")
+	runCmd(t, "docker", "build", fmt.Sprintf("--tag=%s:%s", goPluginCounterImage, target), "--target="+target, "--file=examples/container/Dockerfile", "examples/container")
 
 	cfg := &plugincontainer.Config{
 		Image:    goPluginCounterImage,
+		Tag:      target,
 		Runtime:  i.containerRuntime,
 		GroupAdd: os.Getgid(),
 		Debug:    true,
@@ -105,9 +104,6 @@ func runExamplePlugin(t *testing.T, i matrixInput) {
 	}
 	if i.mlock {
 		cfg.Env = append(cfg.Env, "MLOCK=true")
-	}
-	if i.rootlessUser {
-		cfg.Tag = "nonroot"
 	}
 	exerciseExamplePlugin(t, cfg)
 }
