@@ -15,16 +15,11 @@ RUN apk add libcap && \
     addgroup -S nonroot && \
     adduser -S -G nonroot nonroot && \
     chown -R nonroot:nonroot /bin/go-plugin-counter && \
-    cp /bin/go-plugin-counter /bin/go-plugin-counter-mlock && \
-    setcap cap_ipc_lock=+p /bin/go-plugin-counter-mlock
+    setcap cap_ipc_lock=+p /bin/go-plugin-counter
 
 USER nonroot
 
 ENTRYPOINT [ "/bin/go-plugin-counter" ]
-
-FROM nonroot as nonroot-mlock
-
-ENTRYPOINT [ "/bin/go-plugin-counter-mlock" ]
 
 # Set root as the default image.
 FROM root
