@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"path"
 	"runtime"
@@ -25,6 +26,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-plugin"
 	"github.com/hashicorp/go-plugin/runner"
+	"github.com/joshlf/go-acl"
 )
 
 var (
@@ -227,20 +229,20 @@ func (c *containerRunner) Start(ctx context.Context) error {
 	//    on the host, and user 1000 will map to 100999.
 	if rootless {
 		// // Setting de
-		// a := acl.FromUnix(0o660)
-		// a = append(a, acl.Entry{
-		// 	Tag:       acl.TagUser,
-		// 	Qualifier: strconv.Itoa(os.Getuid()),
-		// 	Perms:     0o006,
-		// })
-		// a = append(a, acl.Entry{
-		// 	Tag:   acl.TagMask,
-		// 	Perms: 0o006,
-		// })
-		// err = acl.SetDefault(c.hostSocketDir, a)
-		// if err != nil {
-		// 	return err
-		// }
+		a := acl.FromUnix(0o660)
+		a = append(a, acl.Entry{
+			Tag:       acl.TagUser,
+			Qualifier: strconv.Itoa(os.Getuid()),
+			Perms:     0o006,
+		})
+		a = append(a, acl.Entry{
+			Tag:   acl.TagMask,
+			Perms: 0o006,
+		})
+		err = acl.SetDefault(c.hostSocketDir, a)
+		if err != nil {
+			return err
+		}
 		// We give rwx permissions _only_ to the directory. The socket file
 		// itself will have 0o660. 0o777 is required for nonroot container users
 		// inside rootless container engines because the process runs as an
