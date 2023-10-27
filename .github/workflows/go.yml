@@ -58,7 +58,7 @@ jobs:
             "runsc": {
               "path": "/usr/local/bin/runsc",
               "runtimeArgs": [
-                "--host-uds=all"
+                "--host-uds=create"
               ]
             }
           }
@@ -80,7 +80,7 @@ jobs:
             "runsc": {
               "path": "/usr/local/bin/runsc",
               "runtimeArgs": [
-                "--host-uds=all",
+                "--host-uds=create",
                 "--ignore-cgroups"
               ]
             }
