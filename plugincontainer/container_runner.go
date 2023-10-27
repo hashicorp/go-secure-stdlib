@@ -217,7 +217,7 @@ func (c *containerRunner) Start(ctx context.Context) error {
 	//
 	// 1. Run as root within the container. The container's root user is not
 	//    mapped to a different host user, so we get:
-	//    Host view: Running as unpriveleged user, folder owned by the same user.
+	//    Host view: Running as unprivileged user, folder owned by the same user.
 	//    Container view: Running ass root, folder owned by root.
 	//
 	// 2. Run as non-root within the container. The container runs as a
