@@ -190,7 +190,8 @@ func exerciseExamplePlugin(t *testing.T, cfg *plugincontainer.Config) {
 			Level: hclog.Trace,
 		}),
 		UnixSocketConfig: &plugin.UnixSocketConfig{
-			Group: strconv.Itoa(cfg.GroupAdd),
+			Group:   strconv.Itoa(cfg.GroupAdd),
+			TempDir: t.TempDir(),
 		},
 		RunnerFunc: cfg.NewContainerRunner,
 	})
