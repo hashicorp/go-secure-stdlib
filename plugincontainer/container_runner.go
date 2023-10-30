@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -37,6 +38,8 @@ var (
 	// ErrSHA256Mismatch is returned when starting a container without any
 	// images available where the provided sha256 matches the image and tag.
 	ErrSHA256Mismatch = errors.New("SHA256 mismatch")
+
+	ErrInvalidHostSocketDirectory = errors.New("invalid host socket directory for rootless mode")
 )
 
 const pluginSocketDir = "/tmp/go-plugin-container"
@@ -502,6 +505,24 @@ func (c *containerRunner) configureFilePermissionsIfRootless(ctx context.Context
 		}
 		// We give rwx permissions _only_ to the directory. The socket file
 		// itself will have 0o660.
+		//
+		// But first, ensure the parent directory has no permissions for 'other'
+		// so that the scope for exploting our 0o777 directory is very small.
+		parentDir := filepath.Dir(c.hostSocketDir)
+		if parentDir == "." || parentDir == "/" {
+			return fmt.Errorf("parent directory is root: %w", ErrInvalidHostSocketDirectory)
+		}
+		if info, err := os.Lstat(parentDir); err != nil {
+			return fmt.Errorf("failed to get info for directory %s: %w", parentDir, ErrInvalidHostSocketDirectory)
+		} else {
+			if (info.Mode() & os.ModeType) != os.ModeDir {
+				return fmt.Errorf("parent directory is not a plain directory (type bits %o): %w", info.Mode()&os.ModeType, ErrInvalidHostSocketDirectory)
+			}
+			if info.Mode().Perm()&0o7 != 0 {
+				return fmt.Errorf("parent directory is too permissive, must not have any permissions for 'others' (permission bits %o): %w", info.Mode().Perm(), ErrInvalidHostSocketDirectory)
+			}
+		}
+
 		err = os.Chmod(c.hostSocketDir, 0o777)
 		if err != nil {
 			return err
