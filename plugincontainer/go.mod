@@ -3,7 +3,7 @@ module github.com/hashicorp/go-secure-stdlib/plugincontainer
 go 1.20
 
 require (
-	github.com/docker/docker v24.0.5+incompatible
+	github.com/docker/docker v24.0.7+incompatible
 	github.com/hashicorp/go-hclog v1.5.0
 	github.com/hashicorp/go-plugin v1.5.1
 	golang.org/x/sys v0.13.0
