@@ -25,9 +25,17 @@ import (
 //     be run as the same unpriveleged user as the client.
 type Config struct {
 	// GroupAdd sets an additional group that the container should run as. Should
-	// match the UnixSocketConfig Group passed to go-plugin. Needs to be set if
-	// the container runtime is not rootless.
+	// match the UnixSocketConfig Group passed to go-plugin. It should be set if
+	// the container runtime runs as root.
 	GroupAdd int
+
+	// Rootless is an alternative to GroupAdd, useful for rootless installs. It
+	// should be set if both the host's container runtime and the container
+	// itself are configured to run as non-privileged users. It requires a file
+	// system that supports POSIX 1e ACLs, which should be available by default
+	// on most modern Linux distributions. Users must also enable go-plugin's
+	// plugin.ClientConfig.GRPCBrokerMultiplexing feature.
+	Rootless bool
 
 	// Container command/env
 	Entrypoint []string // If specified, replaces the container entrypoint.

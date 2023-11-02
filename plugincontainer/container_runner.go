@@ -12,7 +12,6 @@ import (
 	"os"
 	"os/exec"
 	"path"
-	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -156,6 +155,12 @@ func (cfg *Config) NewContainerRunner(logger hclog.Logger, cmd *exec.Cmd, hostSo
 	if cfg.CapIPCLock {
 		hostConfig.CapAdd = append(hostConfig.CapAdd, "IPC_LOCK")
 	}
+	if cfg.Rootless {
+		hostConfig.CapAdd = append(hostConfig.CapAdd, "DAC_OVERRIDE")
+		if err := configureDefaultACLsForRootless(hostSocketDir); err != nil {
+			return nil, err
+		}
+	}
 
 	// Network config.
 	networkConfig := &network.NetworkingConfig{
@@ -203,10 +208,6 @@ func (c *containerRunner) Start(ctx context.Context) error {
 		if !imageFound {
 			return fmt.Errorf("could not find any locally available images named %s that match with the provided SHA256 hash %s: %w", ref, c.sha256, ErrSHA256Mismatch)
 		}
-	}
-
-	if err := c.configureFilePermissionsIfRootless(ctx); err != nil {
-		return err
 	}
 
 	resp, err := c.dockerClient.ContainerCreate(ctx, c.containerConfig, c.hostConfig, c.networkConfig, nil, "")
@@ -451,7 +452,7 @@ Stderr:
 //
 //  2. Run as non-root within the container fails. The container runs as a
 //     subordinate uid, with the mapping defined by /etc/subuid. e.g. if the host
-//     unprivileged user is 1000(ubuntu), and /etc/suduid has the following entry:
+//     unprivileged user is 1000(ubuntu), and /etc/subuid has the following entry:
 //     ubuntu:100000:65536
 //
 //     Then running as user 1 inside the container will map to user 100000
@@ -464,69 +465,35 @@ Stderr:
 //     Container view: Running as 1001, folder owned by 0, socket owned by 1001.
 //     => We need to make the folder writable for the container.
 //
-//     To fix the host permissions, we set default permissions on the
-//     already-writable folder so that any files created are automatically
-//     also writable.
+//     To fix the host permissions, we set default permissions on the folder
+//     so any Unix sockets created in it are automatically writable.
 //
-//     To fix the container permissions, we give _only_ the folder 0o777
-//     permissions. The socket will be 0o660.
+//     To fix the container permissions, we give it the DAC_OVERRIDE capability
+//     which is normally on by default, and allows the container process to
+//     ignore file system permissions for any files mounted inside the container.
+//
+//     Similar to mlock and the IPC_LOCK capability, runc requires rootlesskit
+//     (the container's parent process) to have the DAC_OVERRIDE capability
+//     itself in order to delegate it to the container. However, runsc has no
+//     such requirement because it reimplements the syscall in userspace.
 //
 // Note that the gVisor picture looks a little more complex in terms of how the
 // process looks on the host as gVisor adds an extra layer between the container
 // and the host, but the same file permission principles apply.
-func (c *containerRunner) configureFilePermissionsIfRootless(ctx context.Context) error {
-	info, err := c.dockerClient.Info(ctx)
-	if err != nil {
-		return err
-	}
-	var rootless bool
-	for _, opt := range info.SecurityOptions {
-		if opt == "name=rootless" {
-			rootless = true
-			break
-		}
-	}
-
-	if rootless {
-		// Setting default ACLs for the socket folder using unix xattr.
-		a := acl.FromUnix(0o660)
-		a = append(a, acl.Entry{
-			Tag:       acl.TagUser,
-			Qualifier: strconv.Itoa(os.Getuid()),
-			Perms:     0o006,
-		})
-		a = append(a, acl.Entry{
-			Tag:   acl.TagMask,
-			Perms: 0o006,
-		})
-		err = acl.SetDefault(c.hostSocketDir, a)
-		if err != nil {
-			return fmt.Errorf("rootless container runtime detected, but failed to set default ACLs on socket directory: %w", err)
-		}
-		// We give rwx permissions _only_ to the directory. The socket file
-		// itself will have 0o660.
-		//
-		// But first, ensure the parent directory has no permissions for 'other'
-		// so that the scope for exploting our 0o777 directory is very small.
-		parentDir := filepath.Dir(c.hostSocketDir)
-		if parentDir == "." || parentDir == "/" {
-			return fmt.Errorf("parent directory is root: %w", ErrInvalidHostSocketDirectory)
-		}
-		if info, err := os.Lstat(parentDir); err != nil {
-			return fmt.Errorf("failed to get info for directory %s: %w", parentDir, ErrInvalidHostSocketDirectory)
-		} else {
-			if (info.Mode() & os.ModeType) != os.ModeDir {
-				return fmt.Errorf("parent directory is not a plain directory (type bits %o): %w", info.Mode()&os.ModeType, ErrInvalidHostSocketDirectory)
-			}
-			if info.Mode().Perm()&0o7 != 0 {
-				return fmt.Errorf("parent directory is too permissive, must not have any permissions for 'others' (permission bits %o): %w", info.Mode().Perm(), ErrInvalidHostSocketDirectory)
-			}
-		}
-
-		err = os.Chmod(c.hostSocketDir, 0o777)
-		if err != nil {
-			return err
-		}
+func configureDefaultACLsForRootless(hostSocketDir string) error {
+	// Setting default ACLs for the socket folder using unix xattr.
+	a := acl.FromUnix(0o660)
+	a = append(a, acl.Entry{
+		Tag:       acl.TagUser,
+		Qualifier: strconv.Itoa(os.Getuid()),
+		Perms:     0o006,
+	})
+	a = append(a, acl.Entry{
+		Tag:   acl.TagMask,
+		Perms: 0o006,
+	})
+	if err := acl.SetDefault(hostSocketDir, a); err != nil {
+		return fmt.Errorf("failed to set default ACLs on rootless socket directory: %w", err)
 	}
 
 	return nil

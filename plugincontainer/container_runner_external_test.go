@@ -176,10 +176,6 @@ func testExamplePlugin_WithRuntime(t *testing.T, ociRuntime, id, sha256 string) 
 }
 
 func exerciseExamplePlugin(t *testing.T, cfg *plugincontainer.Config) {
-	tmpDir := t.TempDir()
-	if err := os.Chmod(tmpDir, 0o750); err != nil {
-		t.Fatal(err)
-	}
 	client := plugin.NewClient(&plugin.ClientConfig{
 		HandshakeConfig:     shared.Handshake,
 		Plugins:             shared.PluginMap,
@@ -194,8 +190,7 @@ func exerciseExamplePlugin(t *testing.T, cfg *plugincontainer.Config) {
 			Level: hclog.Trace,
 		}),
 		UnixSocketConfig: &plugin.UnixSocketConfig{
-			Group:   strconv.Itoa(cfg.GroupAdd),
-			TempDir: tmpDir,
+			Group: strconv.Itoa(cfg.GroupAdd),
 		},
 		RunnerFunc: cfg.NewContainerRunner,
 	})

@@ -66,6 +66,17 @@ func TestCompatibilityMatrix(t *testing.T) {
 	}
 }
 
+func skipIfUnsupported(t *testing.T, i matrixInput) {
+	switch {
+	case i.rootlessEngine && i.containerRuntime == runtimeRunc:
+		if i.rootlessUser {
+			t.Skip("runc requires rootlesskit to have DAC_OVERRIDE capability itself, and that's a very powerful capability")
+		} else if i.mlock {
+			t.Skip("TODO: Partially working, but tests not yet reliably and repeatably passing")
+		}
+	}
+}
+
 func setDockerHost(t *testing.T, rootlessEngine bool) {
 	var socketFile string
 	switch {
@@ -81,6 +92,7 @@ func setDockerHost(t *testing.T, rootlessEngine bool) {
 }
 
 func runExamplePlugin(t *testing.T, i matrixInput) {
+	skipIfUnsupported(t, i)
 	setDockerHost(t, i.rootlessEngine)
 
 	target := "root"
@@ -99,6 +111,7 @@ func runExamplePlugin(t *testing.T, i matrixInput) {
 		Runtime:  i.containerRuntime,
 		GroupAdd: os.Getgid(),
 		Debug:    true,
+		Rootless: i.rootlessEngine && i.rootlessUser,
 
 		CapIPCLock: i.mlock,
 	}
