@@ -40,6 +40,34 @@ func (m matrixInput) String() string {
 	return s
 }
 
+func withContainerRuntime(s string) func(matrixInput) matrixInput {
+	return func(m matrixInput) matrixInput {
+		m.containerRuntime = s
+		return m
+	}
+}
+
+func withRootlessEngine(b bool) func(matrixInput) matrixInput {
+	return func(m matrixInput) matrixInput {
+		m.rootlessEngine = b
+		return m
+	}
+}
+
+func withRootlessUser(b bool) func(matrixInput) matrixInput {
+	return func(m matrixInput) matrixInput {
+		m.rootlessUser = b
+		return m
+	}
+}
+
+func withMlock(b bool) func(matrixInput) matrixInput {
+	return func(m matrixInput) matrixInput {
+		m.mlock = b
+		return m
+	}
+}
+
 func TestCompatibilityMatrix(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		t.Skip("Only linux is supported for now")
@@ -47,22 +75,23 @@ func TestCompatibilityMatrix(t *testing.T) {
 
 	runCmd(t, "go", "build", "-o=examples/container/go-plugin-counter", "./examples/container/plugin-counter")
 
-	for _, runtime := range []string{runtimeRunc, runtimeRunsc} {
-		for _, rootlessEngine := range []bool{true, false} {
-			for _, rootlessUser := range []bool{true, false} {
-				for _, mlock := range []bool{true, false} {
-					i := matrixInput{
-						containerRuntime: runtime,
-						rootlessEngine:   rootlessEngine,
-						rootlessUser:     rootlessUser,
-						mlock:            mlock,
-					}
-					t.Run(i.String(), func(t *testing.T) {
-						runExamplePlugin(t, i)
-					})
-				}
-			}
+	testCases := [][]func(matrixInput) matrixInput{
+		{withRootlessEngine(true), withRootlessEngine(false)},
+		{withContainerRuntime(runtimeRunc), withContainerRuntime(runtimeRunsc)},
+		{withRootlessUser(true), withRootlessUser(false)},
+		{withMlock(true), withMlock(false)},
+	}
+	// Run a test for all combinations of 4 binary choices.
+	// Use 4 bit numbers to represent all possible choices, e.g.
+	// e.g. 0100 runs rootless_docker:runsc:nonroot:mlock
+	for i := 0; i < 1<<len(testCases); i++ {
+		var input matrixInput
+		for j := 0; j < len(testCases); j++ {
+			input = testCases[j][(i>>j)&1](input)
 		}
+		t.Run(input.String(), func(t *testing.T) {
+			runExamplePlugin(t, input)
+		})
 	}
 }
 
