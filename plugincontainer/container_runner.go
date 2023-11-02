@@ -37,8 +37,6 @@ var (
 	// ErrSHA256Mismatch is returned when starting a container without any
 	// images available where the provided sha256 matches the image and tag.
 	ErrSHA256Mismatch = errors.New("SHA256 mismatch")
-
-	ErrInvalidHostSocketDirectory = errors.New("invalid host socket directory for rootless mode")
 )
 
 const pluginSocketDir = "/tmp/go-plugin-container"
@@ -482,10 +480,10 @@ Stderr:
 // and the host, but the same file permission principles apply.
 func configureDefaultACLsForRootless(hostSocketDir string) error {
 	// Setting default ACLs for the socket folder using unix xattr.
-	a := acl.FromUnix(0o660)
+	a := acl.FromUnix(0o600)
 	a = append(a, acl.Entry{
 		Tag:       acl.TagUser,
-		Qualifier: strconv.Itoa(os.Getuid()),
+		Qualifier: strconv.Itoa(os.Geteuid()),
 		Perms:     0o006,
 	})
 	a = append(a, acl.Entry{

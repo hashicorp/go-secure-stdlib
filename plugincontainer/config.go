@@ -33,8 +33,7 @@ type Config struct {
 	// should be set if both the host's container runtime and the container
 	// itself are configured to run as non-privileged users. It requires a file
 	// system that supports POSIX 1e ACLs, which should be available by default
-	// on most modern Linux distributions. Users must also enable go-plugin's
-	// plugin.ClientConfig.GRPCBrokerMultiplexing feature.
+	// on most modern Linux distributions.
 	Rootless bool
 
 	// Container command/env
