@@ -76,6 +76,9 @@ type CredentialsConfig struct {
 	// identity token provider
 	WebIdentityToken string
 
+	// The web identity token fetcher to use with the web identity token provider
+	WebIdentityTokenFetcher stscreds.TokenFetcher
+
 	// The http.Client to use, or nil for the client to use its default
 	HTTPClient *http.Client
 
@@ -133,6 +136,7 @@ func NewCredentialsConfig(opt ...Option) (*CredentialsConfig, error) {
 		c.WebIdentityTokenFile = os.Getenv("AWS_WEB_IDENTITY_TOKEN_FILE")
 	}
 	c.WebIdentityToken = opts.withWebIdentityToken
+	c.WebIdentityTokenFetcher = opts.withWebIdentityTokenFetcher
 
 	if c.RoleARN == "" {
 		if c.RoleSessionName != "" {
@@ -264,6 +268,30 @@ func (c *CredentialsConfig) GenerateCredentialChain(opt ...Option) (*credentials
 				return nil, errors.Wrap(err, "error creating a new session to create a WebIdentityRoleProvider with token")
 			}
 			webIdentityProvider := stscreds.NewWebIdentityRoleProviderWithToken(sts.New(sess), roleARN, roleSessionName, FetchTokenContents(c.WebIdentityToken))
+
+			if opts.withSkipWebIdentityValidity {
+				// Add the web identity role credential provider without
+				// generating credentials to check validity first
+				providers = append(providers, webIdentityProvider)
+			} else {
+				// Check if the webIdentityProvider can successfully retrieve
+				// credentials (via sts:AssumeRole), and warn if there's a problem.
+				if _, err := webIdentityProvider.Retrieve(); err != nil {
+					c.log(hclog.Warn, "error assuming role with WebIdentityToken", "roleARN", roleARN, "sessionName", roleSessionName, "err", err)
+				} else {
+					// Add the web identity role credential provider
+					providers = append(providers, webIdentityProvider)
+				}
+			}
+		} else if c.WebIdentityTokenFetcher != nil {
+			// TODO: DRY up these web identity token options
+
+			c.log(hclog.Debug, "adding web identity provider with token fetcher", "roleARN", roleARN)
+			sess, err := session.NewSession()
+			if err != nil {
+				return nil, errors.Wrap(err, "error creating a new session to create a WebIdentityRoleProvider with token fetcher")
+			}
+			webIdentityProvider := stscreds.NewWebIdentityRoleProviderWithToken(sts.New(sess), roleARN, roleSessionName, c.WebIdentityTokenFetcher)
 
 			if opts.withSkipWebIdentityValidity {
 				// Add the web identity role credential provider without

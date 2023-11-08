@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/hashicorp/go-hclog"
 )
@@ -50,6 +51,7 @@ type options struct {
 	withWebIdentityTokenFile    string
 	withWebIdentityToken        string
 	withSkipWebIdentityValidity bool
+	withWebIdentityTokenFetcher stscreds.TokenFetcher
 	withHttpClient              *http.Client
 	withValidityCheckTimeout    time.Duration
 	withIAMAPIFunc              IAMAPIFunc
@@ -120,6 +122,16 @@ func WithWebIdentityTokenFile(with string) Option {
 func WithWebIdentityToken(with string) Option {
 	return func(o *options) error {
 		o.withWebIdentityToken = with
+		return nil
+	}
+}
+
+// WithWebIdentityTokenFetcher allows passing an STS TokenFetcher which
+// allows the AWS SDK client automatically to refresh the web identity token
+// from any source.
+func WithWebIdentityTokenFetcher(with stscreds.TokenFetcher) Option {
+	return func(o *options) error {
+		o.withWebIdentityTokenFetcher = with
 		return nil
 	}
 }
