@@ -23,6 +23,7 @@ jobs:
                   "pluginutil",
                   "reloadutil",
                   "strutil",
+                  "temperror",
                   "tlsutil"]
     runs-on: ubuntu-latest
     steps:
