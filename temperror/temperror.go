@@ -24,3 +24,16 @@ func New(inner error) tempError {
 func (t tempError) Temporary() bool {
 	return true
 }
+
+// IsTempError returns whether it is a temporary error to avoid having to use it
+// as it is in the gRPC source code, e.g.:
+//
+//	if ne, ok := err.(interface{ Temporary() bool }); !ok || !ne.Temporary() {
+//
+// This function does that for you :-)
+func IsTempError(err error) bool {
+	if ne, ok := err.(interface{ Temporary() bool }); !ok || !ne.Temporary() {
+		return false
+	}
+	return true
+}
