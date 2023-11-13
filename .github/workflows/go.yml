@@ -23,6 +23,7 @@ jobs:
                   "pluginutil",
                   "reloadutil",
                   "strutil",
+                  "temperror",
                   "tlsutil",
                   "toggledlogger"]
     runs-on: ubuntu-latest
