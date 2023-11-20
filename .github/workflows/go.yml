@@ -60,7 +60,7 @@ jobs:
             "runsc": {
               "path": "/usr/local/bin/runsc",
               "runtimeArgs": [
-                "--host-uds=all"
+                "--host-uds=create"
               ]
             }
           }
@@ -82,27 +82,16 @@ jobs:
             "runsc": {
               "path": "/usr/local/bin/runsc",
               "runtimeArgs": [
-                "--host-uds=all",
+                "--host-uds=create",
                 "--ignore-cgroups"
               ]
             }
           }
         }
         EOF
+
+        export PATH="$HOME/bin:$PATH"
         systemctl --user restart docker
-    
-    - name: Install rootless podman
-      if: ${{ matrix.module == 'plugincontainer' }}
-      run: |
-        sudo apt-get install -y podman slirp4netns fuse-overlayfs
-        mkdir -p ~/local/bin
-        RUNSC_SCRIPT=~/local/bin/runsc.podman
-        tee "${RUNSC_SCRIPT}" <<EOF
-        #!/bin/bash
-        /usr/local/bin/runsc --host-uds=all --ignore-cgroups "\$@"
-        EOF
-        chmod u+x "${RUNSC_SCRIPT}"
-        podman --runtime "${RUNSC_SCRIPT}" system service -t 0 &
     
     - name: Test
       run: cd ${{ matrix.module }} && go test ./...

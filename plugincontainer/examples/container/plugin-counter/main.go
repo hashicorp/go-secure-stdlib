@@ -6,6 +6,7 @@ package main
 import (
 	"log"
 	"os"
+	"strconv"
 	"syscall"
 
 	"github.com/hashicorp/go-plugin"
@@ -32,7 +33,7 @@ func (c *Counter) Increment(key string, value int64, storage shared.Storage) (in
 }
 
 func main() {
-	if mlock := os.Getenv("MLOCK"); mlock == "true" || mlock == "1" {
+	if mlock, _ := strconv.ParseBool(os.Getenv("MLOCK")); mlock {
 		err := unix.Mlockall(syscall.MCL_CURRENT | syscall.MCL_FUTURE)
 		if err != nil {
 			log.Fatalf("failed to call unix.Mlockall: %s", err)

@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"path"
 	"runtime"
@@ -25,6 +26,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-plugin"
 	"github.com/hashicorp/go-plugin/runner"
+	"github.com/joshlf/go-acl"
 )
 
 var (
@@ -150,6 +152,12 @@ func (cfg *Config) NewContainerRunner(logger hclog.Logger, cmd *exec.Cmd, hostSo
 
 	if cfg.CapIPCLock {
 		hostConfig.CapAdd = append(hostConfig.CapAdd, "IPC_LOCK")
+	}
+	if cfg.Rootless {
+		hostConfig.CapAdd = append(hostConfig.CapAdd, "DAC_OVERRIDE")
+		if err := configureDefaultACLsForRootless(hostSocketDir); err != nil {
+			return nil, err
+		}
 	}
 
 	// Network config.
@@ -429,4 +437,63 @@ Stdout:
 Stderr:
 %s
 --- End Logs ---`, stdout.String(), stderr.String())
+}
+
+// If the container runtime is rootless, our GroupAdd trick to make the Unix
+// socket and folder writable from both sides stops working. Instead we have:
+//
+//  1. Run as root within the container still works. The container's root
+//     user is not mapped to a different host user, so we get:
+//
+//     Host view: Running as 1000, container running as 1000, folder and socket owned by 1000.
+//     Container view: Running as 0, folder and socket owned by 0.
+//
+//  2. Run as non-root within the container fails. The container runs as a
+//     subordinate uid, with the mapping defined by /etc/subuid. e.g. if the host
+//     unprivileged user is 1001(ubuntu), and /etc/subuid has the following entry:
+//     ubuntu:100000:65536
+//
+//     Then running as user 1 inside the container will map to user 100000
+//     on the host, and user 1001 will map to 101000.
+//
+//     Host view: Running as 1000, container running as 101000,
+//     folder owned by 1000, socket owned by 101000.
+//     => We need to make the socket writable for the host.
+//
+//     Container view: Running as 1001, folder owned by 0, socket owned by 1001.
+//     => We need to make the folder writable for the container.
+//
+//     To fix the host permissions, we set default permissions on the folder
+//     so any Unix sockets created in it are automatically writable.
+//
+//     To fix the container permissions, we give it the DAC_OVERRIDE capability,
+//     which is normally on by default, and allows the container process to
+//     ignore file system permission restrictions. The only bit of the host file
+//     system it has access to though is the empty shared folder.
+//
+//     Similar to mlock and the IPC_LOCK capability, runc requires rootlesskit
+//     (the container's parent process) to have the DAC_OVERRIDE capability
+//     itself in order to delegate it to the container. However, runsc has no
+//     such requirement because it reimplements the syscall in userspace.
+//
+// Note that the gVisor picture looks a little more complex in terms of how the
+// process looks on the host as gVisor adds an extra layer between the container
+// and the host, but the same file permission principles apply.
+func configureDefaultACLsForRootless(hostSocketDir string) error {
+	// Setting default ACLs for the socket folder using unix xattr.
+	a := acl.FromUnix(0o660)
+	a = append(a, acl.Entry{
+		Tag:       acl.TagUser,
+		Qualifier: strconv.Itoa(os.Geteuid()),
+		Perms:     0o006,
+	})
+	a = append(a, acl.Entry{
+		Tag:   acl.TagMask,
+		Perms: 0o006,
+	})
+	if err := acl.SetDefault(hostSocketDir, a); err != nil {
+		return fmt.Errorf("failed to set default ACLs on rootless socket directory: %w", err)
+	}
+
+	return nil
 }
