@@ -7,13 +7,13 @@ COPY go-plugin-counter /bin/go-plugin-counter
 
 ENTRYPOINT [ "/bin/go-plugin-counter" ]
 
-FROM docker.mirror.hashicorp.services/alpine as nonroot
+FROM docker.mirror.hashicorp.services/ubuntu as nonroot
 
 COPY go-plugin-counter /bin/go-plugin-counter
 
-RUN apk add libcap && \
-    addgroup -S nonroot && \
-    adduser -S -G nonroot nonroot && \
+RUN apt-get update && apt-get install -y libcap2-bin acl && \
+    addgroup --system nonroot && \
+    adduser --system --ingroup nonroot nonroot && \
     chown -R nonroot:nonroot /bin/go-plugin-counter && \
     cp /bin/go-plugin-counter /bin/go-plugin-counter-mlock && \
     setcap cap_ipc_lock=+ep /bin/go-plugin-counter-mlock

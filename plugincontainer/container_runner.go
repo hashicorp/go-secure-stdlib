@@ -450,7 +450,7 @@ Stderr:
 //
 //  2. Run as non-root within the container fails. The container runs as a
 //     subordinate uid, with the mapping defined by /etc/subuid. e.g. if the host
-//     unprivileged user is 1000(ubuntu), and /etc/subuid has the following entry:
+//     unprivileged user is 1001(ubuntu), and /etc/subuid has the following entry:
 //     ubuntu:100000:65536
 //
 //     Then running as user 1 inside the container will map to user 100000
@@ -466,9 +466,10 @@ Stderr:
 //     To fix the host permissions, we set default permissions on the folder
 //     so any Unix sockets created in it are automatically writable.
 //
-//     To fix the container permissions, we give it the DAC_OVERRIDE capability
+//     To fix the container permissions, we give it the DAC_OVERRIDE capability,
 //     which is normally on by default, and allows the container process to
-//     ignore file system permissions for any files mounted inside the container.
+//     ignore file system permission restrictions. The only bit of the host file
+//     system it has access to though is the empty shared folder.
 //
 //     Similar to mlock and the IPC_LOCK capability, runc requires rootlesskit
 //     (the container's parent process) to have the DAC_OVERRIDE capability
@@ -480,7 +481,7 @@ Stderr:
 // and the host, but the same file permission principles apply.
 func configureDefaultACLsForRootless(hostSocketDir string) error {
 	// Setting default ACLs for the socket folder using unix xattr.
-	a := acl.FromUnix(0o600)
+	a := acl.FromUnix(0o660)
 	a = append(a, acl.Entry{
 		Tag:       acl.TagUser,
 		Qualifier: strconv.Itoa(os.Geteuid()),

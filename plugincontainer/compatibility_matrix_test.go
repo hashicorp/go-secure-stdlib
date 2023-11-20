@@ -71,7 +71,7 @@ func skipIfUnsupported(t *testing.T, i matrixInput) {
 	switch {
 	case i.rootlessEngine && i.containerRuntime == runtimeRunc:
 		if i.rootlessUser {
-			t.Skip("runc requires rootlesskit to have DAC_OVERRIDE capability itself, and that's a very powerful capability")
+			t.Skip("runc requires rootlesskit to have DAC_OVERRIDE capability itself, and that undermines being a rootless runtime")
 		} else if i.mlock {
 			t.Skip("TODO: Partially working, but tests not yet reliably and repeatably passing")
 		}
@@ -110,14 +110,15 @@ func runExamplePlugin(t *testing.T, i matrixInput) {
 		Image:    goPluginCounterImage,
 		Tag:      target,
 		Runtime:  i.containerRuntime,
-		GroupAdd: os.Getgid(),
-		Debug:    true,
+		GroupAdd: os.Getegid(),
 		Rootless: i.rootlessEngine && i.rootlessUser,
+		Debug:    true,
 
 		CapIPCLock: i.mlock,
 	}
 	if i.mlock {
 		cfg.Env = append(cfg.Env, "MLOCK=true")
 	}
+
 	exerciseExamplePlugin(t, cfg)
 }
