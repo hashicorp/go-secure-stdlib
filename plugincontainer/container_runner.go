@@ -159,6 +159,7 @@ func (cfg *Config) NewContainerRunner(logger hclog.Logger, cmd *exec.Cmd, hostSo
 			return nil, err
 		}
 	}
+	hostConfig.CgroupnsMode = "host"
 
 	// Network config.
 	networkConfig := &network.NetworkingConfig{
