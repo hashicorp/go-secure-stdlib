@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os/exec"
 	"reflect"
-	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -20,15 +19,6 @@ import (
 // TestNewContainerRunner_config ensures all the config options passed in have
 // get passed through to the runner's internal config correctly.
 func TestNewContainerRunner_config(t *testing.T) {
-	if runtime.GOOS != "linux" {
-		_, err := (&Config{}).NewContainerRunner(hclog.Default(), exec.Command(""), "")
-		if err != errUnsupportedOS {
-			t.Fatal(err)
-		}
-
-		return
-	}
-
 	tmpDir := t.TempDir()
 	const (
 		gid          = 10

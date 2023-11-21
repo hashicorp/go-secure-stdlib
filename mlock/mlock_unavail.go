@@ -1,7 +1,8 @@
 // Copyright (c) HashiCorp, Inc.
 // SPDX-License-Identifier: MPL-2.0
 
-// +build darwin nacl netbsd plan9 windows
+//go:build darwin || nacl || netbsd || plan9 || windows || js
+// +build darwin nacl netbsd plan9 windows js
 
 package mlock
 
