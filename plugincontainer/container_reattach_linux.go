@@ -6,7 +6,6 @@ package plugincontainer
 import (
 	"context"
 	"fmt"
-	"runtime"
 
 	"github.com/docker/docker/client"
 	"github.com/hashicorp/go-hclog"
@@ -14,10 +13,6 @@ import (
 )
 
 func ReattachFunc(logger hclog.Logger, id, hostSocketDir string) (runner.AttachedRunner, error) {
-	if runtime.GOOS != "linux" {
-		return nil, errUnsupportedOS
-	}
-
 	client, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		return nil, err
