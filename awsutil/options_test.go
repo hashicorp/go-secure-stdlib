@@ -177,6 +177,14 @@ func Test_GetOpts(t *testing.T) {
 		testOpts.withWebIdentityToken = "foo"
 		assert.Equal(t, opts, testOpts)
 	})
+	t.Run("WithWebIdentityTokenFetcher", func(t *testing.T) {
+		f := testFetcher{}
+		opts, err := getOpts(WithWebIdentityTokenFetcher(f))
+		require.NoError(t, err)
+		testOpts := getDefaultOptions()
+		testOpts.withWebIdentityTokenFetcher = f
+		assert.Equal(t, opts, testOpts)
+	})
 	t.Run("WithSkipWebIdentityValidity", func(t *testing.T) {
 		opts, err := getOpts(WithSkipWebIdentityValidity(true))
 		require.NoError(t, err)
@@ -184,4 +192,10 @@ func Test_GetOpts(t *testing.T) {
 		testOpts.withSkipWebIdentityValidity = true
 		assert.Equal(t, opts, testOpts)
 	})
+}
+
+type testFetcher struct{}
+
+func (testFetcher) FetchToken(_ aws.Context) ([]byte, error) {
+	return nil, nil
 }
