@@ -175,7 +175,9 @@ func CreatePlugin(plugin *PluginInfo, opt ...Option) (interface{}, func() error,
 	// Prioritize in-memory functions
 	case plugin.InmemCreationFunc != nil:
 		raw, err := plugin.InmemCreationFunc()
-		return raw, nil, err
+		return raw, func() error {
+			return nil
+		}, err
 
 	// If not in-memory we need a filename, whether direct on disk or from a container FS
 	case plugin.Path == "":
