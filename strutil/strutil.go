@@ -12,7 +12,6 @@ import (
 	"unicode"
 
 	glob "github.com/ryanuber/go-glob"
-	"golang.org/x/exp/slices"
 )
 
 // StrListContainsGlob looks for a string in a list of strings and allows
@@ -370,7 +369,8 @@ func StrListDelete(s []string, d string) []string {
 		if element == d {
 			// Using the provided slice as the basis for the return value can
 			// result in confusing behaviour, see https://go.dev/play/p/EAtNw4lLugu
-			s = slices.Clone(s)
+			c := make([]string, len(s))
+			copy(c, s)
 			return append(s[:index], s[index+1:]...)
 		}
 	}
