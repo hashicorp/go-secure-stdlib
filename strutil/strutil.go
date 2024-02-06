@@ -113,11 +113,11 @@ func ParseKeyValues(input string, out map[string]string, sep string) error {
 
 // ParseArbitraryKeyValues parses arbitrary <key,value> tuples. The input
 // can be one of the following:
-// * JSON string
-// * Base64 encoded JSON string
-// * Comma separated list of `<key>=<value>` pairs
-// * Base64 encoded string containing comma separated list of
-//   `<key>=<value>` pairs
+//   - JSON string
+//   - Base64 encoded JSON string
+//   - Comma separated list of `<key>=<value>` pairs
+//   - Base64 encoded string containing comma separated list of
+//     `<key>=<value>` pairs
 //
 // Input will be parsed into the output parameter, which should
 // be a non-nil map[string]string.
@@ -371,7 +371,7 @@ func StrListDelete(s []string, d string) []string {
 			// result in confusing behaviour, see https://go.dev/play/p/EAtNw4lLugu
 			c := make([]string, len(s))
 			copy(c, s)
-			return append(s[:index], s[index+1:]...)
+			return append(c[:index], c[index+1:]...)
 		}
 	}
 
