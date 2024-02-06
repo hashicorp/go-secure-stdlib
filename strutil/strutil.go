@@ -7,12 +7,12 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"slices"
 	"sort"
 	"strings"
 	"unicode"
 
 	glob "github.com/ryanuber/go-glob"
+	"golang.org/x/exp/slices"
 )
 
 // StrListContainsGlob looks for a string in a list of strings and allows
