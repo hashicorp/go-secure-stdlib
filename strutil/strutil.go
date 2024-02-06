@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"unicode"
@@ -367,6 +368,9 @@ func StrListDelete(s []string, d string) []string {
 
 	for index, element := range s {
 		if element == d {
+			// Using the provided slice as the basis for the return value can
+			// result in confusing behaviour, see https://go.dev/play/p/EAtNw4lLugu
+			s = slices.Clone(s)
 			return append(s[:index], s[index+1:]...)
 		}
 	}
