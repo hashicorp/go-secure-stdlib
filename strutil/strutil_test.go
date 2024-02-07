@@ -46,6 +46,13 @@ func TestStrListDelete(t *testing.T) {
 	if StrListContains(output, "item3") {
 		t.Fatal("bad: 'item3' should not have been present")
 	}
+
+	// Test that StrListDelete doesn't modify its input
+	input := []string{"a", "b", "c"}
+	output = StrListDelete(input, "b")
+	if !reflect.DeepEqual(input, []string{"a", "b", "c"}) {
+		t.Fatal("bad: input modified")
+	}
 }
 
 func TestEquivalentSlices(t *testing.T) {
