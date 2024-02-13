@@ -168,6 +168,10 @@ func CreatePlugin(plugin *PluginInfo, opt ...Option) (interface{}, func() error,
 	var file fs.File
 	var name string
 
+	cleanup := func() error {
+		return nil
+	}
+
 	switch {
 	case plugin == nil:
 		return nil, nil, fmt.Errorf("plugin is nil")
@@ -175,7 +179,7 @@ func CreatePlugin(plugin *PluginInfo, opt ...Option) (interface{}, func() error,
 	// Prioritize in-memory functions
 	case plugin.InmemCreationFunc != nil:
 		raw, err := plugin.InmemCreationFunc()
-		return raw, nil, err
+		return raw, cleanup, err
 
 	// If not in-memory we need a filename, whether direct on disk or from a container FS
 	case plugin.Path == "":
@@ -251,7 +255,7 @@ func CreatePlugin(plugin *PluginInfo, opt ...Option) (interface{}, func() error,
 	name = fmt.Sprintf("%s-%s", name, randSuffix)
 	dir := opts.withPluginExecutionDirectory
 
-	cleanup := func() error {
+	cleanup = func() error {
 		return os.Remove(filepath.Join(dir, name))
 	}
 	if dir == "" {
