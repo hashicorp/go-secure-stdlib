@@ -20,7 +20,7 @@ require (
 	github.com/hashicorp/hcl v1.0.0
 	github.com/stretchr/testify v1.8.4
 	golang.org/x/crypto v0.14.0
-	google.golang.org/protobuf v1.31.0
+	google.golang.org/protobuf v1.33.0
 )
 
 require (
