@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/docker/docker/api/types/image"
 	"io"
 	"os"
 	"os/exec"
@@ -15,7 +16,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/mount"
@@ -177,7 +177,7 @@ func (c *containerRunner) Start(ctx context.Context) error {
 			ref += ":" + c.tag
 		}
 		// Check the Image and SHA256 provided in the config match up.
-		images, err := c.dockerClient.ImageList(ctx, types.ImageListOptions{
+		images, err := c.dockerClient.ImageList(ctx, image.ListOptions{
 			Filters: filters.NewArgs(filters.Arg("reference", ref)),
 		})
 		if err != nil {
@@ -202,14 +202,14 @@ func (c *containerRunner) Start(ctx context.Context) error {
 	c.id = resp.ID
 	c.logger.Trace("created container", "image", c.image, "id", c.id)
 
-	if err := c.dockerClient.ContainerStart(ctx, c.id, types.ContainerStartOptions{}); err != nil {
+	if err := c.dockerClient.ContainerStart(ctx, c.id, container.StartOptions{}); err != nil {
 		return fmt.Errorf("error starting container: %w", err)
 	}
 
 	// ContainerLogs combines stdout and stderr.
 	// Container logs will stream beyond the lifetime of the initial start
 	// context, so we pass it a fresh context with no timeout.
-	logReader, err := c.dockerClient.ContainerLogs(context.Background(), c.id, types.ContainerLogsOptions{
+	logReader, err := c.dockerClient.ContainerLogs(context.Background(), c.id, container.LogsOptions{
 		Follow:     true,
 		ShowStdout: true,
 		ShowStderr: true,
@@ -266,7 +266,7 @@ func (c *containerRunner) Kill(ctx context.Context) error {
 	if c.id != "" {
 		if c.debug {
 			defer func() {
-				err := c.dockerClient.ContainerRemove(ctx, c.id, types.ContainerRemoveOptions{
+				err := c.dockerClient.ContainerRemove(ctx, c.id, container.RemoveOptions{
 					Force: true,
 				})
 				if err != nil {
@@ -401,7 +401,7 @@ Check stdout in the logs below.
 }
 
 func (c *containerRunner) diagnoseLogs(ctx context.Context) string {
-	logReader, err := c.dockerClient.ContainerLogs(ctx, c.id, types.ContainerLogsOptions{
+	logReader, err := c.dockerClient.ContainerLogs(ctx, c.id, container.LogsOptions{
 		ShowStdout: true,
 		ShowStderr: true,
 		Follow:     false,
