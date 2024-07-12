@@ -263,7 +263,7 @@ func (c *CredentialsConfig) GenerateCredentialChain(ctx context.Context, opt ...
 
 	awsConfig, err := config.LoadDefaultConfig(ctx, c.generateAwsConfigOptions(opts)...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load SDK's default configurations with given credential options")
+		return nil, fmt.Errorf("failed to load SDK's default configurations with given credential options: %w", err)
 	}
 
 	if opts.withCredentialsProvider != nil {
