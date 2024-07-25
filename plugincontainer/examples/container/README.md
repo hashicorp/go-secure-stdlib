@@ -11,7 +11,7 @@ To run the example:
 
 ```sh
 # Build the plugin container image
-$ go build -o go-plugin-counter ./plugin-counter && docker build -t go-plugin-counter .
+$ go build -o go-plugin-counter ./plugin-counter && docker build -t plugin-counter .
 
 # Read and write
 $ go run main.go increment hello 1
