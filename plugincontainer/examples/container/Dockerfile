@@ -7,7 +7,7 @@ COPY go-plugin-counter /bin/go-plugin-counter
 
 ENTRYPOINT [ "/bin/go-plugin-counter" ]
 
-FROM docker.mirror.hashicorp.services/ubuntu:24.04 AS nonroot
+FROM docker.mirror.hashicorp.services/ubuntu:22.04 AS nonroot
 
 COPY go-plugin-counter /bin/go-plugin-counter
 
