@@ -5,10 +5,10 @@ go 1.20
 require (
 	github.com/docker/docker v24.0.7+incompatible
 	github.com/hashicorp/go-hclog v1.5.0
-	github.com/hashicorp/go-plugin v1.6.0
+	github.com/hashicorp/go-plugin v1.6.1
 	github.com/joshlf/go-acl v0.0.0-20200411065538-eae00ae38531
 	golang.org/x/sys v0.13.0
-	google.golang.org/grpc v1.57.1
+	google.golang.org/grpc v1.58.3
 	google.golang.org/protobuf v1.31.0
 )
 
@@ -37,6 +37,6 @@ require (
 	golang.org/x/text v0.13.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
 	golang.org/x/tools v0.7.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20230525234030-28d5490b6b19 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20230711160842-782d3b101e98 // indirect
 	gotest.tools/v3 v3.5.0 // indirect
 )
