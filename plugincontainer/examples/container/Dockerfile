@@ -11,13 +11,12 @@ FROM docker.mirror.hashicorp.services/ubuntu:22.04 AS nonroot
 
 COPY go-plugin-counter /bin/go-plugin-counter
 
-RUN apt-get update && apt-get install -y libcap2-bin acl adduser && \
+RUN apt-get update && apt-get install -y libcap2-bin acl adduser file && \
     addgroup --system nonroot && \
     adduser --system --ingroup nonroot nonroot && \
     chown -R nonroot:nonroot /bin/go-plugin-counter && \
-    setcap cap_dac_override=+ep /bin/go-plugin-counter && \
     cp /bin/go-plugin-counter /bin/go-plugin-counter-mlock && \
-    setcap cap_dac_override,cap_ipc_lock=+ep /bin/go-plugin-counter-mlock
+    setcap cap_ipc_lock=+ep /bin/go-plugin-counter-mlock
 
 USER nonroot
 
