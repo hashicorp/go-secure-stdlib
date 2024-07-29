@@ -103,6 +103,9 @@ func runExamplePlugin(t *testing.T, i matrixInput) {
 		} else {
 			target = "nonroot"
 		}
+		if i.containerRuntime == runtimeRunsc {
+			target += "-runsc"
+		}
 	}
 	runCmd(t, "docker", "build", fmt.Sprintf("--tag=%s:%s", goPluginCounterImage, target), "--target="+target, "--file=examples/container/Dockerfile", "examples/container")
 
