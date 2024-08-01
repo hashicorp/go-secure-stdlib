@@ -20,7 +20,7 @@ type ignoreExtensionsRoundTripper struct {
 
 // Creates a RoundTripper that may be used in an HTTP client which will ignore the provided extensions if present
 // on a certificate.
-func NewIgnoreExtensionsRoundTripper(base http.RoundTripper, extsToIgnore []asn1.ObjectIdentifier) http.RoundTripper {
+func NewIgnoreUnsupportedExtensionsRoundTripper(base http.RoundTripper, extsToIgnore []asn1.ObjectIdentifier) http.RoundTripper {
 	if len(extsToIgnore) == 0 {
 		return base
 	}
