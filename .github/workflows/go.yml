@@ -13,6 +13,7 @@ jobs:
                   "configutil",
                   "fileutil",
                   "gatedwriter",
+                  "httputil",
                   "kv-builder",
                   "listenerutil",
                   "mlock",
