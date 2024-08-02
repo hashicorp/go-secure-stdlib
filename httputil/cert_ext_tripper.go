@@ -21,9 +21,9 @@ type ignoreExtensionsRoundTripper struct {
 	logger       hclog.Logger
 }
 
-// NewIgnoreUnsupportedExtensionsRoundTripper creates a RoundTripper that may be used in an HTTP client which will
-// ignore the provided extensions if present on a certificate.  If base is nil, the default RoundTripper is used.
-func NewIgnoreUnsupportedExtensionsRoundTripper(logger hclog.Logger, base http.RoundTripper, extsToIgnore []asn1.ObjectIdentifier) http.RoundTripper {
+// NewIgnoreUnhandledExtensionsRoundTripper creates a RoundTripper that may be used in an HTTP client which will
+// ignore the provided extensions if present unhandled on a certificate.  If base is nil, the default RoundTripper is used.
+func NewIgnoreUnhandledExtensionsRoundTripper(logger hclog.Logger, base http.RoundTripper, extsToIgnore []asn1.ObjectIdentifier) http.RoundTripper {
 	if len(extsToIgnore) == 0 {
 		return base
 	}

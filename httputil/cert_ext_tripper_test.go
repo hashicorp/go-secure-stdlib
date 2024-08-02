@@ -95,7 +95,7 @@ func getClient(t *testing.T, srv *httptest.Server, extsToIgnore []asn1.ObjectIde
 	certpool := x509.NewCertPool()
 	certpool.AddCert(rootCert)
 	client := http.Client{
-		Transport: NewIgnoreUnsupportedExtensionsRoundTripper(hclog.New(hclog.DefaultOptions), &http.Transport{
+		Transport: NewIgnoreUnhandledExtensionsRoundTripper(hclog.New(hclog.DefaultOptions), &http.Transport{
 			TLSClientConfig: &tls.Config{
 				RootCAs: certpool,
 			},
