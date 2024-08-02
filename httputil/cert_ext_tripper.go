@@ -20,7 +20,7 @@ type ignoreExtensionsRoundTripper struct {
 }
 
 // NewIgnoreUnhandledExtensionsRoundTripper creates a RoundTripper that may be used in an HTTP client which will
-// ignore the provided extensions if present unhandled on a certificate.  If base is nil, the default RoundTripper is used.
+// ignore the provided extensions if presently unhandled on a certificate.  If base is nil, the default RoundTripper is used.
 func NewIgnoreUnhandledExtensionsRoundTripper(base http.RoundTripper, extsToIgnore []asn1.ObjectIdentifier) (http.RoundTripper, error) {
 	if len(extsToIgnore) == 0 {
 		return nil, errors.New("no extensions ignored, should use original RoundTripper")
