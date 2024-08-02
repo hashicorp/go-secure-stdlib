@@ -86,7 +86,7 @@ func (i *ignoreExtensionsRoundTripper) customVerifyConnection(tc *tls.Config, ip
 			}
 			serverName = tc.ServerName
 		} else if cs.ServerName != tc.ServerName {
-			return fmt.Errorf("x509: connection state server name (%s) does not match requested (%s)", cs.ServerName, tc.ServerName)
+			return fmt.Errorf("connection state server name (%s) does not match requested (%s)", cs.ServerName, tc.ServerName)
 		}
 
 		for _, cert := range certs {

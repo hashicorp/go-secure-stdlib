@@ -27,80 +27,66 @@ var (
 )
 
 func TestClient(t *testing.T) {
-	srvWith := newTLSServer(t, true, "localhost")
-	defer srvWith.Close()
-	// Only works with a host entry
-	// srvWithout := newTLSServer(t, false, "example.com")
-	// defer srvWithout.Close()
-	srvIP := newTLSServer(t, true, "127.0.0.1")
-	defer srvIP.Close()
+	for _, host := range []string{"localhost", "127.0.0.1", "[::1]"} {
+		func() {
 
-	tests := []struct {
-		name         string
-		extsToIgnore []asn1.ObjectIdentifier
-		errContains  string
-		srv          *httptest.Server
-	}{
-		{
-			name:        "no-overrides",
-			errContains: "no extensions ignored",
-			srv:         srvWith,
-		},
-		{
-			name:         "partial-override",
-			extsToIgnore: []asn1.ObjectIdentifier{inhibitAnyPolicyExt},
-			errContains:  "x509: unhandled critical extension",
-			srv:          srvWith,
-		},
-		{
-			name:         "full-override",
-			extsToIgnore: []asn1.ObjectIdentifier{inhibitAnyPolicyExt, policyConstraintExt},
-			srv:          srvWith,
-		},
-		{
-			name:         "full-override-ip-based",
-			extsToIgnore: []asn1.ObjectIdentifier{inhibitAnyPolicyExt, policyConstraintExt},
-			srv:          srvIP,
-		},
-		/*{
-			name:         "other-name",
-			extsToIgnore: []asn1.ObjectIdentifier{inhibitAnyPolicyExt, policyConstraintExt},
-			srv:          srvWithout,
-		},*/
-	}
+			srv := newTLSServer(t, true, host)
+			defer srv.Close()
 
-	for _, tc := range tests {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			client, err := getClient(t, tc.srv, tc.extsToIgnore)
-			if err != nil {
-				if tc.errContains == "" {
-					t.Fatalf("unexpected error: %v", err)
-				} else if !strings.Contains(err.Error(), tc.errContains) {
-					t.Fatalf("expected error to contain '%s', got '%s'", tc.errContains, err.Error())
-				} else {
-					return
-				}
+			tests := []struct {
+				name         string
+				extsToIgnore []asn1.ObjectIdentifier
+				errContains  string
+			}{
+				{
+					name:        fmt.Sprintf("no-overrides-[%s]", host),
+					errContains: "no extensions ignored",
+				},
+				{
+					name:         fmt.Sprintf("partial-override-[%s]", host),
+					extsToIgnore: []asn1.ObjectIdentifier{inhibitAnyPolicyExt},
+					errContains:  "x509: unhandled critical extension",
+				},
+				{
+					name:         fmt.Sprintf("full-override-[%s]", host),
+					extsToIgnore: []asn1.ObjectIdentifier{inhibitAnyPolicyExt, policyConstraintExt},
+				},
 			}
-			resp, err := client.Get(tc.srv.URL)
-			if len(tc.errContains) > 0 {
-				if err == nil {
-					t.Fatal("expected error, got nil")
-				}
-				if !strings.Contains(err.Error(), tc.errContains) {
-					t.Fatalf("expected error to contain '%s', got '%s'", tc.errContains, err.Error())
-				}
-			} else {
-				if err != nil {
-					t.Fatalf("unexpected error: %s", err)
-				}
 
-				defer func() { _ = resp.Body.Close() }()
-				if resp.StatusCode != http.StatusOK {
-					t.Fatalf("got status code: %v", resp.StatusCode)
-				}
+			for _, tc := range tests {
+				tc := tc
+				t.Run(tc.name, func(t *testing.T) {
+					client, err := getClient(t, srv, tc.extsToIgnore)
+					if err != nil {
+						if tc.errContains == "" {
+							t.Fatalf("unexpected error: %v", err)
+						} else if !strings.Contains(err.Error(), tc.errContains) {
+							t.Fatalf("expected error to contain '%s', got '%s'", tc.errContains, err.Error())
+						} else {
+							return
+						}
+					}
+					resp, err := client.Get(srv.URL)
+					if len(tc.errContains) > 0 {
+						if err == nil {
+							t.Fatal("expected error, got nil")
+						}
+						if !strings.Contains(err.Error(), tc.errContains) {
+							t.Fatalf("expected error to contain '%s', got '%s'", tc.errContains, err.Error())
+						}
+					} else {
+						if err != nil {
+							t.Fatalf("unexpected error: %s", err)
+						}
+
+						defer func() { _ = resp.Body.Close() }()
+						if resp.StatusCode != http.StatusOK {
+							t.Fatalf("got status code: %v", resp.StatusCode)
+						}
+					}
+				})
 			}
-		})
+		}()
 	}
 }
 
@@ -134,6 +120,15 @@ func newTLSServer(t *testing.T, withUnsupportedExts bool, hostname string) *http
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("Hello World!"))
 	}))
+
+	// hack to force listening on IPv6
+	if hostname[0] == '[' {
+		if l, err := net.Listen("tcp6", "[::1]:0"); err != nil {
+			panic(fmt.Sprintf("httptest: failed to listen on a port: %v", err))
+		} else {
+			ts.Listener = l
+		}
+	}
 
 	ts.TLS = &tls.Config{Certificates: []tls.Certificate{getSelfSignedRoot(t, withUnsupportedExts)}}
 	ts.StartTLS()
