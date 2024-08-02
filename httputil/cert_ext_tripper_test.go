@@ -16,6 +16,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -29,64 +30,76 @@ var (
 func TestClient(t *testing.T) {
 	for _, host := range []string{"localhost", "127.0.0.1", "[::1]"} {
 		func() {
-
 			srv := newTLSServer(t, true, host)
 			defer srv.Close()
+			runOverrideTests(host, t, srv)
 
-			tests := []struct {
-				name         string
-				extsToIgnore []asn1.ObjectIdentifier
-				errContains  string
-			}{
-				{
-					name:        fmt.Sprintf("no-overrides-[%s]", host),
-					errContains: "no extensions ignored",
-				},
-				{
-					name:         fmt.Sprintf("partial-override-[%s]", host),
-					extsToIgnore: []asn1.ObjectIdentifier{inhibitAnyPolicyExt},
-					errContains:  "x509: unhandled critical extension",
-				},
-				{
-					name:         fmt.Sprintf("full-override-[%s]", host),
-					extsToIgnore: []asn1.ObjectIdentifier{inhibitAnyPolicyExt, policyConstraintExt},
-				},
+			srv2 := newTLSServer(t, true, host)
+			defer srv2.Close()
+
+			url, err := url.Parse(srv2.URL)
+			if err != nil {
+				t.Fatalf("err parsing server address: %v", err)
 			}
 
-			for _, tc := range tests {
-				tc := tc
-				t.Run(tc.name, func(t *testing.T) {
-					client, err := getClient(t, srv, tc.extsToIgnore)
-					if err != nil {
-						if tc.errContains == "" {
-							t.Fatalf("unexpected error: %v", err)
-						} else if !strings.Contains(err.Error(), tc.errContains) {
-							t.Fatalf("expected error to contain '%s', got '%s'", tc.errContains, err.Error())
-						} else {
-							return
-						}
-					}
-					resp, err := client.Get(srv.URL)
-					if len(tc.errContains) > 0 {
-						if err == nil {
-							t.Fatal("expected error, got nil")
-						}
-						if !strings.Contains(err.Error(), tc.errContains) {
-							t.Fatalf("expected error to contain '%s', got '%s'", tc.errContains, err.Error())
-						}
-					} else {
-						if err != nil {
-							t.Fatalf("unexpected error: %s", err)
-						}
-
-						defer func() { _ = resp.Body.Close() }()
-						if resp.StatusCode != http.StatusOK {
-							t.Fatalf("got status code: %v", resp.StatusCode)
-						}
-					}
-				})
-			}
+			runOverrideTests(url.Host, t, srv2)
 		}()
+	}
+}
+
+func runOverrideTests(host string, t *testing.T, srv *httptest.Server) {
+	tests := []struct {
+		name         string
+		extsToIgnore []asn1.ObjectIdentifier
+		errContains  string
+	}{
+		{
+			name:        fmt.Sprintf("no-overrides-[%s]", host),
+			errContains: "no extensions ignored",
+		},
+		{
+			name:         fmt.Sprintf("partial-override-[%s]", host),
+			extsToIgnore: []asn1.ObjectIdentifier{inhibitAnyPolicyExt},
+			errContains:  "x509: unhandled critical extension",
+		},
+		{
+			name:         fmt.Sprintf("full-override-[%s]", host),
+			extsToIgnore: []asn1.ObjectIdentifier{inhibitAnyPolicyExt, policyConstraintExt},
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			client, err := getClient(t, srv, tc.extsToIgnore)
+			if err != nil {
+				if tc.errContains == "" {
+					t.Fatalf("unexpected error: %v", err)
+				} else if !strings.Contains(err.Error(), tc.errContains) {
+					t.Fatalf("expected error to contain '%s', got '%s'", tc.errContains, err.Error())
+				} else {
+					return
+				}
+			}
+			resp, err := client.Get(srv.URL)
+			if len(tc.errContains) > 0 {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				if !strings.Contains(err.Error(), tc.errContains) {
+					t.Fatalf("expected error to contain '%s', got '%s'", tc.errContains, err.Error())
+				}
+			} else {
+				if err != nil {
+					t.Fatalf("unexpected error: %s", err)
+				}
+
+				defer func() { _ = resp.Body.Close() }()
+				if resp.StatusCode != http.StatusOK {
+					t.Fatalf("got status code: %v", resp.StatusCode)
+				}
+			}
+		})
 	}
 }
 
