@@ -11,16 +11,19 @@ import (
 	"net"
 	"net/http"
 	"strings"
+
+	"github.com/hashicorp/go-hclog"
 )
 
 type ignoreExtensionsRoundTripper struct {
 	base         *http.Transport
 	extsToIgnore []asn1.ObjectIdentifier
+	logger       hclog.Logger
 }
 
 // Creates a RoundTripper that may be used in an HTTP client which will ignore the provided extensions if present
-// on a certificate.
-func NewIgnoreUnsupportedExtensionsRoundTripper(base http.RoundTripper, extsToIgnore []asn1.ObjectIdentifier) http.RoundTripper {
+// on a certificate.  If base is nil, the default RoundTripper is used.
+func NewIgnoreUnsupportedExtensionsRoundTripper(logger hclog.Logger, base http.RoundTripper, extsToIgnore []asn1.ObjectIdentifier) http.RoundTripper {
 	if len(extsToIgnore) == 0 {
 		return base
 	}
@@ -34,7 +37,7 @@ func NewIgnoreUnsupportedExtensionsRoundTripper(base http.RoundTripper, extsToIg
 		return base
 	}
 
-	return &ignoreExtensionsRoundTripper{base: tp, extsToIgnore: extsToIgnore}
+	return &ignoreExtensionsRoundTripper{base: tp, logger: logger, extsToIgnore: extsToIgnore}
 }
 
 func (i *ignoreExtensionsRoundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
@@ -64,7 +67,7 @@ func (i *ignoreExtensionsRoundTripper) RoundTrip(request *http.Request) (*http.R
 		tlsConfig.ServerName = domain
 
 		tlsConfig.InsecureSkipVerify = true
-		connectionVerifier := customVerifyConnection(tlsConfig, i.extsToIgnore)
+		connectionVerifier := i.customVerifyConnection(tlsConfig)
 		tlsConfig.VerifyConnection = connectionVerifier
 
 		perReqTransport.TLSClientConfig = tlsConfig
@@ -74,7 +77,7 @@ func (i *ignoreExtensionsRoundTripper) RoundTrip(request *http.Request) (*http.R
 	return perReqTransport.RoundTrip(request)
 }
 
-func customVerifyConnection(tc *tls.Config, extToIgnore []asn1.ObjectIdentifier) func(tls.ConnectionState) error {
+func (i *ignoreExtensionsRoundTripper) customVerifyConnection(tc *tls.Config) func(tls.ConnectionState) error {
 	return func(cs tls.ConnectionState) error {
 		certs := cs.PeerCertificates
 
@@ -94,12 +97,21 @@ func customVerifyConnection(tc *tls.Config, extToIgnore []asn1.ObjectIdentifier)
 			}
 			var remainingUnhandled []asn1.ObjectIdentifier
 			for _, ext := range cert.UnhandledCriticalExtensions {
-				shouldRemove := isExtInIgnore(ext, extToIgnore)
-				if !shouldRemove {
+				shouldRemove := i.isExtInIgnore(ext)
+				if shouldRemove {
+					if i.logger != nil && i.logger.IsDebug() {
+						i.logger.Debug("x509: ignoring unhandled extension", "oid", ext.String())
+					}
+				} else {
 					remainingUnhandled = append(remainingUnhandled, ext)
 				}
 			}
 			cert.UnhandledCriticalExtensions = remainingUnhandled
+			if len(remainingUnhandled) > 0 && i.logger != nil {
+				for _, ext := range remainingUnhandled {
+					i.logger.Warn("x509: unhandled critical extension", "oid", ext.String())
+				}
+			}
 		}
 
 		opts := x509.VerifyOptions{
@@ -121,8 +133,8 @@ func customVerifyConnection(tc *tls.Config, extToIgnore []asn1.ObjectIdentifier)
 	}
 }
 
-func isExtInIgnore(ext asn1.ObjectIdentifier, ignoreList []asn1.ObjectIdentifier) bool {
-	for _, extToIgnore := range ignoreList {
+func (i *ignoreExtensionsRoundTripper) isExtInIgnore(ext asn1.ObjectIdentifier) bool {
+	for _, extToIgnore := range i.extsToIgnore {
 		if ext.Equal(extToIgnore) {
 			return true
 		}
