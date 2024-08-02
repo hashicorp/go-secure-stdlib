@@ -11,6 +11,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
+	"fmt"
 	"math/big"
 	"net"
 	"net/http"
@@ -18,8 +19,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/hashicorp/go-hclog"
 )
 
 var (
@@ -33,6 +32,8 @@ func TestClient(t *testing.T) {
 	// Only works with a host entry
 	// srvWithout := newTLSServer(t, false, "example.com")
 	// defer srvWithout.Close()
+	srvIP := newTLSServer(t, true, "127.0.0.1")
+	defer srvIP.Close()
 
 	tests := []struct {
 		name         string
@@ -42,7 +43,7 @@ func TestClient(t *testing.T) {
 	}{
 		{
 			name:        "no-overrides",
-			errContains: "x509: unhandled critical extension",
+			errContains: "no extensions ignored",
 			srv:         srvWith,
 		},
 		{
@@ -56,6 +57,11 @@ func TestClient(t *testing.T) {
 			extsToIgnore: []asn1.ObjectIdentifier{inhibitAnyPolicyExt, policyConstraintExt},
 			srv:          srvWith,
 		},
+		{
+			name:         "full-override-ip-based",
+			extsToIgnore: []asn1.ObjectIdentifier{inhibitAnyPolicyExt, policyConstraintExt},
+			srv:          srvIP,
+		},
 		/*{
 			name:         "other-name",
 			extsToIgnore: []asn1.ObjectIdentifier{inhibitAnyPolicyExt, policyConstraintExt},
@@ -66,7 +72,16 @@ func TestClient(t *testing.T) {
 	for _, tc := range tests {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			client := getClient(t, tc.srv, tc.extsToIgnore)
+			client, err := getClient(t, tc.srv, tc.extsToIgnore)
+			if err != nil {
+				if tc.errContains == "" {
+					t.Fatalf("unexpected error: %v", err)
+				} else if !strings.Contains(err.Error(), tc.errContains) {
+					t.Fatalf("expected error to contain '%s', got '%s'", tc.errContains, err.Error())
+				} else {
+					return
+				}
+			}
 			resp, err := client.Get(tc.srv.URL)
 			if len(tc.errContains) > 0 {
 				if err == nil {
@@ -89,23 +104,28 @@ func TestClient(t *testing.T) {
 	}
 }
 
-func getClient(t *testing.T, srv *httptest.Server, extsToIgnore []asn1.ObjectIdentifier) *http.Client {
+func getClient(t *testing.T, srv *httptest.Server, extsToIgnore []asn1.ObjectIdentifier) (*http.Client, error) {
 	srvCertsRaw := srv.TLS.Certificates[0]
 	rootCert, err := x509.ParseCertificate(srvCertsRaw.Certificate[0])
 	if err != nil {
-		t.Fatalf("failed parsing root ca certificate: %v", err)
+		return nil, fmt.Errorf("failed parsing root ca certificate: %v", err)
 	}
 
 	certpool := x509.NewCertPool()
 	certpool.AddCert(rootCert)
-	client := http.Client{
-		Transport: NewIgnoreUnhandledExtensionsRoundTripper(hclog.New(hclog.DefaultOptions), &http.Transport{
-			TLSClientConfig: &tls.Config{
-				RootCAs: certpool,
-			},
-		}, extsToIgnore),
+	rt, err := NewIgnoreUnhandledExtensionsRoundTripper(&http.Transport{
+		TLSClientConfig: &tls.Config{
+			RootCAs: certpool,
+		},
+	}, extsToIgnore)
+	if err != nil {
+		return nil, fmt.Errorf("error instantiating round tripper: %v", err)
 	}
-	return &client
+
+	client := http.Client{
+		Transport: rt,
+	}
+	return &client, nil
 }
 
 func newTLSServer(t *testing.T, withUnsupportedExts bool, hostname string) *httptest.Server {

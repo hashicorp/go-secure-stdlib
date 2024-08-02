@@ -7,25 +7,23 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/asn1"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
 	"strings"
-
-	"github.com/hashicorp/go-hclog"
 )
 
 type ignoreExtensionsRoundTripper struct {
 	base         *http.Transport
 	extsToIgnore []asn1.ObjectIdentifier
-	logger       hclog.Logger
 }
 
 // NewIgnoreUnhandledExtensionsRoundTripper creates a RoundTripper that may be used in an HTTP client which will
 // ignore the provided extensions if present unhandled on a certificate.  If base is nil, the default RoundTripper is used.
-func NewIgnoreUnhandledExtensionsRoundTripper(logger hclog.Logger, base http.RoundTripper, extsToIgnore []asn1.ObjectIdentifier) http.RoundTripper {
+func NewIgnoreUnhandledExtensionsRoundTripper(base http.RoundTripper, extsToIgnore []asn1.ObjectIdentifier) (http.RoundTripper, error) {
 	if len(extsToIgnore) == 0 {
-		return base
+		return nil, errors.New("no extensions ignored, should use original RoundTripper")
 	}
 	if base == nil {
 		base = http.DefaultTransport
@@ -34,55 +32,55 @@ func NewIgnoreUnhandledExtensionsRoundTripper(logger hclog.Logger, base http.Rou
 	tp, ok := base.(*http.Transport)
 	if !ok {
 		// We don't know how to deal with this object, bail
-		return base
+		return base, nil
 	}
-
-	return &ignoreExtensionsRoundTripper{base: tp, logger: logger, extsToIgnore: extsToIgnore}
+	if tp != nil && (tp.TLSClientConfig != nil && (tp.TLSClientConfig.InsecureSkipVerify || tp.TLSClientConfig.VerifyConnection != nil)) {
+		// Already not verifying or verifying in a custom fashion
+		return nil, errors.New("cannot ignore provided extensions, base RoundTripper already handling or skipping verification")
+	}
+	return &ignoreExtensionsRoundTripper{base: tp, extsToIgnore: extsToIgnore}, nil
 }
 
 func (i *ignoreExtensionsRoundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
-	var domain string
-	if strings.ContainsRune(request.URL.Host, ':') {
-		var err error
-		domain, _, err = net.SplitHostPort(request.URL.Host)
-		if err != nil {
-			return nil, fmt.Errorf("could not parse domain from URL host %s", request.URL.Host)
-		}
-	} else {
-		domain = request.URL.Host
-	}
-
-	// Only update our values if the end-user hasn't overridden anything we wanted to do.
-	var perReqTransport *http.Transport
-	if !i.base.TLSClientConfig.InsecureSkipVerify && i.base.TLSClientConfig.VerifyConnection == nil {
-		perReqTransport = i.base.Clone()
-		var tlsConfig *tls.Config
-		if perReqTransport.TLSClientConfig == nil {
-			tlsConfig = &tls.Config{
-				ServerName: domain,
-			}
+	domain, _, err := net.SplitHostPort(request.URL.Host)
+	if err != nil {
+		if strings.Contains(err.Error(), "missing port") {
+			domain = request.URL.Host
 		} else {
-			tlsConfig = i.base.TLSClientConfig.Clone()
+			return nil, fmt.Errorf("error splitting host/port: %w", err)
 		}
-		tlsConfig.ServerName = domain
-
-		tlsConfig.InsecureSkipVerify = true
-		connectionVerifier := i.customVerifyConnection(tlsConfig)
-		tlsConfig.VerifyConnection = connectionVerifier
-
-		perReqTransport.TLSClientConfig = tlsConfig
-	} else {
-		perReqTransport = i.base
 	}
+
+	var tlsConfig *tls.Config
+	perReqTransport := i.base.Clone()
+	if perReqTransport.TLSClientConfig != nil {
+		tlsConfig = perReqTransport.TLSClientConfig.Clone()
+	} else {
+		tlsConfig = &tls.Config{}
+	}
+
+	// Domain may be an IP address, in which case we shouldn't set ServerName
+	var ipBased bool
+	if addr := net.ParseIP(domain); addr == nil {
+		tlsConfig.ServerName = domain
+	} else {
+		ipBased = true
+	}
+
+	tlsConfig.InsecureSkipVerify = true
+	connectionVerifier := i.customVerifyConnection(tlsConfig, ipBased)
+	tlsConfig.VerifyConnection = connectionVerifier
+
+	perReqTransport.TLSClientConfig = tlsConfig
 	return perReqTransport.RoundTrip(request)
 }
 
-func (i *ignoreExtensionsRoundTripper) customVerifyConnection(tc *tls.Config) func(tls.ConnectionState) error {
+func (i *ignoreExtensionsRoundTripper) customVerifyConnection(tc *tls.Config, ipBased bool) func(tls.ConnectionState) error {
 	return func(cs tls.ConnectionState) error {
 		certs := cs.PeerCertificates
 
 		serverName := cs.ServerName
-		if cs.ServerName == "" {
+		if cs.ServerName == "" && !ipBased {
 			if tc.ServerName == "" {
 				return fmt.Errorf("the ServerName in TLSClientConfig is required to be set when UnhandledExtensionsToIgnore has values")
 			}
@@ -98,20 +96,11 @@ func (i *ignoreExtensionsRoundTripper) customVerifyConnection(tc *tls.Config) fu
 			var remainingUnhandled []asn1.ObjectIdentifier
 			for _, ext := range cert.UnhandledCriticalExtensions {
 				shouldRemove := i.isExtInIgnore(ext)
-				if shouldRemove {
-					if i.logger != nil && i.logger.IsDebug() {
-						i.logger.Debug("x509: ignoring unhandled extension", "oid", ext.String())
-					}
-				} else {
+				if !shouldRemove {
 					remainingUnhandled = append(remainingUnhandled, ext)
 				}
 			}
 			cert.UnhandledCriticalExtensions = remainingUnhandled
-			if len(remainingUnhandled) > 0 && i.logger != nil {
-				for _, ext := range remainingUnhandled {
-					i.logger.Warn("x509: unhandled critical extension", "oid", ext.String())
-				}
-			}
 		}
 
 		// Now verify with the requested extensions removed
