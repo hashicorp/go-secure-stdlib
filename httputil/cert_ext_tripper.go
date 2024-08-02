@@ -21,8 +21,8 @@ type ignoreExtensionsRoundTripper struct {
 	logger       hclog.Logger
 }
 
-// Creates a RoundTripper that may be used in an HTTP client which will ignore the provided extensions if present
-// on a certificate.  If base is nil, the default RoundTripper is used.
+// NewIgnoreUnsupportedExtensionsRoundTripper creates a RoundTripper that may be used in an HTTP client which will
+// ignore the provided extensions if present on a certificate.  If base is nil, the default RoundTripper is used.
 func NewIgnoreUnsupportedExtensionsRoundTripper(logger hclog.Logger, base http.RoundTripper, extsToIgnore []asn1.ObjectIdentifier) http.RoundTripper {
 	if len(extsToIgnore) == 0 {
 		return base
@@ -114,6 +114,7 @@ func (i *ignoreExtensionsRoundTripper) customVerifyConnection(tc *tls.Config) fu
 			}
 		}
 
+		// Now verify with the requested extensions removed
 		opts := x509.VerifyOptions{
 			Roots:         tc.RootCAs,
 			DNSName:       serverName,
