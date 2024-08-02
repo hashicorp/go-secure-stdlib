@@ -185,9 +185,6 @@ func (c *CredentialsConfig) generateAwsConfigOptions(opts options) []func(*confi
 		if profile != "" {
 			c.Profile = profile
 		}
-		if c.Profile == "" {
-			c.Profile = "default"
-		}
 		cfgOpts = append(cfgOpts, config.WithSharedConfigProfile(c.Profile))
 		cfgOpts = append(cfgOpts, config.WithSharedCredentialsFiles([]string{c.Filename}))
 		c.log(hclog.Debug, "added shared profile credential provider")
@@ -263,7 +260,7 @@ func (c *CredentialsConfig) GenerateCredentialChain(ctx context.Context, opt ...
 
 	awsConfig, err := config.LoadDefaultConfig(ctx, c.generateAwsConfigOptions(opts)...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load SDK's default configurations with given credential options")
+		return nil, fmt.Errorf("failed to load SDK's default configurations with given credential options: %w", err)
 	}
 
 	if opts.withCredentialsProvider != nil {
