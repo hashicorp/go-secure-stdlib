@@ -11,7 +11,6 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
-	"github.com/hashicorp/go-hclog"
 	"math/big"
 	"net"
 	"net/http"
@@ -19,6 +18,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/hashicorp/go-hclog"
 )
 
 var (
@@ -30,8 +31,8 @@ func TestClient(t *testing.T) {
 	srvWith := newTLSServer(t, true, "localhost")
 	defer srvWith.Close()
 	// Only works with a host entry
-	//srvWithout := newTLSServer(t, false, "example.com")
-	//defer srvWithout.Close()
+	// srvWithout := newTLSServer(t, false, "example.com")
+	// defer srvWithout.Close()
 
 	tests := []struct {
 		name         string
@@ -153,7 +154,6 @@ func getSelfSignedRoot(t *testing.T, withUnsupportedExts bool) tls.Certificate {
 		caTemplate.DNSNames = []string{"localhost"}
 	} else {
 		caTemplate.DNSNames = []string{"example.com"}
-
 	}
 
 	caBytes, err := x509.CreateCertificate(rand.Reader, caTemplate, caTemplate, pub, key)
