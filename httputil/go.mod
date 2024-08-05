@@ -1,6 +1,6 @@
 module github.com/hashicorp/go-secure-stdlib/httputil
 
-go 1.22.5
+go 1.21
 
 require (
 	github.com/fatih/color v1.13.0 // indirect
