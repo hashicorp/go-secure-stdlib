@@ -5,13 +5,14 @@ import (
 	"regexp"
 	"runtime"
 	"sync"
-	"time"
 	"unsafe"
 )
 
-// Caches regexp compilation to avoid CPU and RAM usage for many duplicate regexps
-
-const defaultTTL = 2 * time.Minute
+// "Interns" compilation of Regular Expressions.  If two regexs with the same pattern are compiled, the result
+// is the same *regexp.Regexp.  This avoids the compilation cost but more importantly the memory usage.
+//
+// Regexps produced from this package are backed by a form of weak-valued map, upon a regex becoming
+// unreachable, they will be eventually removed from the map and memory reclaimed.
 
 var (
 	weakMap      = make(map[string]uintptr)
@@ -20,19 +21,19 @@ var (
 	l            sync.RWMutex
 )
 
-func Compile(pattern string) (*regexp.Regexp, error) {
+func CompileInterned(pattern string) (*regexp.Regexp, error) {
 	return compile(pattern, regexp.Compile, weakMap)
 }
 
-func CompilePOSIX(pattern string) (*regexp.Regexp, error) {
+func CompilePOSIXInterned(pattern string) (*regexp.Regexp, error) {
 	return compile(pattern, regexp.CompilePOSIX, posixWeakMap)
 }
 
-func MustCompile(pattern string) *regexp.Regexp {
+func MustCompileInterned(pattern string) *regexp.Regexp {
 	return mustCompile(pattern, regexp.MustCompile, weakMap)
 }
 
-func MustCompilePOSIX(pattern string) *regexp.Regexp {
+func MustCompilePOSIXInterned(pattern string) *regexp.Regexp {
 	return mustCompile(pattern, regexp.MustCompilePOSIX, posixWeakMap)
 }
 

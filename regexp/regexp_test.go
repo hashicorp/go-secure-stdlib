@@ -6,20 +6,37 @@ import (
 	"testing"
 )
 
-func TestRegexpCompilation(t *testing.T) {
+func TestInterenedRegexps(t *testing.T) {
 	t.Run("must", func(t *testing.T) {
-		testMust(t, regexp.MustCompile, MustCompile)
+		testMust(t, regexp.MustCompile, MustCompileInterned)
 	})
 	t.Run("must-posix", func(t *testing.T) {
-		testMust(t, regexp.MustCompilePOSIX, MustCompilePOSIX)
+		testMust(t, regexp.MustCompilePOSIX, MustCompilePOSIXInterned)
 	})
 	t.Run("errorable", func(t *testing.T) {
-		test(t, regexp.Compile, Compile)
+		test(t, regexp.Compile, CompileInterned)
 	})
 	t.Run("errorable-posix", func(t *testing.T) {
-		test(t, regexp.CompilePOSIX, CompilePOSIX)
+		test(t, regexp.CompilePOSIX, CompilePOSIXInterned)
 	})
-	// Unfortunately, GC behavior is untestably flaky
+	// Check errors
+	_, err := CompileInterned("(")
+	require.Error(t, err)
+
+	// Unfortunately, GC behavior is non-deterministic, this section of code works, but not reliably:
+	/*
+			ptr1 := reflect.ValueOf(r1).Pointer()
+			r1 = nil
+			r2 = nil
+			runtime.GC()
+			runtime.GC()
+			r2, err = MustCompile(".*")
+			require.NoError(t, err)
+			ptr2 := reflect.ValueOf(r2).Pointer()
+		    // If GC occurred, this will be a brand new pointer as the regex was removed from maps
+			require.True(t, ptr1 != ptr2)
+
+	*/
 }
 
 func test(t *testing.T, compile, cachedCompile func(string) (*regexp.Regexp, error)) {
