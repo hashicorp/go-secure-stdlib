@@ -1,10 +1,12 @@
 package regexp
 
 import (
-	"github.com/jellydator/ttlcache/v3"
+	"reflect"
 	"regexp"
+	"runtime"
 	"sync"
 	"time"
+	"unsafe"
 )
 
 // Caches regexp compilation to avoid CPU and RAM usage for many duplicate regexps
@@ -12,92 +14,68 @@ import (
 const defaultTTL = 2 * time.Minute
 
 var (
-	regexpCache      *ttlcache.Cache[string, *regexp.Regexp]
-	posixRegexpCache *ttlcache.Cache[string, *regexp.Regexp]
-	ticker           *time.Ticker
-	stopchan         chan struct{}
-	setupLock        sync.Mutex
+	weakMap      = make(map[string]uintptr)
+	posixWeakMap = make(map[string]uintptr)
+	reverseMap   = make(map[uintptr]string)
+	l            sync.RWMutex
 )
 
-func init() {
-	SetCompileCacheTTL(defaultTTL)
-}
-
-func SetCompileCacheTTL(ttl time.Duration) {
-	Stop()
-	setupLock.Lock()
-	defer setupLock.Unlock()
-
-	regexpCache = ttlcache.New[string, *regexp.Regexp](ttlcache.WithTTL[string, *regexp.Regexp](ttl))
-	posixRegexpCache = ttlcache.New[string, *regexp.Regexp](ttlcache.WithTTL[string, *regexp.Regexp](ttl))
-	ticker = time.NewTicker(ttl)
-	stopchan = make(chan struct{})
-
-	go expire()
-}
-
-func expire() {
-	for {
-		select {
-		case <-ticker.C:
-			regexpCache.DeleteExpired()
-			posixRegexpCache.DeleteExpired()
-		case <-stopchan:
-			ticker.Stop()
-			break
-		}
-	}
-}
-func MustCompile(pattern string) *regexp.Regexp {
-	item := regexpCache.Get(pattern)
-	if item != nil {
-		return item.Value()
-	}
-	regex := regexp.MustCompile(pattern)
-	regexpCache.Set(pattern, regex, ttlcache.DefaultTTL)
-	return regex
-}
-
-func MustCompilePOSIX(pattern string) *regexp.Regexp {
-	item := posixRegexpCache.Get(pattern)
-	if item != nil {
-		return item.Value()
-	}
-	regex := regexp.MustCompilePOSIX(pattern)
-	posixRegexpCache.Set(pattern, regex, ttlcache.DefaultTTL)
-	return regex
-}
-
 func Compile(pattern string) (*regexp.Regexp, error) {
-	item := regexpCache.Get(pattern)
-	if item != nil {
-		return item.Value(), nil
-	}
-	regex, err := regexp.Compile(pattern)
-	if err != nil {
-		return nil, err
-	}
-	regexpCache.Set(pattern, regex, ttlcache.DefaultTTL)
-	return regex, nil
+	return compile(pattern, regexp.Compile)
 }
 
 func CompilePOSIX(pattern string) (*regexp.Regexp, error) {
-	item := posixRegexpCache.Get(pattern)
-	if item != nil {
-		return item.Value(), nil
+	return compile(pattern, regexp.CompilePOSIX)
+}
+
+func MustCompile(pattern string) *regexp.Regexp {
+	return mustCompile(pattern, regexp.MustCompile)
+}
+
+func MustCompilePOSIX(pattern string) *regexp.Regexp {
+	return mustCompile(pattern, regexp.MustCompilePOSIX)
+}
+
+func compile(pattern string, compileFunc func(string) (*regexp.Regexp, error)) (*regexp.Regexp, error) {
+	l.RLock()
+	defer l.RUnlock()
+	if itemPtr, ok := weakMap[pattern]; ok {
+		return (*regexp.Regexp)(unsafe.Pointer(itemPtr)), nil
 	}
-	regex, err := regexp.CompilePOSIX(pattern)
+	regex, err := compileFunc(pattern)
 	if err != nil {
 		return nil, err
 	}
-	posixRegexpCache.Set(pattern, regex, ttlcache.DefaultTTL)
+	v := reflect.ValueOf(regex)
+	ptr := v.Pointer()
+	weakMap[pattern] = ptr
+	reverseMap[ptr] = pattern
+	runtime.SetFinalizer(regex, finalizer)
 	return regex, nil
 }
 
-func Stop() {
-	setupLock.Lock()
-	defer setupLock.Unlock()
-	if ticker != nil {
-		stopchan <- struct{}{}
+func mustCompile(pattern string, compileFunc func(string) *regexp.Regexp) *regexp.Regexp {
+	l.RLock()
+	defer l.RUnlock()
+	if itemPtr, ok := weakMap[pattern]; ok {
+		return (*regexp.Regexp)(unsafe.Pointer(itemPtr))
+	}
+	regex := compileFunc(pattern)
+	v := reflect.ValueOf(regex)
+	ptr := v.Pointer()
+	weakMap[pattern] = ptr
+	reverseMap[ptr] = pattern
+	runtime.SetFinalizer(regex, finalizer)
+	return regex
+}
+
+func finalizer(k *regexp.Regexp) {
+	l.Lock()
+	defer l.Unlock()
+	ptr := reflect.ValueOf(k).Pointer()
+	if s, ok := reverseMap[ptr]; ok {
+		delete(weakMap, s)
+		delete(posixWeakMap, s)
+		delete(reverseMap, ptr)
 	}
 }
