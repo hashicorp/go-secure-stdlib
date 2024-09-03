@@ -21,22 +21,22 @@ var (
 )
 
 func Compile(pattern string) (*regexp.Regexp, error) {
-	return compile(pattern, regexp.Compile)
+	return compile(pattern, regexp.Compile, weakMap)
 }
 
 func CompilePOSIX(pattern string) (*regexp.Regexp, error) {
-	return compile(pattern, regexp.CompilePOSIX)
+	return compile(pattern, regexp.CompilePOSIX, posixWeakMap)
 }
 
 func MustCompile(pattern string) *regexp.Regexp {
-	return mustCompile(pattern, regexp.MustCompile)
+	return mustCompile(pattern, regexp.MustCompile, weakMap)
 }
 
 func MustCompilePOSIX(pattern string) *regexp.Regexp {
-	return mustCompile(pattern, regexp.MustCompilePOSIX)
+	return mustCompile(pattern, regexp.MustCompilePOSIX, posixWeakMap)
 }
 
-func compile(pattern string, compileFunc func(string) (*regexp.Regexp, error)) (*regexp.Regexp, error) {
+func compile(pattern string, compileFunc func(string) (*regexp.Regexp, error), weakMap map[string]uintptr) (*regexp.Regexp, error) {
 	l.RLock()
 	defer l.RUnlock()
 	if itemPtr, ok := weakMap[pattern]; ok {
@@ -54,7 +54,7 @@ func compile(pattern string, compileFunc func(string) (*regexp.Regexp, error)) (
 	return regex, nil
 }
 
-func mustCompile(pattern string, compileFunc func(string) *regexp.Regexp) *regexp.Regexp {
+func mustCompile(pattern string, compileFunc func(string) *regexp.Regexp, weakMap map[string]uintptr) *regexp.Regexp {
 	l.RLock()
 	if itemPtr, ok := weakMap[pattern]; ok {
 		l.RUnlock()
