@@ -38,11 +38,12 @@ func MustCompilePOSIXInterned(pattern string) *regexp.Regexp {
 }
 
 func compile(pattern string, compileFunc func(string) (*regexp.Regexp, error), weakMap map[string]uintptr) (*regexp.Regexp, error) {
-	l.RLock()
-	defer l.RUnlock()
+	l.Lock()
+	defer l.Unlock()
 	if itemPtr, ok := weakMap[pattern]; ok {
 		return (*regexp.Regexp)(unsafe.Pointer(itemPtr)), nil
 	}
+
 	regex, err := compileFunc(pattern)
 	if err != nil {
 		return nil, err
@@ -56,14 +57,11 @@ func compile(pattern string, compileFunc func(string) (*regexp.Regexp, error), w
 }
 
 func mustCompile(pattern string, compileFunc func(string) *regexp.Regexp, weakMap map[string]uintptr) *regexp.Regexp {
-	l.RLock()
-	if itemPtr, ok := weakMap[pattern]; ok {
-		l.RUnlock()
-		return (*regexp.Regexp)(unsafe.Pointer(itemPtr))
-	}
-	l.RUnlock()
 	l.Lock()
 	defer l.Unlock()
+	if itemPtr, ok := weakMap[pattern]; ok {
+		return (*regexp.Regexp)(unsafe.Pointer(itemPtr))
+	}
 
 	regex := compileFunc(pattern)
 	v := reflect.ValueOf(regex)

@@ -3,6 +3,9 @@ package regexp
 import (
 	"github.com/stretchr/testify/require"
 	"regexp"
+	"runtime"
+	"strconv"
+	"sync"
 	"testing"
 )
 
@@ -61,4 +64,46 @@ func testMust(t *testing.T, compile, cachedCompile func(string) *regexp.Regexp) 
 	r1 = cachedCompile(".*")
 	r2 = cachedCompile(".*")
 	require.True(t, r1 == r2)
+}
+
+func BenchmarkRegexps(b *testing.B) {
+	s := make([]*regexp.Regexp, b.N)
+	for i := 0; i < b.N; i++ {
+		s[i] = regexp.MustCompile(`https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)`)
+	}
+}
+
+func BenchmarkInternedRegexps(b *testing.B) {
+	s := make([]*regexp.Regexp, b.N)
+	for i := 0; i < b.N; i++ {
+		s[i] = MustCompileInterned(`https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)`)
+	}
+}
+
+func BenchmarkConcurrentRegexps(b *testing.B) {
+	var wg sync.WaitGroup
+	for j := 0; j < runtime.NumCPU(); j++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < b.N; i++ {
+				regexp.MustCompile(`https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)` + strconv.Itoa(i) + "-" + strconv.Itoa(j))
+			}
+		}()
+	}
+	wg.Wait()
+}
+
+func BenchmarkConcurrentInternedRegexps(b *testing.B) {
+	var wg sync.WaitGroup
+	for j := 0; j < runtime.NumCPU(); j++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < b.N; i++ {
+				MustCompileInterned(`https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)` + strconv.Itoa(i) + "-" + strconv.Itoa(j))
+			}
+		}()
+	}
+	wg.Wait()
 }
