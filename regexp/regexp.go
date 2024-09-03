@@ -56,10 +56,14 @@ func compile(pattern string, compileFunc func(string) (*regexp.Regexp, error)) (
 
 func mustCompile(pattern string, compileFunc func(string) *regexp.Regexp) *regexp.Regexp {
 	l.RLock()
-	defer l.RUnlock()
 	if itemPtr, ok := weakMap[pattern]; ok {
+		l.RUnlock()
 		return (*regexp.Regexp)(unsafe.Pointer(itemPtr))
 	}
+	l.RUnlock()
+	l.Lock()
+	defer l.Unlock()
+
 	regex := compileFunc(pattern)
 	v := reflect.ValueOf(regex)
 	ptr := v.Pointer()
