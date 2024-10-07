@@ -234,6 +234,75 @@ func Test_ParseDurationSecond(t *testing.T) {
 	}
 }
 
+func Test_ParseDurationSecondWithUnits(t *testing.T) {
+	type Test struct {
+		in      interface{}
+		units   map[string]time.Duration
+		out     time.Duration
+		invalid bool
+	}
+
+	daysOnly := map[string]time.Duration{
+		"d": 24 * time.Hour,
+	}
+	daysMonthsYears := map[string]time.Duration{
+		"d":  24 * time.Hour,
+		"mo": 30 * 24 * time.Hour,
+		"y":  365 * 24 * time.Hour,
+	}
+
+	tests := []Test{
+		// String inputs
+		{in: "50ms", units: daysOnly, out: 50 * time.Millisecond},
+		{in: "50s", units: daysOnly, out: 50 * time.Second},
+		{in: "5m", units: daysMonthsYears, out: 5 * time.Minute},
+		{in: "6h", units: daysMonthsYears, out: 6 * time.Hour},
+		{in: "5d", units: daysOnly, out: 5 * 24 * time.Hour},
+		{in: "-5d", units: daysOnly, out: -5 * 24 * time.Hour},
+		{in: "05d", units: daysOnly, out: 5 * 24 * time.Hour},
+		{in: "500d", units: daysOnly, out: 500 * 24 * time.Hour},
+		{in: "5mo", units: daysMonthsYears, out: 5 * 30 * 24 * time.Hour},
+		{in: "5y", units: daysMonthsYears, out: 5 * 365 * 24 * time.Hour},
+	}
+
+	// Invalid inputs
+	for _, s := range []string{
+		"d",
+		"mo",
+		"yr",
+		"m",
+		"5d6mo12y",
+		"5d6mo",
+		"1d2y",
+		"2mo3y",
+		"3y2mo",
+	} {
+		tests = append(tests, Test{
+			in:      s,
+			units:   daysMonthsYears,
+			invalid: true,
+		})
+	}
+
+	for _, test := range tests {
+		out, err := ParseDurationSecondWithUnits(test.in, test.units)
+		if test.invalid {
+			if err == nil {
+				t.Fatalf("%q: expected error, got nil", test.in)
+			}
+			continue
+		}
+
+		if err != nil {
+			t.Fatalf("unexpected error parsing %v: %v", test.in, err)
+		}
+
+		if out != test.out {
+			t.Fatalf("%q: expected: %q, got: %q", test.in, test.out, out)
+		}
+	}
+}
+
 func Test_ParseAbsoluteTime(t *testing.T) {
 	testCases := []struct {
 		inp      interface{}

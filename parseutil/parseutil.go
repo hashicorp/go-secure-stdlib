@@ -100,6 +100,22 @@ func ParseCapacityString(in interface{}) (uint64, error) {
 // a time.Duration; when units are missing (such as when a numeric type is
 // provided), the duration is assumed to be in seconds.
 func ParseDurationSecond(in interface{}) (time.Duration, error) {
+	return ParseDurationSecondWithUnits(in, map[string]time.Duration{
+		"d": 24 * time.Hour,
+	})
+}
+
+// Parse a duration from an arbitrary value (a string or numeric value) into
+// a time.Duration; when units are missing (such as when a numeric type is
+// provided), the duration is assumed to be in seconds.
+//
+// Unlike ParseDurationSecond, this allows the caller to augment with the
+// desired additional units via a suffix map.
+//
+// This behaves like the existing implementation, wherein the augmented units
+// must be a suffix and must be strictly by an (optionally signed) integer.
+// Mixing custom units with built-in units is not supported.
+func ParseDurationSecondWithUnits(in interface{}, units map[string]time.Duration) (time.Duration, error) {
 	var dur time.Duration
 	jsonIn, ok := in.(json.Number)
 	if ok {
@@ -117,15 +133,11 @@ func ParseDurationSecond(in interface{}) (time.Duration, error) {
 			return time.Duration(v) * time.Second, nil
 		}
 
-		if strings.HasSuffix(inp, "d") {
-			v, err := strconv.ParseInt(inp[:len(inp)-1], 10, 64)
-			if err != nil {
-				return dur, err
-			}
-			return time.Duration(v) * 24 * time.Hour, nil
+		found, parsed, err := parseDurationStringWithUnits(inp, units)
+		if found {
+			return parsed, err
 		}
 
-		var err error
 		if dur, err = time.ParseDuration(inp); err != nil {
 			return dur, err
 		}
@@ -152,6 +164,22 @@ func ParseDurationSecond(in interface{}) (time.Duration, error) {
 	}
 
 	return dur, nil
+}
+
+func parseDurationStringWithUnits(inp string, units map[string]time.Duration) (bool, time.Duration, error) {
+	for suffix, value := range units {
+		if strings.HasSuffix(inp, suffix) {
+			v, err := strconv.ParseInt(inp[:len(inp)-len(suffix)], 10, 64)
+			if err != nil {
+				return true, 0 * time.Second, err
+			}
+
+			return true, time.Duration(v) * value, nil
+		}
+	}
+
+	return false, 0 * time.Second, nil
+
 }
 
 // Parse an absolute timestamp from the provided arbitrary value (string or
