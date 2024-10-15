@@ -108,6 +108,7 @@ func ParseDurationSecond(in interface{}) (time.Duration, error) {
 	if ok {
 		in = jsonIn.String()
 	}
+	var err error
 	switch inp := in.(type) {
 	case nil:
 		// return default of zero
@@ -125,7 +126,7 @@ func ParseDurationSecond(in interface{}) (time.Duration, error) {
 			if err != nil {
 				return dur, err
 			}
-			return time.Duration(v) * 24 * time.Hour, nil
+			return overflowMul(time.Duration(v), 24*time.Hour)
 		}
 
 		var err error
@@ -133,28 +134,30 @@ func ParseDurationSecond(in interface{}) (time.Duration, error) {
 			return dur, err
 		}
 	case int:
-		dur = time.Duration(inp) * time.Second
+		dur, err = overflowMul(time.Duration(inp), time.Second)
 	case int32:
-		dur = time.Duration(inp) * time.Second
+		dur, err = overflowMul(time.Duration(inp), time.Second)
 	case int64:
-		dur = time.Duration(inp) * time.Second
+		dur, err = overflowMul(time.Duration(inp), time.Second)
 	case uint:
-		dur = time.Duration(inp) * time.Second
+		dur, err = overflowMul(time.Duration(inp), time.Second)
 	case uint32:
-		dur = time.Duration(inp) * time.Second
+		dur, err = overflowMul(time.Duration(inp), time.Second)
 	case uint64:
-		dur = time.Duration(inp) * time.Second
+		dur, err = overflowMul(time.Duration(inp), time.Second)
 	case float32:
-		dur = time.Duration(inp) * time.Second
+		dur, err = overflowMul(time.Duration(inp), time.Second)
 	case float64:
-		dur = time.Duration(inp) * time.Second
+		dur, err = overflowMul(time.Duration(inp), time.Second)
 	case time.Duration:
 		dur = inp
 	default:
 		return 0, errors.New("could not parse duration from input")
 	}
-
-	return dur, nil
+	if err != nil {
+		dur = time.Duration(0)
+	}
+	return dur, err
 }
 
 // Multiplication of durations could overflow, this performs multiplication while erroring out if an overflow occurs
