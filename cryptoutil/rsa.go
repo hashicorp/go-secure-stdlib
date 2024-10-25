@@ -5,10 +5,14 @@ package cryptoutil
 
 import (
 	"crypto/rsa"
+	"crypto/rand"
 	"io"
 
 	"github.com/hashicorp/go-hmac-drbg/hmacdrbg"
 )
+
+// Settable for testing
+var platformReader = rand.Reader
 
 // GenerateRSAKeyWithHMACDRBG generates an RSA key with a deterministic random bit generator, seeded
 // with entropy from the provided random source.  Some random bit sources are quite slow, for example
@@ -23,12 +27,39 @@ import (
 // an attacker cannot predict which numbers are chosen for primes if they don't have access to the seed.
 // Additionally, the seed in this case is quite large indeed, 1000 bits, well above what could be brute
 // forced.
+//
+// This is a sanctioned approach from FIPS 186-4 (B.3.2)
 func GenerateRSAKeyWithHMACDRBG(rand io.Reader, bits int) (*rsa.PrivateKey, error) {
-	seed := make([]byte, hmacdrbg.MaxEntropyBytes)
-	if _, err := rand.Read(seed); err != nil {
-		return nil, err
+	seed := make([]byte, (2 * 256) / 8) // 2x maximum security strength from SP 800-57, Table 2
+	defer func() {
+		// This may not work due to the GC but worth a shot
+		for i := 0; i<len(seed); i++ {
+			seed[i]=0
+		}
+	}()
+	for {
+		if _, err := rand.Read(seed); err != nil {
+			return nil, err
+		}
+		drbg := hmacdrbg.NewHmacDrbg(256, seed, []byte("generate-key-with-hmac-drbg"))
+		reader := hmacdrbg.NewHmacDrbgReader(drbg)
+		key, err := rsa.GenerateKey(reader, bits)
+		if err != nil {
+			if err.Error() == "MUST_RESEED" {
+				// Oops, ran out of bytes (pretty unlikely but just in case)
+				continue
+			}
+			return nil, err
+		}
+		return key, nil
 	}
-	drbg := hmacdrbg.NewHmacDrbg(256, seed, []byte("generate-key-with-hmac-drbg"))
-	reader := hmacdrbg.NewHmacDrbgReader(drbg)
-	return rsa.GenerateKey(reader, bits)
+}
+
+// GenerateRSAKey tests whether the random source is rand.Reader, and uses it directly if so (as it will 
+// be a platform RNG and fast.  If not, we assume it's some other slower source and use the HmacDRBG version.
+func GenerateRSAKey(randomSource io.Reader, bits int) (*rsa.PrivateKey, error) {
+	if randomSource == platformReader {
+		return rsa.GenerateKey(randomSource, bits)
+	}
+	return GenerateRSAKeyWithHMACDRBG(randomSource, bits)
 }
