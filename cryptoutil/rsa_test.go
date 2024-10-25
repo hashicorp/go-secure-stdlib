@@ -16,10 +16,8 @@ type slowRand struct {
 }
 
 func newSlowRand() *slowRand {
-	r := bytes.NewBuffer(nil)
-	b := make([]byte, 2000*128)
+	b := make([]byte, 10247680)
 	rand.Read(b)
-	r.Write(b)
 	sr := &slowRand{
 		randomBytes: b,
 	}
@@ -28,10 +26,16 @@ func newSlowRand() *slowRand {
 }
 
 func (s *slowRand) Reset() {
+	s.calls = 0
 	s.randomness = bytes.NewBuffer(s.randomBytes)
 }
 
-var sr = newSlowRand()
+
+var sr *slowRand
+func TestMain(m *testing.M) {
+	sr = newSlowRand()
+	m.Run()
+}
 
 func (s *slowRand) Read(p []byte) (n int, err error) {
 	// First one is free
@@ -48,14 +52,26 @@ func TestGenerateKeyWithHMACDRBG(t *testing.T) {
 	key, err := GenerateRSAKeyWithHMACDRBG(rand.Reader, 2048)
 	require.NoError(t, err)
 	require.Equal(t, 2048/8, key.Size())
+	key, err = GenerateRSAKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	require.Equal(t, 2048/8, key.Size())
 }
 
 func BenchmarkRSAKeyGeneration(b *testing.B) {
 	sr.Reset()
 	for i := 0; i < b.N; i++ {
 		rsa.GenerateKey(sr, 2048)
+		b.Logf("%d calls to the RNG, b.N=%d", sr.calls, b.N)
 	}
-	b.Logf("%d calls to the RNG", sr.calls)
+}
+
+func BenchmarkConditionalRSAKeyGeneration(b *testing.B) {
+	platformReader = sr
+	sr.Reset()
+	for i := 0; i < b.N; i++ {
+		GenerateRSAKey(sr, 2048)
+		b.Logf("%d calls to the RNG, b.N=%d", sr.calls, b.N)
+	}
 }
 
 func BenchmarkRSAKeyGenerationWithDRBG(b *testing.B) {
@@ -63,7 +79,7 @@ func BenchmarkRSAKeyGenerationWithDRBG(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		sr.calls = 0
 		GenerateRSAKeyWithHMACDRBG(sr, 2048)
+		b.Logf("%d calls to the RNG, b.N=%d", sr.calls, b.N)
 	}
-	b.Logf("%d calls to the RNG", sr.calls)
 
 }
