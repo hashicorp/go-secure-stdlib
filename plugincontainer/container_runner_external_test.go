@@ -14,8 +14,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
+	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-plugin"
@@ -42,7 +42,7 @@ func TestExamplePlugin(t *testing.T) {
 	}
 
 	// Get the full sha256 of the image we just built so we can test pinning.
-	images, err := dockerClient.ImageList(context.Background(), types.ImageListOptions{
+	images, err := dockerClient.ImageList(context.Background(), image.ListOptions{
 		Filters: filters.NewArgs(filters.Arg("reference", "go-plugin-counter:latest")),
 	})
 	if err != nil {
