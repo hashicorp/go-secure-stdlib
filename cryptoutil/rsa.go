@@ -4,8 +4,8 @@
 package cryptoutil
 
 import (
-	"crypto/rsa"
 	"crypto/rand"
+	"crypto/rsa"
 	"io"
 
 	"github.com/hashicorp/go-hmac-drbg/hmacdrbg"
@@ -30,11 +30,11 @@ var platformReader = rand.Reader
 //
 // This is a sanctioned approach from FIPS 186-4 (B.3.2)
 func GenerateRSAKeyWithHMACDRBG(rand io.Reader, bits int) (*rsa.PrivateKey, error) {
-	seed := make([]byte, (2 * 256) / 8) // 2x maximum security strength from SP 800-57, Table 2
+	seed := make([]byte, (2*256)/8) // 2x maximum security strength from SP 800-57, Table 2
 	defer func() {
 		// This may not work due to the GC but worth a shot
-		for i := 0; i<len(seed); i++ {
-			seed[i]=0
+		for i := 0; i < len(seed); i++ {
+			seed[i] = 0
 		}
 	}()
 	for {
@@ -55,11 +55,12 @@ func GenerateRSAKeyWithHMACDRBG(rand io.Reader, bits int) (*rsa.PrivateKey, erro
 	}
 }
 
-// GenerateRSAKey tests whether the random source is rand.Reader, and uses it directly if so (as it will 
+// GenerateRSAKey tests whether the random source is rand.Reader, and uses it directly if so (as it will
 // be a platform RNG and fast.  If not, we assume it's some other slower source and use the HmacDRBG version.
 func GenerateRSAKey(randomSource io.Reader, bits int) (*rsa.PrivateKey, error) {
 	if randomSource == platformReader {
 		return rsa.GenerateKey(randomSource, bits)
 	}
+
 	return GenerateRSAKeyWithHMACDRBG(randomSource, bits)
 }
