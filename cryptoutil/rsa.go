@@ -28,12 +28,12 @@ const maxReseeds = 10000 // 7500 * 10000 * 8 = 600mm bits
 // entropy from a random source, then uses the output of that DRBG to generate candidate primes.
 // This is still secure as the output of a DRBG is secure if the seed is sufficiently random, and
 // an attacker cannot predict which numbers are chosen for primes if they don't have access to the seed.
-// Additionally, the seed in this case is quite large indeed, 1000 bits, well above what could be brute
+// Additionally, the seed in this case is quite large indeed, 512 bits, well above what could be brute
 // forced.
 //
-// This is a sanctioned approach from FIPS 186-4 (B.3.2)
+// This is a sanctioned approach from FIPS 186-5 (A.1.2)
 func GenerateRSAKeyWithHMACDRBG(rand io.Reader, bits int) (*rsa.PrivateKey, error) {
-	seed := make([]byte, (2*256)/8) // 2x maximum security strength from SP 800-57, Table 2
+	seed := make([]byte, (2*256)/8) // 2x maximum security strength (256-bits) from SP 800-57, Table 2
 	defer func() {
 		// This may not work due to the GC but worth a shot
 		for i := 0; i < len(seed); i++ {
