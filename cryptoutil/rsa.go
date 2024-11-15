@@ -6,6 +6,7 @@ package cryptoutil
 import (
 	"crypto/rand"
 	"crypto/rsa"
+	"fmt"
 	"io"
 
 	"github.com/hashicorp/go-hmac-drbg/hmacdrbg"
@@ -13,6 +14,8 @@ import (
 
 // Settable for testing
 var platformReader = rand.Reader
+
+const maxReseeds = 10000 // 7500 * 10000 * 8 = 600mm bits
 
 // GenerateRSAKeyWithHMACDRBG generates an RSA key with a deterministic random bit generator, seeded
 // with entropy from the provided random source.  Some random bit sources are quite slow, for example
@@ -37,7 +40,7 @@ func GenerateRSAKeyWithHMACDRBG(rand io.Reader, bits int) (*rsa.PrivateKey, erro
 			seed[i] = 0
 		}
 	}()
-	for {
+	for i := 0; i < maxReseeds; i++ {
 		if _, err := rand.Read(seed); err != nil {
 			return nil, err
 		}
@@ -53,6 +56,7 @@ func GenerateRSAKeyWithHMACDRBG(rand io.Reader, bits int) (*rsa.PrivateKey, erro
 		}
 		return key, nil
 	}
+	return nil, fmt.Errorf("could not generate key after %d reseed of HMAC_DRBG", maxReseeds)
 }
 
 // GenerateRSAKey tests whether the random source is rand.Reader, and uses it directly if so (as it will
