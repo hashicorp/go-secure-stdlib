@@ -61,6 +61,5 @@ func GenerateRSAKey(randomSource io.Reader, bits int) (*rsa.PrivateKey, error) {
 	if randomSource == platformReader {
 		return rsa.GenerateKey(randomSource, bits)
 	}
-
 	return GenerateRSAKeyWithHMACDRBG(randomSource, bits)
 }
