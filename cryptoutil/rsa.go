@@ -40,6 +40,8 @@ func GenerateRSAKeyWithHMACDRBG(rand io.Reader, bits int) (*rsa.PrivateKey, erro
 			seed[i] = 0
 		}
 	}()
+
+	// Pretty unlikely to need even one reseed, but better to avoid an infinite loop.
 	for i := 0; i < maxReseeds; i++ {
 		if _, err := rand.Read(seed); err != nil {
 			return nil, err
