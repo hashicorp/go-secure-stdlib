@@ -56,7 +56,7 @@ func GenerateRSAKeyWithHMACDRBG(rand io.Reader, bits int) (*rsa.PrivateKey, erro
 }
 
 // GenerateRSAKey tests whether the random source is rand.Reader, and uses it directly if so (as it will
-// be a platform RNG and fast.  If not, we assume it's some other slower source and use the HmacDRBG version.
+// be a platform RNG and fast).  If not, we assume it's some other slower source and use the HmacDRBG version.
 func GenerateRSAKey(randomSource io.Reader, bits int) (*rsa.PrivateKey, error) {
 	if randomSource == platformReader {
 		return rsa.GenerateKey(randomSource, bits)
