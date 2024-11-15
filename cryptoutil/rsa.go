@@ -19,7 +19,7 @@ var platformReader = rand.Reader
 // HSMs with true RNGs can take 500ms to produce enough bits to generate a single number
 // to test for primality, taking literally minutes to succeed in generating a key.  As an example, when
 // testing this function, one run took 921 attempts to generate a 2048 bit RSA key, which would have taken
-// over 7 minutes on a Thales HSM, vs
+// over 7 minutes on a Thales HSM.
 //
 // Instead, this function seeds a DRBG (specifically HMAC-DRBG from NIST SP800-90a) with
 // entropy from a random source, then uses the output of that DRBG to generate candidate primes.

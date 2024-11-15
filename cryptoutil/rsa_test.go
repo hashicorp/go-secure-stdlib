@@ -4,9 +4,10 @@ import (
 	"bytes"
 	"crypto/rand"
 	"crypto/rsa"
-	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 type slowRand struct {
@@ -30,8 +31,8 @@ func (s *slowRand) Reset() {
 	s.randomness = bytes.NewBuffer(s.randomBytes)
 }
 
-
 var sr *slowRand
+
 func TestMain(m *testing.M) {
 	sr = newSlowRand()
 	m.Run()
@@ -81,5 +82,4 @@ func BenchmarkRSAKeyGenerationWithDRBG(b *testing.B) {
 		GenerateRSAKeyWithHMACDRBG(sr, 2048)
 		b.Logf("%d calls to the RNG, b.N=%d", sr.calls, b.N)
 	}
-
 }
