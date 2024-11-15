@@ -11,6 +11,7 @@ jobs:
         module: ["awsutil",
                   "base62",
                   "configutil",
+                  "cryptoutil",
                   "fileutil",
                   "gatedwriter",
                   "httputil",
