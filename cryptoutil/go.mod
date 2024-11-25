@@ -1,4 +1,4 @@
-module github.com/hashicorp/go-secure-stdlib/rsa
+module github.com/hashicorp/go-secure-stdlib/cryptoutil
 
 go 1.22.0
 
