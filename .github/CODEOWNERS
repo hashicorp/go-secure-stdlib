@@ -1,0 +1,10 @@
+# This repo contains modules that are generally shared between more than one
+# project within Secure. As such, seemingly minor changes meant for one project
+# can have unexpected impacts on another.
+#
+# For this reason there are currently a few stewards within Secure that
+# have a good understanding of those impacts on their projects and coordinate
+# if there is uncertainty, and they are the owners rather than a team that may
+# be modified externally.
+
+* @jefferai @sgmiller
