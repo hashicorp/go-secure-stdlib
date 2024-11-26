@@ -185,10 +185,14 @@ func (c *CredentialsConfig) generateAwsConfigOptions(opts options) []func(*confi
 		if profile != "" {
 			c.Profile = profile
 		}
-		if c.Profile == "" {
-			c.Profile = "default"
+
+		// The AWS SDK will check for the 'default' shared profile and include it if it exists. If
+		// WithSharedConfigProfile is set to 'default' here, and it does not exist the SDK will return an error. So
+		// only set the config profile if the caller or env has explicitly set one.
+		if c.Profile != "" {
+			cfgOpts = append(cfgOpts, config.WithSharedConfigProfile(c.Profile))
 		}
-		cfgOpts = append(cfgOpts, config.WithSharedConfigProfile(c.Profile))
+
 		cfgOpts = append(cfgOpts, config.WithSharedCredentialsFiles([]string{c.Filename}))
 		c.log(hclog.Debug, "added shared profile credential provider")
 	}
