@@ -41,17 +41,22 @@ func GenerateRSAKeyWithHMACDRBG(rand io.Reader, bits int) (*rsa.PrivateKey, erro
 		}
 	}()
 
+	if _, err := rand.Read(seed); err != nil {
+		return nil, err
+	}
+	drbg := hmacdrbg.NewHmacDrbg(256, seed, []byte("generate-key-with-hmac-drbg"))
+	reader := hmacdrbg.NewHmacDrbgReader(drbg)
+
 	// Pretty unlikely to need even one reseed, but better to avoid an infinite loop.
 	for i := 0; i < maxReseeds; i++ {
-		if _, err := rand.Read(seed); err != nil {
-			return nil, err
-		}
-		drbg := hmacdrbg.NewHmacDrbg(256, seed, []byte("generate-key-with-hmac-drbg"))
-		reader := hmacdrbg.NewHmacDrbgReader(drbg)
 		key, err := rsa.GenerateKey(reader, bits)
 		if err != nil {
 			if err.Error() == "MUST_RESEED" {
 				// Oops, ran out of bytes (pretty unlikely but just in case)
+				if _, err := rand.Read(seed); err != nil {
+					return nil, err
+				}
+				drbg.Reseed(seed)	
 				continue
 			}
 			return nil, err
