@@ -33,7 +33,7 @@ func TestParsePath(t *testing.T) {
 		must             bool
 		notParsed        bool
 		expErrorContains string
-		options          []Option
+		options          []option
 	}{
 		{
 			name:   "file",
@@ -44,7 +44,7 @@ func TestParsePath(t *testing.T) {
 			name:    "file-untrimmed",
 			inPath:  fmt.Sprintf("file://%s", file.Name()),
 			outStr:  " foo ",
-			options: []Option{WithNoTrimSpaces(true)},
+			options: []option{WithNoTrimSpaces(true)},
 		},
 		{
 			name:   "file-mustparse",
@@ -61,7 +61,7 @@ func TestParsePath(t *testing.T) {
 			name:    "env-untrimmed",
 			inPath:  "env://PATHTEST",
 			outStr:  " bar ",
-			options: []Option{WithNoTrimSpaces(true)},
+			options: []option{WithNoTrimSpaces(true)},
 		},
 		{
 			name:   "env-mustparse",
@@ -74,7 +74,7 @@ func TestParsePath(t *testing.T) {
 			inPath:           "env://PATHTEST2",
 			outStr:           "bar",
 			expErrorContains: "environment variable PATHTEST2 unset",
-			options:          []Option{WithErrorOnMissingEnv(true)},
+			options:          []option{WithErrorOnMissingEnv(true)},
 		},
 		{
 			name:   "plain",
@@ -85,7 +85,7 @@ func TestParsePath(t *testing.T) {
 			name:    "plan-untrimmed",
 			inPath:  " zipzap ",
 			outStr:  " zipzap ",
-			options: []Option{WithNoTrimSpaces(true)},
+			options: []option{WithNoTrimSpaces(true)},
 		},
 		{
 			name:      "plain-mustparse",

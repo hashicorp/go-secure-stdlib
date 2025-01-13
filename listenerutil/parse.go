@@ -440,14 +440,14 @@ const defaultUiContentSecurityPolicyHeader = "default-src 'none'; script-src 'se
 // Header names consts
 const contentSecurityPolicy = "Content-Security-Policy"
 const strictTransportSecurity = "Strict-Transport-Security"
-const xContentTypeOptions = "X-Content-Type-Options"
+const xContentTypeOptions = "X-Content-Type-options"
 const cacheControl = "Cache-Control"
 
 // parseCustomResponseHeaders takes raw config values for the "custom_ui_response_headers"
 // and "custom_api_response_headers". It makes sure the config entry is passed in as a map
 // of status code to a map of header name and header values. It verifies the validity of the
 // status codes, and header values. It also adds the default headers values for "Cache-Control",
-// "Strict-Transport-Security", "X-Content-Type-Options", and "Content-Security-Policy".
+// "Strict-Transport-Security", "X-Content-Type-options", and "Content-Security-Policy".
 // Supported options:
 //   - WithDefaultUiContentSecurityPolicyHeader
 func parseCustomResponseHeaders(responseHeaders interface{}, uiHeaders bool, opt ...Option) (map[int]http.Header, error) {

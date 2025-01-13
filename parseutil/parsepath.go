@@ -17,14 +17,14 @@ var (
 	ErrNotParsed = errors.New("not a parsed value")
 )
 
-type Options struct {
+type options struct {
 	errorOnMissingEnv bool
 	noTrimSpaces      bool
 }
 
-type Option func() OptionFunc
+type option func() optionFunc
 
-type OptionFunc func(*Options)
+type optionFunc func(*options)
 
 // ParsePath parses a URL with schemes file://, env://, or any other. Depending
 // on the scheme it will return specific types of data:
@@ -43,19 +43,19 @@ type OptionFunc func(*Options)
 // step that errored or something else (such as a file not found). This is
 // useful to attempt to read a non-URL string from some resource, but where the
 // original input may simply be a valid string of that type.
-func ParsePath(path string, options ...Option) (string, error) {
+func ParsePath(path string, options ...option) (string, error) {
 	return parsePath(path, false, options)
 }
 
 // MustParsePath behaves like ParsePath but will return ErrNotAUrl if the value
 // is not a URL with a scheme that can be parsed by this function.
-func MustParsePath(path string, options ...Option) (string, error) {
+func MustParsePath(path string, options ...option) (string, error) {
 	return parsePath(path, true, options)
 }
 
-func parsePath(path string, mustParse bool, options []Option) (string, error) {
-	var opts Options
-	for _, o := range options {
+func parsePath(path string, mustParse bool, passedOptions []option) (string, error) {
+	var opts options
+	for _, o := range passedOptions {
 		of := o()
 		of(&opts)
 	}
@@ -101,17 +101,19 @@ func parsePath(path string, mustParse bool, options []Option) (string, error) {
 	}
 }
 
-func WithNoTrimSpaces(noTrim bool) Option {
-	return func() OptionFunc {
-		return OptionFunc(func(o *Options) {
+// When true, values returned from ParsePath won't have leading/trailing spaces trimmed.
+func WithNoTrimSpaces(noTrim bool) option {
+	return func() optionFunc {
+		return optionFunc(func(o *options) {
 			o.noTrimSpaces = noTrim
 		})
 	}
 }
 
-func WithErrorOnMissingEnv(errorOnMissingEnv bool) Option {
-	return func() OptionFunc {
-		return OptionFunc(func(o *Options) {
+// When true, if an environment variable is unset, an error will be returned rather than the empty string.
+func WithErrorOnMissingEnv(errorOnMissingEnv bool) option {
+	return func() optionFunc {
+		return optionFunc(func(o *options) {
 			o.errorOnMissingEnv = errorOnMissingEnv
 		})
 	}
