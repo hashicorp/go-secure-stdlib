@@ -28,7 +28,6 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"fmt"
-	"github.com/hashicorp/go-secure-stdlib/parseutil"
 	"io"
 	"sort"
 	"sync"
@@ -94,7 +93,6 @@ type encryptedNonceService struct {
 }
 
 func newEncryptedNonceService(validity time.Duration) *encryptedNonceService {
-	parseutil.ParsePath("foo")
 	return &encryptedNonceService{
 		validity: validity,
 
