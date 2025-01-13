@@ -18,12 +18,12 @@ func TestParsePath(t *testing.T) {
 
 	file, err := os.CreateTemp("", "")
 	require.NoError(t, err)
-	_, err = file.WriteString("foo")
+	_, err = file.WriteString(" foo ")
 	require.NoError(t, err)
 	require.NoError(t, file.Close())
 	defer os.Remove(file.Name())
 
-	require.NoError(t, os.Setenv("PATHTEST", "bar"))
+	require.NoError(t, os.Setenv("PATHTEST", " bar "))
 
 	cases := []struct {
 		name             string
@@ -33,11 +33,18 @@ func TestParsePath(t *testing.T) {
 		must             bool
 		notParsed        bool
 		expErrorContains string
+		options          []Option
 	}{
 		{
 			name:   "file",
 			inPath: fmt.Sprintf("file://%s", file.Name()),
 			outStr: "foo",
+		},
+		{
+			name:    "file-untrimmed",
+			inPath:  fmt.Sprintf("file://%s", file.Name()),
+			outStr:  " foo ",
+			options: []Option{WithNoTrimSpaces(true)},
 		},
 		{
 			name:   "file-mustparse",
@@ -51,10 +58,23 @@ func TestParsePath(t *testing.T) {
 			outStr: "bar",
 		},
 		{
+			name:    "env-untrimmed",
+			inPath:  "env://PATHTEST",
+			outStr:  " bar ",
+			options: []Option{WithNoTrimSpaces(true)},
+		},
+		{
 			name:   "env-mustparse",
 			inPath: "env://PATHTEST",
 			outStr: "bar",
 			must:   true,
+		},
+		{
+			name:             "env-error-missing",
+			inPath:           "env://PATHTEST2",
+			outStr:           "bar",
+			expErrorContains: "environment variable PATHTEST2 unset",
+			options:          []Option{WithErrorOnMissingEnv(true)},
 		},
 		{
 			name:   "plain",
@@ -62,11 +82,22 @@ func TestParsePath(t *testing.T) {
 			outStr: "zipzap",
 		},
 		{
+			name:    "plan-untrimmed",
+			inPath:  " zipzap ",
+			outStr:  " zipzap ",
+			options: []Option{WithNoTrimSpaces(true)},
+		},
+		{
 			name:      "plain-mustparse",
 			inPath:    "zipzap",
 			outStr:    "zipzap",
 			must:      true,
 			notParsed: true,
+		},
+		{
+			name:   "escaped",
+			inPath: "string://env://foo",
+			outStr: "env://foo",
 		},
 		{
 			name:             "no file",
@@ -88,9 +119,9 @@ func TestParsePath(t *testing.T) {
 			var err error
 			switch tt.must {
 			case false:
-				out, err = ParsePath(tt.inPath)
+				out, err = ParsePath(tt.inPath, tt.options...)
 			default:
-				out, err = MustParsePath(tt.inPath)
+				out, err = MustParsePath(tt.inPath, tt.options...)
 			}
 			if tt.expErrorContains != "" {
 				require.Error(err)
