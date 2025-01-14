@@ -63,7 +63,11 @@ func parsePath(path string, mustParse bool, passedOptions []option) (string, err
 	trimmedPath := strings.TrimSpace(path)
 	parsed, err := url.Parse(trimmedPath)
 	if err != nil {
-		return trimmedPath, fmt.Errorf("error parsing url (%q): %w", err.Error(), ErrNotAUrl)
+		err = fmt.Errorf("error parsing url (%q): %w", err.Error(), ErrNotAUrl)
+		if opts.noTrimSpaces {
+			return path, err
+		}
+		return trimmedPath, err
 	}
 	switch parsed.Scheme {
 	case "file":
