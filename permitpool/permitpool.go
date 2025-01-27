@@ -1,3 +1,6 @@
+// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
 // Package permitpool exposes a synchronization primitive for
 // limiting the number of concurrent operations. See the Pool
 // example for a simple use case.
