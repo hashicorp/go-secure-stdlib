@@ -9,61 +9,77 @@ import (
 	"testing"
 )
 
-func TestInterenedRegexps(t *testing.T) {
-	t.Run("must", func(t *testing.T) {
-		testMust(t, regexp.MustCompile, MustCompileInterned)
-	})
-	t.Run("must-posix", func(t *testing.T) {
-		testMust(t, regexp.MustCompilePOSIX, MustCompilePOSIXInterned)
-	})
-	t.Run("errorable", func(t *testing.T) {
-		test(t, regexp.Compile, CompileInterned)
-	})
-	t.Run("errorable-posix", func(t *testing.T) {
-		test(t, regexp.CompilePOSIX, CompilePOSIXInterned)
-	})
-	// Check errors
-	_, err := CompileInterned("(")
-	require.Error(t, err)
+// TestInternedRegexps tests that the regular expressions are compiled correctly,
+// are interned, and that the cleanup of interned regexps works as expected.
+//
+// Since this test depends on the garbage collector, it is not really
+// deterministic and might flake in the future. If that happens, the calls to
+// the garbage collector and the rest of the test should be removed.
+func TestInternedRegexps(t *testing.T) {
+	testCases := map[string]struct {
+		compileFunc     func(string) (*regexp.Regexp, error)
+		mustCompileFunc func(string) *regexp.Regexp
+		mustCompile     bool
+	}{
+		"CompileInterned": {
+			compileFunc:     CompileInterned,
+			mustCompileFunc: nil,
+			mustCompile:     false,
+		},
+		"MustCompileInterned": {
+			compileFunc:     nil,
+			mustCompileFunc: MustCompileInterned,
+			mustCompile:     true,
+		},
+		"CompilePOSIXInterned": {
+			compileFunc:     CompilePOSIXInterned,
+			mustCompileFunc: nil,
+			mustCompile:     false,
+		},
+		"MustCompilePOSIXInterned": {
+			compileFunc:     nil,
+			mustCompileFunc: MustCompilePOSIXInterned,
+			mustCompile:     true,
+		},
+	}
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			// Compile two identical regular expressions, their pointers should be the same
+			var r1, r2 *regexp.Regexp
+			var err error
+			if tc.mustCompile {
+				r1 = tc.mustCompileFunc(".*")
+				r2 = tc.mustCompileFunc(".*")
+			} else {
+				r1, err = tc.compileFunc(".*")
+				require.NoError(t, err)
+				r2, err = tc.compileFunc(".*")
+				require.NoError(t, err)
+				require.True(t, r1 == r2)
 
-	// Unfortunately, GC behavior is non-deterministic, this section of code works, but not reliably:
-	/*
-			ptr1 := reflect.ValueOf(r1).Pointer()
+				// While we're here, check that errors work as expected
+				_, err = tc.compileFunc("(")
+				require.Error(t, err)
+			}
+			require.True(t, r1 == r2)
+			// Remove references to the regexps and run the garbage collector
 			r1 = nil
 			r2 = nil
+
+			// Run the garbage collector twice to increase chances of the cleanup happening.
+			// This still doesn't make it deterministic, but in local testing it was enough
+			// to not flake a single time in over two million runs, so it should be good enough.
+			// A single call to runtime.GC() was flaky very frequently in local testing.
 			runtime.GC()
 			runtime.GC()
-			r2, err = MustCompile(".*")
-			require.NoError(t, err)
-			ptr2 := reflect.ValueOf(r2).Pointer()
-		    // If GC occurred, this will be a brand new pointer as the regex was removed from maps
-			require.True(t, ptr1 != ptr2)
 
-	*/
-}
-
-func test(t *testing.T, compile, cachedCompile func(string) (*regexp.Regexp, error)) {
-	r1, err := compile(".*")
-	require.NoError(t, err)
-	r2, err := compile(".*")
-	require.NoError(t, err)
-	require.True(t, r1 != r2)
-
-	r1, err = cachedCompile(".*")
-	require.NoError(t, err)
-	r2, err = cachedCompile(".*")
-	require.NoError(t, err)
-	require.True(t, r1 == r2)
-}
-
-func testMust(t *testing.T, compile, cachedCompile func(string) *regexp.Regexp) {
-	r1 := compile(".*")
-	r2 := compile(".*")
-	require.True(t, r1 != r2)
-
-	r1 = cachedCompile(".*")
-	r2 = cachedCompile(".*")
-	require.True(t, r1 == r2)
+			// Ensure that the cleanup happened and the maps used for interning regexp are empty
+			l.Lock()
+			require.Len(t, weakMap, 0)
+			require.Len(t, reverseMap, 0)
+			l.Unlock()
+		})
+	}
 }
 
 func BenchmarkRegexps(b *testing.B) {
