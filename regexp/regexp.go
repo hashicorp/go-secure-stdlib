@@ -56,6 +56,9 @@ func compile(pattern string, compileFunc func(string) (*regexp.Regexp, error), w
 		if ptr != nil {
 			return itemPtr.Value(), nil
 		}
+		delete(weakMap, pattern)
+		delete(posixWeakMap, pattern)
+		delete(reverseMap, itemPtr)
 	}
 	r, err := compileFunc(pattern)
 	if err != nil {
@@ -78,7 +81,13 @@ func mustCompile(pattern string, compileFunc func(string) *regexp.Regexp, weakMa
 	l.Lock()
 	defer l.Unlock()
 	if itemPtr, ok := weakMap[pattern]; ok {
-		return itemPtr.Value()
+		ptr := itemPtr.Value()
+		if ptr != nil {
+			return itemPtr.Value()
+		}
+		delete(weakMap, pattern)
+		delete(posixWeakMap, pattern)
+		delete(reverseMap, itemPtr)
 	}
 	r := compileFunc(pattern)
 	weakPointer := weak.Make(r)
