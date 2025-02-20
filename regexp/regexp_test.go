@@ -1,12 +1,13 @@
 package regexp
 
 import (
-	"github.com/stretchr/testify/require"
 	"regexp"
 	"runtime"
 	"strconv"
 	"sync"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 // TestInternedRegexps tests that the regular expressions are compiled correctly,
