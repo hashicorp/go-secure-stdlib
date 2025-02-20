@@ -23,6 +23,7 @@ jobs:
                   "plugincontainer",
                   "pluginutil",
                   "random",
+                  "regexp",
                   "reloadutil",
                   "strutil",
                   "temperror",
