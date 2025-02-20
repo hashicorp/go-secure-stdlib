@@ -77,24 +77,12 @@ func compile(pattern string, compileFunc func(string) (*regexp.Regexp, error), m
 // not interned or is nil (since it's a weak pointer), it is compiled and stored
 // in the maps. The regexp is stored in the maps as a weak pointer, so that it
 // can be garbage collected.
-func mustCompile(pattern string, compileFunc func(string) *regexp.Regexp, m map[string]weak.Pointer[regexp.Regexp]) *regexp.Regexp {
-	l.Lock()
-	defer l.Unlock()
-	if itemPtr, ok := m[pattern]; ok {
-		ptr := itemPtr.Value()
-		if ptr != nil {
-			return ptr
-		}
-		delete(weakMap, pattern)
-		delete(posixWeakMap, pattern)
-		delete(reverseMap, itemPtr)
+func mustCompile(pattern string, mustCompileFunc func(string) *regexp.Regexp, weakMap map[string]weak.Pointer[regexp.Regexp]) *regexp.Regexp {
+	compileFunc := func(string) (*regexp.Regexp, error) {
+		return mustCompileFunc(pattern), nil
 	}
-	r := compileFunc(pattern)
-	weakPointer := weak.Make(r)
-	m[pattern] = weakPointer
-	reverseMap[weakPointer] = pattern
-	runtime.AddCleanup(r, cleanup, weakPointer)
-	return r
+	res, _ := compile(pattern, compileFunc, weakMap)
+	return res
 }
 
 // cleanup is a cleanup function for *regexp.Regexp. It removes the entries from the
