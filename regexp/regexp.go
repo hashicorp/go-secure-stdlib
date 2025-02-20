@@ -17,7 +17,7 @@ var (
 	weakMap      = make(map[string]weak.Pointer[regexp.Regexp])
 	posixWeakMap = make(map[string]weak.Pointer[regexp.Regexp])
 	reverseMap   = make(map[weak.Pointer[regexp.Regexp]]string)
-	l            sync.RWMutex
+	l            sync.Mutex
 )
 
 // CompileInterned compiles and interns a regular expression and returns a
