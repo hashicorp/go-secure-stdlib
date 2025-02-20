@@ -8,27 +8,30 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        module: ["awsutil",
-                  "base62",
-                  "configutil",
-                  "fileutil",
-                  "gatedwriter",
-                  "httputil",
-                  "kv-builder",
-                  "listenerutil",
-                  "mlock",
-                  "nonceutil",
-                  "parseutil",
-                  "password",
-                  "plugincontainer",
-                  "pluginutil",
-                  "random",
-                  "regexp",
-                  "reloadutil",
-                  "strutil",
-                  "temperror",
-                  "tlsutil",
-                  "toggledlogger"]
+        module:
+          - "awsutil"
+          - "base62"
+          - "configutil"
+          - "cryptoutil"
+          - "fileutil"
+          - "gatedwriter"
+          - "httputil"
+          - "kv-builder"
+          - "listenerutil"
+          - "mlock"
+          - "nonceutil"
+          - "parseutil"
+          - "password"
+          - "permitpool"
+          - "plugincontainer"
+          - "pluginutil"
+          - "random"
+          - "regexp"
+          - "reloadutil"
+          - "strutil"
+          - "temperror"
+          - "tlsutil"
+          - "toggledlogger"
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3.5.3
