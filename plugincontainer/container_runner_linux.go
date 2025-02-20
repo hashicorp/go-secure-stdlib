@@ -15,9 +15,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
+	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
@@ -177,7 +177,7 @@ func (c *containerRunner) Start(ctx context.Context) error {
 			ref += ":" + c.tag
 		}
 		// Check the Image and SHA256 provided in the config match up.
-		images, err := c.dockerClient.ImageList(ctx, types.ImageListOptions{
+		images, err := c.dockerClient.ImageList(ctx, image.ListOptions{
 			Filters: filters.NewArgs(filters.Arg("reference", ref)),
 		})
 		if err != nil {

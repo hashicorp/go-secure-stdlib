@@ -189,6 +189,9 @@ func Test_ParseDurationSecond(t *testing.T) {
 
 		// JSON Number inputs
 		{in: json.Number("4352s"), out: 4352 * time.Second},
+
+		// Overflows
+		{in: "10000000000", invalid: true},
 	}
 
 	// Invalid inputs
@@ -219,7 +222,7 @@ func Test_ParseDurationSecond(t *testing.T) {
 		out, err := ParseDurationSecond(test.in)
 		if test.invalid {
 			if err == nil {
-				t.Fatalf("%q: expected error, got nil", test.in)
+				t.Fatalf("%q: expected error, got nil, out: %v", test.in, out)
 			}
 			continue
 		}
