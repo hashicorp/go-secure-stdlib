@@ -7,7 +7,7 @@ import (
 	"weak"
 )
 
-// "Interns" compilation of Regular Expressions.  If two regexs with the same pattern are compiled, the result
+// Interns the compilation of Regular Expressions.  If two regexs with the same pattern are compiled, the result
 // is the same *regexp.Regexp.  This avoids the compilation cost but more importantly the memory usage.
 //
 // Regular expressions produced from this package are backed by a form of weak-valued map, upon a regexp becoming
@@ -48,15 +48,15 @@ func MustCompilePOSIXInterned(pattern string) *regexp.Regexp {
 // not interned or is nil (since it's a weak pointer), it is compiled and stored
 // in the maps. The regexp is stored in the maps as a weak pointer, so that it
 // can be garbage collected.
-func compile(pattern string, compileFunc func(string) (*regexp.Regexp, error), weakMap map[string]weak.Pointer[regexp.Regexp]) (*regexp.Regexp, error) {
+func compile(pattern string, compileFunc func(string) (*regexp.Regexp, error), m map[string]weak.Pointer[regexp.Regexp]) (*regexp.Regexp, error) {
 	l.Lock()
 	defer l.Unlock()
-	if itemPtr, ok := weakMap[pattern]; ok {
+	if itemPtr, ok := m[pattern]; ok {
 		ptr := itemPtr.Value()
 		if ptr != nil {
-			return itemPtr.Value(), nil
+			return ptr, nil
 		}
-		delete(weakMap, pattern)
+		delete(m, pattern)
 		delete(posixWeakMap, pattern)
 		delete(reverseMap, itemPtr)
 	}
@@ -65,7 +65,7 @@ func compile(pattern string, compileFunc func(string) (*regexp.Regexp, error), w
 		return nil, err
 	}
 	weakPointer := weak.Make(r)
-	weakMap[pattern] = weakPointer
+	m[pattern] = weakPointer
 	reverseMap[weakPointer] = pattern
 	runtime.AddCleanup(r, cleanup, weakPointer)
 	return r, nil
@@ -77,13 +77,13 @@ func compile(pattern string, compileFunc func(string) (*regexp.Regexp, error), w
 // not interned or is nil (since it's a weak pointer), it is compiled and stored
 // in the maps. The regexp is stored in the maps as a weak pointer, so that it
 // can be garbage collected.
-func mustCompile(pattern string, compileFunc func(string) *regexp.Regexp, weakMap map[string]weak.Pointer[regexp.Regexp]) *regexp.Regexp {
+func mustCompile(pattern string, compileFunc func(string) *regexp.Regexp, m map[string]weak.Pointer[regexp.Regexp]) *regexp.Regexp {
 	l.Lock()
 	defer l.Unlock()
-	if itemPtr, ok := weakMap[pattern]; ok {
+	if itemPtr, ok := m[pattern]; ok {
 		ptr := itemPtr.Value()
 		if ptr != nil {
-			return itemPtr.Value()
+			return ptr
 		}
 		delete(weakMap, pattern)
 		delete(posixWeakMap, pattern)
@@ -91,7 +91,7 @@ func mustCompile(pattern string, compileFunc func(string) *regexp.Regexp, weakMa
 	}
 	r := compileFunc(pattern)
 	weakPointer := weak.Make(r)
-	weakMap[pattern] = weakPointer
+	m[pattern] = weakPointer
 	reverseMap[weakPointer] = pattern
 	runtime.AddCleanup(r, cleanup, weakPointer)
 	return r
