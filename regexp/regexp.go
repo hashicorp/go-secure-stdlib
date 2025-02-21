@@ -66,7 +66,13 @@ func compile(pattern string, compileFunc func(string) (*regexp.Regexp, error), i
 	weakPointer := weak.Make(r)
 	internedPointers[pattern] = weakPointer
 	reverseMap[weakPointer] = pattern
+
+	// Register a cleanup function for the regexp object
+	cleanup := func(ptr weak.Pointer[regexp.Regexp]) {
+		cleanupCollectedPointers(ptr, internedPointers)
+	}
 	runtime.AddCleanup(r, cleanup, weakPointer)
+
 	return r, nil
 }
 
@@ -84,14 +90,14 @@ func mustCompile(pattern string, mustCompileFunc func(string) *regexp.Regexp, in
 	return res
 }
 
-// cleanup is a cleanup function for *regexp.Regexp. It removes the entries from the
-// weak maps when the regexp object they point to is garbage collected.
-func cleanup(ptr weak.Pointer[regexp.Regexp]) {
+// cleanupCollectedPointers is a cleanup function for *regexp.Regexp. It removes
+// the entries from relevant maps when the regexp object they point to is
+// garbage collected.
+func cleanupCollectedPointers(ptr weak.Pointer[regexp.Regexp], internedPointers map[string]weak.Pointer[regexp.Regexp]) {
 	l.Lock()
 	defer l.Unlock()
 	if s, ok := reverseMap[ptr]; ok {
-		delete(weakMap, s)
-		delete(posixWeakMap, s)
+		delete(internedPointers, s)
 		delete(reverseMap, ptr)
 	}
 }
