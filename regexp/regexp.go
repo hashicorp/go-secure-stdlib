@@ -48,16 +48,15 @@ func MustCompilePOSIXInterned(pattern string) *regexp.Regexp {
 // not interned or is nil (since it's a weak pointer), it is compiled and stored
 // in the maps. The regexp is stored in the maps as a weak pointer, so that it
 // can be garbage collected.
-func compile(pattern string, compileFunc func(string) (*regexp.Regexp, error), m map[string]weak.Pointer[regexp.Regexp]) (*regexp.Regexp, error) {
+func compile(pattern string, compileFunc func(string) (*regexp.Regexp, error), internedPointers map[string]weak.Pointer[regexp.Regexp]) (*regexp.Regexp, error) {
 	l.Lock()
 	defer l.Unlock()
-	if itemPtr, ok := m[pattern]; ok {
+	if itemPtr, ok := internedPointers[pattern]; ok {
 		ptr := itemPtr.Value()
 		if ptr != nil {
 			return ptr, nil
 		}
-		delete(m, pattern)
-		delete(posixWeakMap, pattern)
+		delete(internedPointers, pattern)
 		delete(reverseMap, itemPtr)
 	}
 	r, err := compileFunc(pattern)
@@ -65,23 +64,23 @@ func compile(pattern string, compileFunc func(string) (*regexp.Regexp, error), m
 		return nil, err
 	}
 	weakPointer := weak.Make(r)
-	m[pattern] = weakPointer
+	internedPointers[pattern] = weakPointer
 	reverseMap[weakPointer] = pattern
 	runtime.AddCleanup(r, cleanup, weakPointer)
 	return r, nil
 }
 
-// mustCompile handles compiling and interning regular expressions just like
-// compile, but it will panic instead of returning an error. If the regexp is
-// already interned, a pointer to it is returned from the map. If the regexp is
-// not interned or is nil (since it's a weak pointer), it is compiled and stored
-// in the maps. The regexp is stored in the maps as a weak pointer, so that it
-// can be garbage collected.
-func mustCompile(pattern string, mustCompileFunc func(string) *regexp.Regexp, weakMap map[string]weak.Pointer[regexp.Regexp]) *regexp.Regexp {
+// mustCompile is a wrapper around compile that is used when we want to panic
+// instead of returning an error. If the regexp is already interned, a pointer
+// to it is returned from the map. If the regexp is not interned or is nil
+// (since it's a weak pointer), it is compiled and stored in the maps. The
+// regexp is stored in the maps as a weak pointer, so that it can be garbage
+// collected.
+func mustCompile(pattern string, mustCompileFunc func(string) *regexp.Regexp, internedPointers map[string]weak.Pointer[regexp.Regexp]) *regexp.Regexp {
 	compileFunc := func(string) (*regexp.Regexp, error) {
 		return mustCompileFunc(pattern), nil
 	}
-	res, _ := compile(pattern, compileFunc, weakMap)
+	res, _ := compile(pattern, compileFunc, internedPointers)
 	return res
 }
 
