@@ -49,13 +49,14 @@ func TestInternedRegexps(t *testing.T) {
 			// Compile two identical regular expressions, their pointers should be the same.
 			var r1, r2 *regexp.Regexp
 			var err error
+			pattern := ".*"
 			if tc.mustCompile {
-				r1 = tc.mustCompileFunc(".*")
-				r2 = tc.mustCompileFunc(".*")
+				r1 = tc.mustCompileFunc(pattern)
+				r2 = tc.mustCompileFunc(pattern)
 			} else {
-				r1, err = tc.compileFunc(".*")
+				r1, err = tc.compileFunc(pattern)
 				require.NoError(t, err)
-				r2, err = tc.compileFunc(".*")
+				r2, err = tc.compileFunc(pattern)
 				require.NoError(t, err)
 
 				// While we're here, check that errors work as expected.
@@ -93,6 +94,48 @@ func TestInternedRegexps(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestCleanupCorrectKind tests that the cleanup function removes the correct
+// kind (POSIX or non-POSIX) of regular expression from the correct backing maps.
+func TestCleanupCorrectKind(t *testing.T) {
+	pattern := ".*"
+	// Compile a POSIX and a non-POSIX regular expression
+	posixRegexp, err := CompilePOSIXInterned(pattern)
+	require.NoError(t, err)
+	nonPosixRegexp, err := CompileInterned(pattern)
+	require.NoError(t, err)
+
+	// Ensure they are different pointers
+	require.NotEqual(t, posixRegexp, nonPosixRegexp)
+
+	// Manually run the cleanup function for the POSIX regular expression
+	cleanupCollectedPointers(posixWeakMap[pattern], posixWeakMap)
+
+	// Ensure that the POSIX regular expression was removed from the maps
+	l.Lock()
+	require.Len(t, posixWeakMap, 0)
+	require.Len(t, reverseMap, 1)
+	require.Len(t, weakMap, 1)
+	l.Unlock()
+
+	// Compile a new POSIX regular expression with the same pattern
+	posixRegexp, err = CompilePOSIXInterned(pattern)
+	require.NoError(t, err)
+
+	l.Lock()
+	require.Len(t, posixWeakMap, 1)
+	require.Len(t, reverseMap, 2)
+	require.Len(t, weakMap, 1)
+	l.Unlock()
+
+	// Manually run the cleanup function for the non-POSIX regular expression
+	cleanupCollectedPointers(weakMap[pattern], weakMap)
+	l.Lock()
+	require.Len(t, weakMap, 0)
+	require.Len(t, reverseMap, 1)
+	require.Len(t, posixWeakMap, 1)
+	l.Unlock()
 }
 
 func BenchmarkRegexps(b *testing.B) {
