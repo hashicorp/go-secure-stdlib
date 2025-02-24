@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -45,7 +46,7 @@ func TestInternedRegexps(t *testing.T) {
 	}
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
-			// Compile two identical regular expressions, their pointers should be the same
+			// Compile two identical regular expressions, their pointers should be the same.
 			var r1, r2 *regexp.Regexp
 			var err error
 			if tc.mustCompile {
@@ -56,29 +57,40 @@ func TestInternedRegexps(t *testing.T) {
 				require.NoError(t, err)
 				r2, err = tc.compileFunc(".*")
 				require.NoError(t, err)
-				require.True(t, r1 == r2)
 
-				// While we're here, check that errors work as expected
+				// While we're here, check that errors work as expected.
 				_, err = tc.compileFunc("(")
 				require.Error(t, err)
 			}
 			require.True(t, r1 == r2)
-			// Remove references to the regexps and run the garbage collector
+
+			// Remove references to the regexps, and run the garbage collector in a loop to see if the cleanup happens.
 			r1 = nil
 			r2 = nil
+			deadline := time.Now().Add(10 * time.Second)
+			for {
+				// Run the garbage collector twice to increase chances of the cleanup happening.
+				// This still doesn't make it deterministic, but in local testing it was enough
+				// to not flake a single time in over two million runs, so it should be good enough.
+				// A single call to runtime.GC() was flaking very frequently in local testing.
+				runtime.GC()
+				runtime.GC()
 
-			// Run the garbage collector twice to increase chances of the cleanup happening.
-			// This still doesn't make it deterministic, but in local testing it was enough
-			// to not flake a single time in over two million runs, so it should be good enough.
-			// A single call to runtime.GC() was flaky very frequently in local testing.
-			runtime.GC()
-			runtime.GC()
+				// Ensure that the cleanup happened and the maps used for interning regexp are empty.
+				l.Lock()
+				wmlen := len(weakMap)
+				rmlen := len(reverseMap)
+				l.Unlock()
 
-			// Ensure that the cleanup happened and the maps used for interning regexp are empty
-			l.Lock()
-			require.Len(t, weakMap, 0)
-			require.Len(t, reverseMap, 0)
-			l.Unlock()
+				if wmlen == 0 && rmlen == 0 {
+					// Cleanup happened, test can exit successfully.
+					break
+				}
+				if time.Now().After(deadline) {
+					t.Fatalf("cleanup of interned regexps did not happen in time")
+				}
+				time.Sleep(1 * time.Second)
+			}
 		})
 	}
 }
