@@ -216,7 +216,7 @@ func Test_NormalizeAddr(t *testing.T) {
 		},
 		{
 			name: "valid uri with crazy chars in path",
-			// note the last of % as that would need to be encoded already
+			// note the lack of % as that would need to be encoded already
 			address:  "hashicorp/test/path/ !@$^&*()[:]{;}",
 			expected: "hashicorp/test/path/%20%21@$%5E&%2A%28%29%5B:%5D%7B;%7D",
 		},
