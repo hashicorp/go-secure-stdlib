@@ -44,15 +44,23 @@ func normalizeHostPort(host string, port string, url bool) (string, error) {
 // IPv6 address, the normalized copy will be conformant with RFC-5952 §4. If
 // the address cannot be parsed, an error will be returned.
 //
-// Valid formats include:
-//   - host
-//   - host:port
-//   - scheme://user@host/path?query#frag
+// There are two valid formats:
 //
-// Note: URLs and URIs must conform with RFC-3986 §3 or else the returned address
-// may be parsed and formatted incorrectly
+// - hosts: "host"
+//   - may be any of: IPv6 literal, IPv4 literal, dns name, or [sub]domain name
+//   - IPv6 literals are not required to be encapsulated within square brackets
+//     in this format
 //
-// See: https://www.rfc-editor.org/rfc/rfc5952#section-4, https://www.rfc-editor.org/rfc/rfc3986#section-3
+// - URIs: "[scheme://] [user@] host [:port] [/path] [?query] [#frag]"
+//   - format should conform with RFC-3986 §3 or else the returned address may
+//     be parsed and formatted incorrectly
+//   - hosts containing IPv6 literals MUST be encapsulated within square brackets,
+//     as defined in RFC-3986 §3.2.2 and RFC-5952 §6
+//   - all non-host components are optional
+//
+// See:
+//   - https://www.rfc-editor.org/rfc/rfc5952#section-4
+//   - https://www.rfc-editor.org/rfc/rfc3986#section-3
 func NormalizeAddr(address string) (string, error) {
 	if address == "" {
 		return "", fmt.Errorf("empty address")
