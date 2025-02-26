@@ -474,50 +474,6 @@ func Test_NormalizeAddr(t *testing.T) {
 			address:  "username@[2001:DB8:AC3:FE4::1]:8200",
 			expected: "username@[2001:db8:ac3:fe4::1]:8200",
 		},
-		// NOTE: these tests are NOT conformant with the URI spec https://www.rfc-editor.org/rfc/rfc3986#section-3
-		// and therefore have been omitted. according to RFC3986, ipv6 literals must always be encapsulated within
-		// square brackets, even when part of a destination address.
-		// See: https://www.rfc-editor.org/rfc/rfc3986#section-3
-		//      https://www.rfc-editor.org/rfc/rfc3986#section-3.2.2
-		// {
-		// 	name:    "ipv6 invalid ambiguous destination address with port",
-		// 	address: "username@2001:0db8::0001:8200",
-		// 	// Since the address and port are ambiguous the value appears to be
-		// 	// only an address and as such is normalized as an address only
-		// 	expected: "username@2001:db8::1:8200",
-		// },
-		// {
-		// 	name:    "ipv6 invalid leading zeroes ambiguous destination address with port",
-		// 	address: "username@2001:db8:0:1:1:1:1:1:8200",
-		// 	// Since the address and port are ambiguous the value is treated as
-		// 	// a string because it has too many colons to be a valid IPv6 address.
-		// 	expected: "username@2001:db8:0:1:1:1:1:1:8200",
-		// },
-		// {
-		// 	name:     "ipv6 destination address no port RFC-5952 4.1 conformance leading zeroes",
-		// 	address:  "username@2001:0db8::0001",
-		// 	expected: "username@2001:db8::1",
-		// },
-		// {
-		// 	name:     "ipv6 destination address no port RFC-5952 4.2.2 conformance one 16-bit 0 field",
-		// 	address:  "username@2001:db8:0:1:1:1:1:1",
-		// 	expected: "username@2001:db8:0:1:1:1:1:1",
-		// },
-		// {
-		// 	name:     "ipv6 destination address no port RFC-5952 4.2.3 conformance longest run of 0 bits shortened",
-		// 	address:  "username@2001:0:0:1:0:0:0:1",
-		// 	expected: "username@2001:0:0:1::1",
-		// },
-		// {
-		// 	name:     "ipv6 destination address no port RFC-5952 4.2.3 conformance equal runs of 0 bits shortened",
-		// 	address:  "username@2001:db8:0:0:1:0:0:1",
-		// 	expected: "username@2001:db8::1:0:0:1",
-		// },
-		// {
-		// 	name:     "ipv6 destination address no port RFC-5952 4.3 conformance downcase hex letters",
-		// 	address:  "username@2001:DB8:AC3:FE4::1",
-		// 	expected: "username@2001:db8:ac3:fe4::1",
-		// },
 	}
 	for _, tt := range tests {
 		tt := tt
