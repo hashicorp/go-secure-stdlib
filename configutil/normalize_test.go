@@ -134,7 +134,7 @@ func Test_NormalizeAddr(t *testing.T) {
 		{
 			name:    "invalid ipv6, it's just brackets",
 			address: "[]",
-			err:     "empty or invalid hostname",
+			err:     "empty or invalid address",
 		},
 		{
 			name:     "valid url with domain",
@@ -198,14 +198,31 @@ func Test_NormalizeAddr(t *testing.T) {
 		},
 		{
 			name:     "valid uri with crazy chars in query",
-			address:  "hashicorp/test/path?I think actually anything can be past here !@#$%^&*()[:]{;}",
-			expected: "hashicorp/test/path?I think actually anything can be past here !@#$%^&*()[:]{;}",
+			address:  "hashicorp/test/path?I think actually anything can be past here !@#$^&*()[:]{;}",
+			expected: "hashicorp/test/path?I think actually anything can be past here !@#$%5E&*()%5B:%5D%7B;%7D",
+		},
+		{
+			name:     "valid uri with pre-encoded components",
+			address:  "hashicorp/test/path?!@#$%5E&*()%5B:%5D%7B;%7D",
+			expected: "hashicorp/test/path?!@#$%5E&*()%5B:%5D%7B;%7D",
 		},
 		{
 			name: "valid uri with crazy chars in path",
 			// note the last of % as that would need to be encoded already
 			address:  "hashicorp/test/path/ !@$^&*()[:]{;}",
 			expected: "hashicorp/test/path/%20%21@$%5E&%2A%28%29%5B:%5D%7B;%7D",
+		},
+		{
+			name:    "invalid uri with invalid percent encoding",
+			address: "hashicorp/test/path?I think actually anything can be past here !@#$%^&*()[:]{;}",
+			err:     "unable to normalize given address",
+		},
+		{
+			name:    "invalid uri with invalid percent encoding",
+			address: "hashicorp/test/path?%^&",
+			// since there is nothing that needs to be encoded in this url,
+			// url.Parse does not detect that `%^&` in an invalid url encoding
+			expected: "hashicorp/test/path?%^&", // sad
 		},
 		{
 			name:     "valid uri without schema, with ipv6",
@@ -216,6 +233,51 @@ func Test_NormalizeAddr(t *testing.T) {
 			name:     "valid host with user",
 			address:  "dani@localhost",
 			expected: "dani@localhost",
+		},
+		{
+			name:     "valid uri no closing slash with frag",
+			address:  "[2001:BEEF:0:0:0:1:0:0001]#test",
+			expected: "[2001:beef::1:0:1]#test",
+		},
+		{
+			name:     "valid uri with scheme, no closing slash, with frag",
+			address:  "https://[2001:BEEF:0:0:0:1:0:0001]#test",
+			expected: "https://[2001:beef::1:0:1]#test",
+		},
+		{
+			name:     "valid ldap url with a bunch of data",
+			address:  "ldap://ds.example.com:389/dc=example,dc=com?givenName,sn,cn?sub?(uid=john.doe)#extra",
+			expected: "ldap://ds.example.com:389/dc=example,dc=com?givenName,sn,cn?sub?(uid=john.doe)#extra",
+		},
+		{
+			name:     "valid ldap url with IPv6 address, port, and data",
+			address:  "ldap://[2001:BEEF:0:0:0:1:0:0001]:389/dc=example,dc=com?givenName,sn,cn?sub?(uid=john.doe)#extra",
+			expected: "ldap://[2001:beef::1:0:1]:389/dc=example,dc=com?givenName,sn,cn?sub?(uid=john.doe)#extra",
+		},
+		{
+			name:     "valid ldap url with IPv6 address and data",
+			address:  "ldap://[2001:BEEF:0:0:0:1:0:0001]/dc=example,dc=com?givenName,sn,cn?sub?(uid=john.doe)#extra",
+			expected: "ldap://[2001:beef::1:0:1]/dc=example,dc=com?givenName,sn,cn?sub?(uid=john.doe)#extra",
+		},
+		{
+			name:     "valid ldap url with IPv4 address, port, and data",
+			address:  "ldap://127.0.0.1:389/dc=example,dc=com?givenName,sn,cn?sub?(uid=john.doe)#extra",
+			expected: "ldap://127.0.0.1:389/dc=example,dc=com?givenName,sn,cn?sub?(uid=john.doe)#extra",
+		},
+		{
+			name:     "valid ldap url with IPv4 address and data",
+			address:  "ldap://127.0.0.1/dc=example,dc=com?givenName,sn,cn?sub?(uid=john.doe)#extra",
+			expected: "ldap://127.0.0.1/dc=example,dc=com?givenName,sn,cn?sub?(uid=john.doe)#extra",
+		},
+		{
+			name:     "valid ldap url with IPv6 address, no slash, and query data",
+			address:  "ldap://[2001:BEEF:0:0:0:1:0:0001]:389?givenName,sn,cn?sub?(uid=john.doe)#extra",
+			expected: "ldap://[2001:beef::1:0:1]:389?givenName,sn,cn?sub?(uid=john.doe)#extra",
+		},
+		{
+			name:     "valid ldap url with IPv6 address, no slash, and frag data",
+			address:  "ldap://[2001:BEEF:0:0:0:1:0:0001]:389#extra",
+			expected: "ldap://[2001:beef::1:0:1]:389#extra",
 		},
 
 		// imported from vault
@@ -384,7 +446,6 @@ func Test_NormalizeAddr(t *testing.T) {
 			address:  "https://[2001:db8:0:0:1:0:0:1]:8200",
 			expected: "https://[2001:db8::1:0:0:1]:8200",
 		},
-
 		{
 			name:     "ipv6 destination address with port RFC-5952 4.2.3 conformance equal runs of 0 bits shortened",
 			address:  "username@[2001:db8:0:0:1:0:0:1]:8200",

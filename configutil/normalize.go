@@ -10,14 +10,13 @@ import (
 	"strings"
 )
 
-// general delimiters as defined in RFC 3986
+// general delimiters as defined in RFC-3986 §2.2
 // See: https://www.rfc-editor.org/rfc/rfc3986#section-2.2
 const genDelims = ":/?#[]@"
 
 func normalizeHostPort(host string, port string, url bool) (string, error) {
-	// fmt.Println("host:", host, "port:", port)
 	if host == "" {
-		return "", nil
+		return "", fmt.Errorf("empty or invalid hostname")
 	}
 	if ip := net.ParseIP(host); ip != nil {
 		if url && ip.To4() == nil && port == "" {
@@ -41,21 +40,22 @@ func normalizeHostPort(host string, port string, url bool) (string, error) {
 }
 
 // NormalizeAddr takes an address as a string and returns a normalized copy.
-// If the addr is a URL, IP Address, or host:port address that includes an IPv6
-// address, the normalized copy will be conformant with RFC-5942 §4
+// If the address is a URL, IP Address, or host:port address that includes an
+// IPv6 address, the normalized copy will be conformant with RFC-5952 §4. If
+// the address cannot be parsed, an error will be returned.
 //
 // Valid formats include:
 //   - host
 //   - host:port
 //   - scheme://user@host/path?query#frag
 //
-// Note: URLs and URIs must conform with https://www.rfc-editor.org/rfc/rfc3986#section-3
-// or else the returned address may have been parsed and formatted incorrectly
+// Note: URLs and URIs must conform with RFC-3986 §3 or else the returned address
+// may be parsed and formatted incorrectly
 //
-// See: https://rfc-editor.org/rfc/rfc5952.html
+// See: https://www.rfc-editor.org/rfc/rfc5952#section-4, https://www.rfc-editor.org/rfc/rfc3986#section-3
 func NormalizeAddr(address string) (string, error) {
 	if address == "" {
-		return "", fmt.Errorf("empty or invalid hostname")
+		return "", fmt.Errorf("empty or invalid address")
 	}
 
 	if ip := net.ParseIP(address); ip != nil {
@@ -70,23 +70,27 @@ func NormalizeAddr(address string) (string, error) {
 		return normalizeHostPort(host, port, false)
 	}
 
-	if u, err := url.ParseRequestURI(address); err == nil {
-		if u.Host, err = normalizeHostPort(u.Hostname(), u.Port(), true); err != nil {
-			return "", err
-		}
-		return u.String(), nil
-	}
 	// if the provided address does not have a scheme provided, attempt to
 	// provide one and re-parse the result. this is done by looking for the
 	// first general delimiter and checking if it exists or if it's not a colon
 	// See: https://www.rfc-editor.org/rfc/rfc3986#section-3
 	if idx := strings.IndexAny(address, genDelims); idx < 0 || address[idx] != ':' {
 		const scheme = "https://"
-		if u, err := url.ParseRequestURI(scheme + address); err == nil {
+		// attempt to parse it as a url, we only want to try this func when we
+		// know for sure it has a scheme, since it can parse ANYTHING, but then
+		// just puts it into u.Path without the scheme
+		if u, err := url.Parse(scheme + address); err == nil {
 			if u.Host, err = normalizeHostPort(u.Hostname(), u.Port(), true); err != nil {
 				return "", err
 			}
 			return strings.TrimPrefix(u.String(), scheme), nil
+		}
+	} else {
+		if u, err := url.Parse(address); err == nil {
+			if u.Host, err = normalizeHostPort(u.Hostname(), u.Port(), true); err != nil {
+				return "", err
+			}
+			return u.String(), nil
 		}
 	}
 
