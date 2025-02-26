@@ -134,7 +134,12 @@ func Test_NormalizeAddr(t *testing.T) {
 		{
 			name:    "invalid ipv6, it's just brackets",
 			address: "[]",
-			err:     "empty or invalid address",
+			err:     "empty address",
+		},
+		{
+			name:    "invalid address, empty",
+			address: "",
+			err:     "empty address",
 		},
 		{
 			name:     "valid url with domain",

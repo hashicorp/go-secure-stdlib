@@ -16,7 +16,7 @@ const genDelims = ":/?#[]@"
 
 func normalizeHostPort(host string, port string, url bool) (string, error) {
 	if host == "" {
-		return "", fmt.Errorf("empty or invalid hostname")
+		return "", fmt.Errorf("empty hostname")
 	}
 	if ip := net.ParseIP(host); ip != nil {
 		if url && ip.To4() == nil && port == "" {
@@ -55,7 +55,7 @@ func normalizeHostPort(host string, port string, url bool) (string, error) {
 // See: https://www.rfc-editor.org/rfc/rfc5952#section-4, https://www.rfc-editor.org/rfc/rfc3986#section-3
 func NormalizeAddr(address string) (string, error) {
 	if address == "" {
-		return "", fmt.Errorf("empty or invalid address")
+		return "", fmt.Errorf("empty address")
 	}
 
 	if ip := net.ParseIP(address); ip != nil {
