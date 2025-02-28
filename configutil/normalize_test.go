@@ -65,9 +65,9 @@ func Test_NormalizeAddr(t *testing.T) {
 			expected: "2001:beef::1:0:1",
 		},
 		{
-			name:     "valid ipv6 literal with brackets",
-			address:  "[2001:BEEF:0:0:0:1:0:0001]",
-			expected: "2001:beef::1:0:1",
+			name:    "valid ipv6 literal with brackets",
+			address: "[2001:BEEF:0:0:0:1:0:0001]",
+			err:     "address cannot be encapsulated by brackets",
 		},
 		{
 			name:     "valid ipv6 host:port",
@@ -112,7 +112,7 @@ func Test_NormalizeAddr(t *testing.T) {
 		{
 			name:    "invalid ipv6, not enough segments",
 			address: "2001:BEEF:0:0:1:0:0001",
-			err:     "unable to normalize given address",
+			err:     "host contains an invalid IPv6 literal",
 		},
 		{
 			name:    "invalid ipv6 host:port, not enough segments",
@@ -122,7 +122,7 @@ func Test_NormalizeAddr(t *testing.T) {
 		{
 			name:    "invalid ipv6 literal with brackets, not enough segments",
 			address: "[2001:BEEF:0:0:1:0:0001]",
-			err:     "unable to normalize given address",
+			err:     "address cannot be encapsulated by brackets",
 		},
 		{
 			name:    "invalid ipv6 uri, not enough segments",
@@ -137,7 +137,7 @@ func Test_NormalizeAddr(t *testing.T) {
 		{
 			name:    "invalid ipv6, it's just brackets",
 			address: "[]",
-			err:     "empty address",
+			err:     "address cannot be encapsulated by brackets",
 		},
 		{
 			name:    "invalid address, empty",
@@ -222,7 +222,7 @@ func Test_NormalizeAddr(t *testing.T) {
 		},
 		{
 			name:    "invalid uri with invalid percent encoding",
-			address: "hashicorp/test/path?I think actually anything can be past here !@#$%^&*()[:]{;}",
+			address: "hashicorp/test/path?!@#$%^&*()[:]{;}",
 			err:     "unable to normalize given address",
 		},
 		{
@@ -287,6 +287,21 @@ func Test_NormalizeAddr(t *testing.T) {
 			address:  "ldap://[2001:BEEF:0:0:0:1:0:0001]:389#extra",
 			expected: "ldap://[2001:beef::1:0:1]:389#extra",
 		},
+		{
+			name:     "valid url with no scheme, ipv4 host, port address, and colon after port",
+			address:  "127.0.0.1:80/test/path:123",
+			expected: "127.0.0.1:80/test/path:123",
+		},
+		{
+			name:     "valid url with no scheme, ipv6 host, port address, and colon after port",
+			address:  "[2001:BEEF:0:0:0:1:0:0001]:80/test/path:123",
+			expected: "[2001:beef::1:0:1]:80/test/path:123",
+		},
+		{
+			name:    "anything other than numbers in port",
+			address: "abc:gh",
+			err:     "unable to normalize given address",
+		},
 
 		// imported from vault
 		{
@@ -327,11 +342,6 @@ func Test_NormalizeAddr(t *testing.T) {
 		{
 			name:     "ipv4",
 			address:  "10.10.1.10",
-			expected: "10.10.1.10",
-		},
-		{
-			name:     "ipv4 invalid bracketed",
-			address:  "[10.10.1.10]",
 			expected: "10.10.1.10",
 		},
 		{
@@ -383,11 +393,6 @@ func Test_NormalizeAddr(t *testing.T) {
 			name:     "ipv4 destination address URL port",
 			address:  "https://username@10.10.1.10:8200",
 			expected: "https://username@10.10.1.10:8200",
-		},
-		{
-			name:     "ipv6 invalid address",
-			address:  "[2001:0db8::0001]",
-			expected: "2001:db8::1",
 		},
 		{
 			name:     "ipv6 IP:Port RFC-5952 4.1 conformance leading zeroes",

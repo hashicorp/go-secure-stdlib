@@ -49,8 +49,7 @@ func normalizeHostPort(host string, port string, url bool) (string, error) {
 //
 // - hosts: "host"
 //   - may be any of: IPv6 literal, IPv4 literal, dns name, or [sub]domain name
-//   - IPv6 literals are not required to be encapsulated within square brackets
-//     in this format
+//   - IPv6 literals cannot be encapsulated within square brackets in this format
 //
 // - URIs: "[scheme://] [user@] host [:port] [/path] [?query] [#frag]"
 //   - format should conform with RFC-3986 §3 or else the returned address may
@@ -63,11 +62,8 @@ func normalizeHostPort(host string, port string, url bool) (string, error) {
 //   - https://www.rfc-editor.org/rfc/rfc5952
 //   - https://www.rfc-editor.org/rfc/rfc3986
 func NormalizeAddr(address string) (string, error) {
-	for {
-		if !strings.HasPrefix(address, "[") || !strings.HasSuffix(address, "]") {
-			break
-		}
-		address = address[1 : len(address)-1]
+	if strings.HasPrefix(address, "[") && strings.HasSuffix(address, "]") {
+		return "", fmt.Errorf("address cannot be encapsulated by brackets")
 	}
 
 	if address == "" {
@@ -78,16 +74,25 @@ func NormalizeAddr(address string) (string, error) {
 		return ip.String(), nil
 	}
 
-	if host, port, err := net.SplitHostPort(address); err == nil {
-		return normalizeHostPort(host, port, false)
-	}
-
 	// if the provided address does not have a scheme provided, attempt to
 	// provide one and re-parse the result. this is done by looking for the
 	// first general delimiter and checking if it exists or if it's not a colon
+	// or by subsequently checking if the first character of the address is a
+	// letter or a colon or if the colon is part of "://"
 	// See: https://www.rfc-editor.org/rfc/rfc3986#section-3
-	if idx := strings.IndexAny(address, genDelims); idx < 0 || address[idx] != ':' {
-		const scheme = "https://"
+	//
+	// though the first character being a colon is not mentioned in the scheme
+	// spec, we check for it as url.Parse will read certain invalid ipv6
+	// addresses as valid urls, and we want to avoid that
+	idx := strings.IndexAny(address, genDelims)
+	switch {
+	case idx < 0:
+		fallthrough
+	case address[idx] != ':':
+		fallthrough
+		// by this point we already know that idx > 0 and that address[idx] == ':'
+	case idx > 1 && !strings.HasPrefix(address[idx:], "://"):
+		const scheme = "default://"
 		// attempt to parse it as a url. we only want to try this func when we
 		// know for sure it has a scheme, since it will parse ANYTHING, but
 		// just put it into u.Path when called without the scheme
@@ -97,7 +102,7 @@ func NormalizeAddr(address string) (string, error) {
 			}
 			return strings.TrimPrefix(u.String(), scheme), nil
 		}
-	} else {
+	default:
 		if u, err := url.Parse(address); err == nil {
 			if u.Host, err = normalizeHostPort(u.Hostname(), u.Port(), true); err != nil {
 				return "", err
