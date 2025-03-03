@@ -2,9 +2,8 @@
 # project within Secure. As such, seemingly minor changes meant for one project
 # can have unexpected impacts on another.
 #
-# For this reason there are currently a few stewards within Secure that
-# have a good understanding of those impacts on their projects and coordinate
-# if there is uncertainty, and they are the owners rather than a team that may
-# be modified externally.
+# For this reason only a group of leads with responsibilities at the Secure org level who
+# have a good understanding of those impacts on their projects should have ownership, 
+# and these members should coordinate if there is uncertainty.
 
-* @jefferai @sgmiller
+* @hashicorp/secure-leads
