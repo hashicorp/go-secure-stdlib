@@ -14,12 +14,12 @@ import (
 // See: https://www.rfc-editor.org/rfc/rfc3986#section-2.2
 const genDelims = ":/?#[]@"
 
-func normalizeHostPort(host string, port string, url bool) (string, error) {
+func normalizeHostPort(host string, port string) (string, error) {
 	if host == "" {
 		return "", fmt.Errorf("empty hostname")
 	}
 	if ip := net.ParseIP(host); ip != nil {
-		if url && ip.To4() == nil && ip.To16() != nil && port == "" {
+		if ip.To4() == nil && ip.To16() != nil && port == "" {
 			// this is a unique case, host is ipv6 and requires brackets due to
 			// being part of a url, but they won't be added by net.JoinHostPort
 			// as there is no port
@@ -38,6 +38,19 @@ func normalizeHostPort(host string, port string, url bool) (string, error) {
 		return host, nil
 	}
 	return net.JoinHostPort(host, port), nil
+}
+
+func parseUrl(addr string) (string, error) {
+	if u, err := url.Parse(addr); err == nil {
+		if strings.HasSuffix(u.Host, ":") {
+			return "", fmt.Errorf("url has malformed host: missing port value after colon")
+		}
+		if u.Host, err = normalizeHostPort(u.Hostname(), u.Port()); err != nil {
+			return "", err
+		}
+		return u.String(), nil
+	}
+	return "", fmt.Errorf("failed to parse address")
 }
 
 // NormalizeAddr takes an address as a string and returns a normalized copy.
@@ -62,12 +75,12 @@ func normalizeHostPort(host string, port string, url bool) (string, error) {
 //   - https://www.rfc-editor.org/rfc/rfc5952
 //   - https://www.rfc-editor.org/rfc/rfc3986
 func NormalizeAddr(address string) (string, error) {
-	if strings.HasPrefix(address, "[") && strings.HasSuffix(address, "]") {
-		return "", fmt.Errorf("address cannot be encapsulated by brackets")
-	}
-
 	if address == "" {
 		return "", fmt.Errorf("empty address")
+	}
+
+	if strings.HasPrefix(address, "[") && strings.HasSuffix(address, "]") {
+		return "", fmt.Errorf("address cannot be encapsulated by brackets")
 	}
 
 	if ip := net.ParseIP(address); ip != nil {
@@ -96,20 +109,13 @@ func NormalizeAddr(address string) (string, error) {
 		// attempt to parse it as a url. we only want to try this func when we
 		// know for sure it has a scheme, since it will parse ANYTHING, but
 		// just put it into u.Path when called without the scheme
-		if u, err := url.Parse(scheme + address); err == nil {
-			if u.Host, err = normalizeHostPort(u.Hostname(), u.Port(), true); err != nil {
-				return "", err
-			}
-			return strings.TrimPrefix(u.String(), scheme), nil
+		u, err := parseUrl(scheme + address)
+		if err != nil {
+			return "", err
 		}
-	default:
-		if u, err := url.Parse(address); err == nil {
-			if u.Host, err = normalizeHostPort(u.Hostname(), u.Port(), true); err != nil {
-				return "", err
-			}
-			return u.String(), nil
-		}
-	}
+		return strings.TrimPrefix(u, scheme), nil
 
-	return "", fmt.Errorf("unable to normalize given address")
+	default:
+		return parseUrl(address)
+	}
 }

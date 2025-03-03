@@ -92,7 +92,7 @@ func Test_NormalizeAddr(t *testing.T) {
 		{
 			name:    "invalid ipv6 uri missing closing bracket",
 			address: "https://[2001:BEEF:0:0:0:1:0:0001",
-			err:     "unable to normalize given address",
+			err:     "failed to parse address",
 		},
 		{
 			name:    "invalid ipv6 uri missing brackets",
@@ -102,12 +102,12 @@ func Test_NormalizeAddr(t *testing.T) {
 		{
 			name:    "invalid ipv6 literal",
 			address: ":0:",
-			err:     "unable to normalize given address",
+			err:     "failed to parse address",
 		},
 		{
 			name:    "invalid ipv6 literal",
 			address: "::0:",
-			err:     "unable to normalize given address",
+			err:     "failed to parse address",
 		},
 		{
 			name:    "invalid ipv6, not enough segments",
@@ -187,7 +187,7 @@ func Test_NormalizeAddr(t *testing.T) {
 		{
 			name:    "invalid host with only dns name",
 			address: "hashi corp",
-			err:     "unable to normalize given address",
+			err:     "failed to parse address",
 		},
 		{
 			name:     "valid url with path, schema, and subdomain",
@@ -223,7 +223,7 @@ func Test_NormalizeAddr(t *testing.T) {
 		{
 			name:    "invalid uri with invalid percent encoding",
 			address: "hashicorp/test/path?!@#$%^&*()[:]{;}",
-			err:     "unable to normalize given address",
+			err:     "failed to parse address",
 		},
 		{
 			name:    "invalid uri with invalid percent encoding",
@@ -300,7 +300,17 @@ func Test_NormalizeAddr(t *testing.T) {
 		{
 			name:    "anything other than numbers in port",
 			address: "abc:gh",
-			err:     "unable to normalize given address",
+			err:     "failed to parse address",
+		},
+		{
+			name:    "invalid ipv4 host:port, host contains colon but no port",
+			address: "127.0.0.1:",
+			err:     "url has malformed host: missing port value after colon",
+		},
+		{
+			name:    "invalid ipv6 host:port, host contains colon but no port",
+			address: "[2001:4860:4860::8888]:",
+			err:     "url has malformed host: missing port value after colon",
 		},
 
 		// imported from vault
