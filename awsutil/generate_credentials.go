@@ -205,28 +205,6 @@ func (c *CredentialsConfig) GenerateCredentialChain(opt ...Option) (*credentials
 		c.log(hclog.Debug, "added static credential provider", "AccessKey", c.AccessKey)
 	}
 
-	// Add the environment credential provider
-	if opts.withEnvironmentCredentials {
-		providers = append(providers, &credentials.EnvProvider{})
-		c.log(hclog.Debug, "added environment variable credential provider")
-	}
-
-	// Add the shared credentials provider
-	if opts.withSharedCredentials {
-		profile := os.Getenv("AWS_PROFILE")
-		if profile != "" {
-			c.Profile = profile
-		}
-		if c.Profile == "" {
-			c.Profile = "default"
-		}
-		providers = append(providers, &credentials.SharedCredentialsProvider{
-			Filename: c.Filename,
-			Profile:  c.Profile,
-		})
-		c.log(hclog.Debug, "added shared credential provider")
-	}
-
 	// Add the assume role provider
 	roleARN := c.RoleARN
 	if roleARN == "" {
@@ -240,6 +218,8 @@ func (c *CredentialsConfig) GenerateCredentialChain(opt ...Option) (*credentials
 	if roleSessionName == "" {
 		roleSessionName = os.Getenv("AWS_ROLE_SESSION_NAME")
 	}
+
+	var webIDProviderEnabled bool
 	if roleARN != "" {
 		if tokenPath != "" || c.WebIdentityToken != "" || c.WebIdentityTokenFetcher != nil {
 			sess, err := session.NewSession()
@@ -274,6 +254,8 @@ func (c *CredentialsConfig) GenerateCredentialChain(opt ...Option) (*credentials
 					providers = append(providers, webIdentityProvider)
 				}
 			}
+
+			webIDProviderEnabled = true
 		} else {
 			// this session is only created to create the AssumeRoleProvider, variables used to
 			// assume a role are pulled from values provided in options. If the option values are
@@ -308,6 +290,30 @@ func (c *CredentialsConfig) GenerateCredentialChain(opt ...Option) (*credentials
 					Value: creds,
 				})
 			}
+		}
+	}
+
+	if !webIDProviderEnabled {
+		// Add the environment credential provider
+		if opts.withEnvironmentCredentials {
+			providers = append(providers, &credentials.EnvProvider{})
+			c.log(hclog.Debug, "added environment variable credential provider")
+		}
+
+		// Add the shared credentials provider
+		if opts.withSharedCredentials {
+			profile := os.Getenv("AWS_PROFILE")
+			if profile != "" {
+				c.Profile = profile
+			}
+			if c.Profile == "" {
+				c.Profile = "default"
+			}
+			providers = append(providers, &credentials.SharedCredentialsProvider{
+				Filename: c.Filename,
+				Profile:  c.Profile,
+			})
+			c.log(hclog.Debug, "added shared credential provider")
 		}
 	}
 
