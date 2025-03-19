@@ -1,10 +1,12 @@
 module github.com/hashicorp/go-secure-stdlib/password
 
-go 1.19
+go 1.23.0
+
+toolchain go1.24.1
 
 require (
-	golang.org/x/crypto v0.17.0
-	golang.org/x/sys v0.15.0
+	golang.org/x/crypto v0.36.0
+	golang.org/x/sys v0.31.0
 )
 
-require golang.org/x/term v0.15.0 // indirect
+require golang.org/x/term v0.30.0 // indirect
