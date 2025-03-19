@@ -1,12 +1,14 @@
 module github.com/hashicorp/go-secure-stdlib/pluginutil/v2
 
-go 1.20
+go 1.23.0
+
+toolchain go1.24.1
 
 require (
 	github.com/hashicorp/go-plugin v1.5.2
 	github.com/hashicorp/go-secure-stdlib/base62 v0.1.2
 	github.com/stretchr/testify v1.8.4
-	golang.org/x/crypto v0.28.0
+	golang.org/x/crypto v0.36.0
 )
 
 require (
@@ -22,8 +24,8 @@ require (
 	github.com/oklog/run v1.0.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	golang.org/x/net v0.23.0 // indirect
-	golang.org/x/sys v0.26.0 // indirect
-	golang.org/x/text v0.19.0 // indirect
+	golang.org/x/sys v0.31.0 // indirect
+	golang.org/x/text v0.23.0 // indirect
 	google.golang.org/genproto v0.0.0-20230410155749-daa745c078e1 // indirect
 	google.golang.org/grpc v1.56.3 // indirect
 	google.golang.org/protobuf v1.33.0 // indirect
