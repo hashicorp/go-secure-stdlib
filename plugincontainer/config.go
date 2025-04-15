@@ -84,5 +84,6 @@ type Config struct {
 	// extracted from the plugin container before it is cleaned up. It will also
 	// include plugin environment variables in the error output. Not recommended
 	// for production use.
-	Debug bool
+	Debug        bool
+	AutoDownload bool
 }

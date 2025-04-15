@@ -47,11 +47,12 @@ type containerRunner struct {
 	stdout       io.ReadCloser
 	stderr       io.ReadCloser
 
-	image  string
-	tag    string
-	sha256 string
-	id     string
-	debug  bool
+	image        string
+	tag          string
+	sha256       string
+	id           string
+	debug        bool
+	autoDownload bool
 }
 
 // NewContainerRunner must be passed a cmd that hasn't yet been started.
@@ -161,28 +162,30 @@ func (cfg *Config) NewContainerRunner(logger hclog.Logger, cmd *exec.Cmd, hostSo
 		hostConfig:      hostConfig,
 		networkConfig:   networkConfig,
 
-		image:  cfg.Image,
-		tag:    cfg.Tag,
-		sha256: sha256,
-		debug:  cfg.Debug,
+		image:        cfg.Image,
+		tag:          cfg.Tag,
+		sha256:       sha256,
+		debug:        cfg.Debug,
+		autoDownload: cfg.AutoDownload,
 	}, nil
 }
 
 func (c *containerRunner) Start(ctx context.Context) error {
 	c.logger.Debug("starting container", "image", c.image)
 
+	ref := c.image
+	if c.tag != "" {
+		ref += ":" + c.tag
+	}
+	// Check the Image and SHA256 provided in the config match up.
+	images, err := c.dockerClient.ImageList(ctx, image.ListOptions{
+		Filters: filters.NewArgs(filters.Arg("reference", ref)),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to list images by reference %s: %w", ref, err)
+	}
+
 	if c.sha256 != "" {
-		ref := c.image
-		if c.tag != "" {
-			ref += ":" + c.tag
-		}
-		// Check the Image and SHA256 provided in the config match up.
-		images, err := c.dockerClient.ImageList(ctx, image.ListOptions{
-			Filters: filters.NewArgs(filters.Arg("reference", ref)),
-		})
-		if err != nil {
-			return fmt.Errorf("failed to verify that image %s matches with provided SHA256 hash %s: %w", ref, c.sha256, err)
-		}
 		var imageFound bool
 		for _, image := range images {
 			if image.ID == "sha256:"+c.sha256 {
@@ -192,6 +195,15 @@ func (c *containerRunner) Start(ctx context.Context) error {
 		}
 		if !imageFound {
 			return fmt.Errorf("could not find any locally available images named %s that match with the provided SHA256 hash %s: %w", ref, c.sha256, ErrSHA256Mismatch)
+		}
+	}
+
+	// automatically pull the image if the image does not exist.
+	if c.autoDownload && len(images) == 0 {
+		c.logger.Info("image not found, pulling", "ref", ref)
+		_, err := c.dockerClient.ImagePull(ctx, c.image, image.PullOptions{})
+		if err != nil {
+			return fmt.Errorf("error pulling image: %w", err)
 		}
 	}
 
