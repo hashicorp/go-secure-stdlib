@@ -4,6 +4,7 @@
 package plugincontainer
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"errors"
@@ -198,13 +199,31 @@ func (c *containerRunner) Start(ctx context.Context) error {
 		}
 	}
 
+	fmt.Println("AUTO DOWNLOAD", c.autoDownload)
 	// automatically pull the image if the image does not exist.
 	if c.autoDownload && len(images) == 0 {
+		fmt.Println("AUTO DOWNLOAD", "PULLING")
 		c.logger.Info("image not found, pulling", "ref", ref)
-		_, err := c.dockerClient.ImagePull(ctx, c.image, image.PullOptions{})
+		image, err := c.dockerClient.ImagePull(ctx, c.image, image.PullOptions{})
 		if err != nil {
 			return fmt.Errorf("error pulling image: %w", err)
 		}
+		reader := bufio.NewReader(image)
+		defer image.Close()
+		var resp bytes.Buffer
+		for {
+			line, err := reader.ReadBytes('\n')
+			if err != nil {
+				// it could be EOF or read error
+				// handle it
+				break
+			}
+			resp.Write(line)
+			resp.WriteByte('\n')
+		}
+
+		// print it
+		fmt.Println(resp.String())
 	}
 
 	resp, err := c.dockerClient.ContainerCreate(ctx, c.containerConfig, c.hostConfig, c.networkConfig, nil, "")
