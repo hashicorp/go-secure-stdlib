@@ -83,7 +83,11 @@ func (cfg *Config) NewContainerRunner(logger hclog.Logger, cmd *exec.Cmd, hostSo
 	} else {
 		imageRef = cfg.Image
 		if cfg.Tag != "" {
+			//tag := strings.ReplaceAll(cfg.Tag, "+", "-")
+			//imageRef += ":" + tag
 			imageRef += ":" + cfg.Tag
+			fmt.Println("cfg.Tag supplied", cfg.Tag)
+			fmt.Println("new image ref", imageRef)
 		}
 	}
 	// Container config.
@@ -176,7 +180,9 @@ func (c *containerRunner) Start(ctx context.Context) error {
 
 	ref := c.image
 	if c.tag != "" {
-		ref += ":" + c.tag
+		tag := c.tag
+		tag = strings.ReplaceAll(tag, "+", "_")
+		ref += ":" + tag
 	}
 	// Check the Image and SHA256 provided in the config match up.
 	images, err := c.dockerClient.ImageList(ctx, image.ListOptions{
@@ -204,7 +210,7 @@ func (c *containerRunner) Start(ctx context.Context) error {
 	if c.autoDownload && len(images) == 0 {
 		fmt.Println("AUTO DOWNLOAD", "PULLING")
 		c.logger.Info("image not found, pulling", "ref", ref)
-		image, err := c.dockerClient.ImagePull(ctx, c.image, image.PullOptions{})
+		image, err := c.dockerClient.ImagePull(ctx, ref, image.PullOptions{})
 		if err != nil {
 			return fmt.Errorf("error pulling image: %w", err)
 		}
@@ -226,6 +232,7 @@ func (c *containerRunner) Start(ctx context.Context) error {
 		fmt.Println(resp.String())
 	}
 
+	fmt.Println("Container image name", c.containerConfig.Image)
 	resp, err := c.dockerClient.ContainerCreate(ctx, c.containerConfig, c.hostConfig, c.networkConfig, nil, "")
 	if err != nil {
 		return fmt.Errorf("error creating container: %w", err)
