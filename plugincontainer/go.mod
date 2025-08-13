@@ -3,17 +3,19 @@ module github.com/hashicorp/go-secure-stdlib/plugincontainer
 go 1.22.0
 
 require (
-	github.com/docker/docker v27.2.1+incompatible
+	github.com/docker/docker v28.3.3+incompatible
 	github.com/hashicorp/go-hclog v1.6.3
 	github.com/hashicorp/go-plugin v1.6.1
 	github.com/joshlf/go-acl v0.0.0-20200411065538-eae00ae38531
 	golang.org/x/sys v0.25.0
-	google.golang.org/grpc v1.66.1
+	google.golang.org/grpc v1.67.0
 	google.golang.org/protobuf v1.34.2
 )
 
 require (
 	github.com/Microsoft/go-winio v0.6.1 // indirect
+	github.com/containerd/errdefs v1.0.0 // indirect
+	github.com/containerd/errdefs/pkg v0.3.0 // indirect
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
 	github.com/docker/go-connections v0.4.0 // indirect
@@ -30,6 +32,7 @@ require (
 	github.com/mattn/go-isatty v0.0.17 // indirect
 	github.com/mitchellh/go-testing-interface v1.14.1 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
+	github.com/moby/sys/atomicwriter v0.1.0 // indirect
 	github.com/moby/term v0.5.0 // indirect
 	github.com/morikuni/aec v1.0.0 // indirect
 	github.com/oklog/run v1.1.0 // indirect
