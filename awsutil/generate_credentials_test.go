@@ -90,7 +90,6 @@ func TestNewCredentialsConfig(t *testing.T) {
 		},
 	}
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 			assert := assert.New(t)
@@ -150,7 +149,6 @@ func TestRetrieveCreds(t *testing.T) {
 		},
 	}
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 			assert := assert.New(t)
@@ -207,7 +205,6 @@ func TestGenerateCredentialChain(t *testing.T) {
 		},
 	}
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 			assert := assert.New(t)
@@ -391,11 +388,10 @@ func TestGenerateAwsConfigOptions(t *testing.T) {
 		},
 	}
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 			assert := assert.New(t)
-			opts := tc.cfg.generateAwsConfigOptions(tc.opts)
+			opts := tc.cfg.generateAwsConfigOptions(t.Context(), tc.opts)
 			cfgLoadOpts := config.LoadOptions{}
 			for _, f := range opts {
 				require.NoError(f(&cfgLoadOpts))

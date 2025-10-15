@@ -5,6 +5,7 @@ package awsutil
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -20,7 +21,11 @@ import (
 	"github.com/hashicorp/go-hclog"
 )
 
-const iamServerIdHeader = "X-Vault-AWS-IAM-Server-ID"
+const (
+	iamServerIdHeader = "X-Vault-AWS-IAM-Server-ID"
+	defaultStr        = "default"
+	envAwsProfile     = "AWS_PROFILE"
+)
 
 type CredentialsConfig struct {
 	// The access key if static credentials are being used
@@ -164,7 +169,7 @@ func (c *CredentialsConfig) log(level hclog.Level, msg string, args ...interface
 	}
 }
 
-func (c *CredentialsConfig) generateAwsConfigOptions(opts options) []func(*config.LoadOptions) error {
+func (c *CredentialsConfig) generateAwsConfigOptions(ctx context.Context, opts options) []func(*config.LoadOptions) error {
 	var cfgOpts []func(*config.LoadOptions) error
 
 	if c.Region != "" {
@@ -181,16 +186,21 @@ func (c *CredentialsConfig) generateAwsConfigOptions(opts options) []func(*confi
 
 	// Add the shared credentials
 	if opts.withSharedCredentials {
-		profile := os.Getenv("AWS_PROFILE")
+		profile := os.Getenv(envAwsProfile)
 		if profile != "" {
 			c.Profile = profile
 		}
 
 		// The AWS SDK will check for the 'default' shared profile and include it if it exists. If
 		// WithSharedConfigProfile is set to 'default' here, and it does not exist the SDK will return an error. So
-		// only set the config profile if the caller or env has explicitly set one.
+		// if profile is not set, check for a default profile and add it only if it exists.
 		if c.Profile != "" {
 			cfgOpts = append(cfgOpts, config.WithSharedConfigProfile(c.Profile))
+		} else {
+			_, err := config.LoadDefaultConfig(ctx, config.WithSharedConfigProfile(defaultStr))
+			if !errors.Is(err, config.SharedConfigProfileNotExistError{}) {
+				cfgOpts = append(cfgOpts, config.WithSharedConfigProfile(defaultStr))
+			}
 		}
 
 		cfgOpts = append(cfgOpts, config.WithSharedCredentialsFiles([]string{c.Filename}))
@@ -265,9 +275,9 @@ func (c *CredentialsConfig) GenerateCredentialChain(ctx context.Context, opt ...
 		return nil, fmt.Errorf("static AWS client credentials haven't been properly configured (the access key or secret key were provided but not both)")
 	}
 
-	awsConfig, err := config.LoadDefaultConfig(ctx, c.generateAwsConfigOptions(opts)...)
+	awsConfig, err := config.LoadDefaultConfig(ctx, c.generateAwsConfigOptions(ctx, opts)...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load SDK's default configurations with given credential options")
+		return nil, fmt.Errorf("failed to load SDK's default configurations with given credential options: %w", err)
 	}
 
 	if opts.withCredentialsProvider != nil {
