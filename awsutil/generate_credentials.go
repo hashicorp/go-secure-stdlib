@@ -27,6 +27,12 @@ const (
 	envAwsProfile     = "AWS_PROFILE"
 )
 
+var (
+	ErrReadOptsCredChain         = errors.New("error reading options in GenerateCredentialChain")
+	ErrBadStaticCreds            = errors.New("static AWS client credentials haven't been properly configured (the access key or secret key were provided but not both)")
+	ErrLoadConfigWithCredsFailed = errors.New("failed to load SDK's default configurations with given credential options")
+)
+
 type CredentialsConfig struct {
 	// The access key if static credentials are being used
 	AccessKey string
@@ -197,7 +203,11 @@ func (c *CredentialsConfig) generateAwsConfigOptions(ctx context.Context, opts o
 		if c.Profile != "" {
 			cfgOpts = append(cfgOpts, config.WithSharedConfigProfile(c.Profile))
 		} else {
-			_, err := config.LoadDefaultConfig(ctx, config.WithSharedConfigProfile(defaultStr))
+			opts := []func(*config.LoadOptions) error{config.WithSharedConfigProfile(defaultStr)}
+			if c.Filename != "" {
+				opts = append(opts, config.WithSharedCredentialsFiles([]string{c.Filename}))
+			}
+			_, err := config.LoadDefaultConfig(ctx, opts...)
 			if !errors.Is(err, config.SharedConfigProfileNotExistError{}) {
 				cfgOpts = append(cfgOpts, config.WithSharedConfigProfile(defaultStr))
 			}
@@ -267,17 +277,17 @@ func (c *CredentialsConfig) generateAwsConfigOptions(ctx context.Context, opts o
 func (c *CredentialsConfig) GenerateCredentialChain(ctx context.Context, opt ...Option) (*aws.Config, error) {
 	opts, err := getOpts(opt...)
 	if err != nil {
-		return nil, fmt.Errorf("error reading options in GenerateCredentialChain: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrReadOptsCredChain, err)
 	}
 
 	// Have one or the other but not both and not neither
 	if (c.AccessKey != "" && c.SecretKey == "") || (c.AccessKey == "" && c.SecretKey != "") {
-		return nil, fmt.Errorf("static AWS client credentials haven't been properly configured (the access key or secret key were provided but not both)")
+		return nil, ErrBadStaticCreds
 	}
 
 	awsConfig, err := config.LoadDefaultConfig(ctx, c.generateAwsConfigOptions(ctx, opts)...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load SDK's default configurations with given credential options: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrLoadConfigWithCredsFailed, err)
 	}
 
 	if opts.withCredentialsProvider != nil {

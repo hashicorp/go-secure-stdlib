@@ -5,7 +5,6 @@ package awsutil
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"os"
 	"path"
@@ -157,7 +156,7 @@ func TestRetrieveCreds(t *testing.T) {
 			require.NoError(err)
 			require.NotNil(cfg)
 
-			awscfg, err := RetrieveCreds(context.Background(), "foo", "bar", "baz", nil, tc.opts...)
+			awscfg, err := RetrieveCreds(t.Context(), "foo", "bar", "baz", nil, tc.opts...)
 			if tc.expectedErr != "" {
 				require.Error(err)
 				require.EqualError(err, tc.expectedErr)
@@ -167,7 +166,7 @@ func TestRetrieveCreds(t *testing.T) {
 			require.NoError(err)
 			assert.NotNil(awscfg)
 
-			creds, err := awscfg.Credentials.Retrieve(context.Background())
+			creds, err := awscfg.Credentials.Retrieve(t.Context())
 			require.NoError(err)
 			assert.Equal("foo", creds.AccessKeyID)
 			assert.Equal("bar", creds.SecretAccessKey)
@@ -180,21 +179,21 @@ func TestGenerateCredentialChain(t *testing.T) {
 	cases := []struct {
 		name        string
 		opts        []Option
-		expectedErr string
+		expectedErr error
 	}{
 		{
 			name: "static cred missing access key",
 			opts: []Option{
 				WithSecretKey("foo"),
 			},
-			expectedErr: "static AWS client credentials haven't been properly configured (the access key or secret key were provided but not both)",
+			expectedErr: ErrBadStaticCreds,
 		},
 		{
 			name: "static cred missing secret key",
 			opts: []Option{
 				WithAccessKey("foo"),
 			},
-			expectedErr: "static AWS client credentials haven't been properly configured (the access key or secret key were provided but not both)",
+			expectedErr: ErrBadStaticCreds,
 		},
 		{
 			name: "valid static cred",
@@ -213,10 +212,9 @@ func TestGenerateCredentialChain(t *testing.T) {
 			require.NoError(err)
 			require.NotNil(cfg)
 
-			awscfg, err := cfg.GenerateCredentialChain(context.Background())
-			if tc.expectedErr != "" {
-				require.Error(err)
-				assert.ErrorContains(err, tc.expectedErr)
+			awscfg, err := cfg.GenerateCredentialChain(t.Context())
+			if tc.expectedErr != nil {
+				assert.ErrorIs(err, tc.expectedErr)
 				assert.Nil(awscfg)
 				return
 			}
@@ -299,6 +297,23 @@ func TestGenerateAwsConfigOptions(t *testing.T) {
 				Region:                 "us-east-1",
 				SharedConfigProfile:    "foobar",
 				SharedCredentialsFiles: []string{"foobaz"},
+			},
+		},
+		{
+			name: "empty shared profile adds default profile",
+			cfg: func() *CredentialsConfig {
+				credCfg, err := NewCredentialsConfig()
+				require.NoError(t, err)
+				credCfg.Profile = ""
+				return credCfg
+			}(),
+			opts: options{
+				withSharedCredentials: true,
+			},
+			expectedLoadOptions: config.LoadOptions{
+				SharedConfigProfile:    "default",
+				SharedCredentialsFiles: []string{""},
+				Region:                 "us-east-1",
 			},
 		},
 		{
@@ -426,7 +441,7 @@ func TestGenerateAwsConfigOptions(t *testing.T) {
 
 			if tc.expectedStaticCredentials != nil {
 				require.NotNil(cfgLoadOpts.Credentials)
-				actualCreds, err := cfgLoadOpts.Credentials.Retrieve(context.Background())
+				actualCreds, err := cfgLoadOpts.Credentials.Retrieve(t.Context())
 				require.NoError(err)
 				assert.Equal(tc.expectedStaticCredentials.AccessKeyID, actualCreds.AccessKeyID)
 				assert.Equal(tc.expectedStaticCredentials.SecretAccessKey, actualCreds.SecretAccessKey)
