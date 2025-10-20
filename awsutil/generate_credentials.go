@@ -203,12 +203,15 @@ func (c *CredentialsConfig) generateAwsConfigOptions(ctx context.Context, opts o
 		if c.Profile != "" {
 			cfgOpts = append(cfgOpts, config.WithSharedConfigProfile(c.Profile))
 		} else {
+			c.Profile = defaultStr
 			opts := []func(*config.LoadOptions) error{config.WithSharedConfigProfile(defaultStr)}
 			if c.Filename != "" {
 				opts = append(opts, config.WithSharedCredentialsFiles([]string{c.Filename}))
 			}
 			_, err := config.LoadDefaultConfig(ctx, opts...)
-			if !errors.Is(err, config.SharedConfigProfileNotExistError{}) {
+			// aws-sdk's special errors don't work with go's errors.Is
+			_, ok := err.(config.SharedConfigProfileNotExistError)
+			if !ok {
 				cfgOpts = append(cfgOpts, config.WithSharedConfigProfile(defaultStr))
 			}
 		}

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"os"
 	"path"
+	"slices"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -176,10 +177,21 @@ func TestRetrieveCreds(t *testing.T) {
 }
 
 func TestGenerateCredentialChain(t *testing.T) {
+	// Create a shared creds file with a default profile
+	dir := t.TempDir()
+	profileWithDefault := path.Join(dir, "profile_with_default")
+	f, err := os.Create(profileWithDefault)
+	require.NoError(t, err)
+	_, err = f.Write([]byte("[default]\nregion=us-east-2\n"))
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+
 	cases := []struct {
-		name        string
-		opts        []Option
-		expectedErr error
+		name              string
+		opts              []Option
+		expectedErr       error
+		ccModFunc         func(cc *CredentialsConfig)
+		additionalAsserts func(t *testing.T, cfg *aws.Config)
 	}{
 		{
 			name: "static cred missing access key",
@@ -202,6 +214,24 @@ func TestGenerateCredentialChain(t *testing.T) {
 				WithSecretKey("bar"),
 			},
 		},
+		{
+			// Note: Region won't match the profile's region because
+			// NewCredentialsConfig ignores config file's region
+			name: "creds from shared creds file",
+			ccModFunc: func(cc *CredentialsConfig) {
+				cc.Filename = profileWithDefault
+			},
+			additionalAsserts: func(t *testing.T, cfg *aws.Config) {
+				isDefaultProfile := func(cfs any) bool {
+					configSource, ok := cfs.(config.SharedConfig)
+					if !ok {
+						return false
+					}
+					return configSource.Profile == defaultStr
+				}
+				assert.True(t, slices.ContainsFunc(cfg.ConfigSources, isDefaultProfile))
+			},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -212,6 +242,10 @@ func TestGenerateCredentialChain(t *testing.T) {
 			require.NoError(err)
 			require.NotNil(cfg)
 
+			if tc.ccModFunc != nil {
+				tc.ccModFunc(cfg)
+			}
+
 			awscfg, err := cfg.GenerateCredentialChain(t.Context())
 			if tc.expectedErr != nil {
 				assert.ErrorIs(err, tc.expectedErr)
@@ -220,6 +254,10 @@ func TestGenerateCredentialChain(t *testing.T) {
 			}
 			require.NoError(err)
 			assert.NotNil(awscfg)
+
+			if tc.additionalAsserts != nil {
+				tc.additionalAsserts(t, awscfg)
+			}
 		})
 	}
 }
@@ -233,6 +271,16 @@ func TestGenerateAwsConfigOptions(t *testing.T) {
 	_, err = f.Write([]byte("hello world"))
 	require.NoError(t, err)
 	require.NoError(t, f.Close())
+
+	// Create a shared creds file with a default "profile"
+	// because this is a creds file, it doesn't use the profile keyword but is
+	// otherwise treated the same as a config file
+	profileWithDefault := path.Join(dir, "profile_with_default")
+	f2, err := os.Create(profileWithDefault)
+	require.NoError(t, err)
+	_, err = f2.Write([]byte("[default]\nregion=us-west-1\n"))
+	require.NoError(t, err)
+	require.NoError(t, f2.Close())
 
 	cases := []struct {
 		name                           string
@@ -300,7 +348,8 @@ func TestGenerateAwsConfigOptions(t *testing.T) {
 			},
 		},
 		{
-			name: "empty shared profile adds default profile",
+			// This test will fail if ~/.aws/config doesn't have a default profile
+			name: "empty shared profile adds default profile without shared file",
 			cfg: func() *CredentialsConfig {
 				credCfg, err := NewCredentialsConfig()
 				require.NoError(t, err)
@@ -314,6 +363,25 @@ func TestGenerateAwsConfigOptions(t *testing.T) {
 				SharedConfigProfile:    "default",
 				SharedCredentialsFiles: []string{""},
 				Region:                 "us-east-1",
+			},
+		},
+		{
+			name: "empty shared profile adds default profile with shared file",
+			cfg: func() *CredentialsConfig {
+				credCfg, err := NewCredentialsConfig()
+				require.NoError(t, err)
+				credCfg.Filename = profileWithDefault
+				return credCfg
+			}(),
+			opts: options{
+				withSharedCredentials: true,
+			},
+			expectedLoadOptions: config.LoadOptions{
+				SharedConfigProfile:    "default",
+				SharedCredentialsFiles: []string{profileWithDefault},
+				// Because the profiles aren't actually consumed, the
+				// region is still the default us-east-1
+				Region: "us-east-1",
 			},
 		},
 		{
