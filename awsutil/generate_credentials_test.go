@@ -282,6 +282,18 @@ func TestGenerateAwsConfigOptions(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, f2.Close())
 
+	// Check for default profile in ~/.aws/config because "empty shared profile adds default profile without shared file"
+	// fails if there is not a default profile present
+	emptySharedProfileExpectedProfile := ""
+	home, err := os.UserHomeDir()
+	require.NoError(t, err)
+	bs, err := os.ReadFile(path.Join(home, ".aws", "config"))
+	if err == nil {
+		if bytes.Contains(bs, []byte("[profile default]")) {
+			emptySharedProfileExpectedProfile = defaultStr
+		}
+	}
+
 	cases := []struct {
 		name                           string
 		cfg                            *CredentialsConfig
@@ -348,7 +360,7 @@ func TestGenerateAwsConfigOptions(t *testing.T) {
 			},
 		},
 		{
-			// This test will fail if ~/.aws/config doesn't have a default profile
+			// See the setup above for emptySharedProfileExpectedProfile
 			name: "empty shared profile adds default profile without shared file",
 			cfg: func() *CredentialsConfig {
 				credCfg, err := NewCredentialsConfig()
@@ -360,7 +372,7 @@ func TestGenerateAwsConfigOptions(t *testing.T) {
 				withSharedCredentials: true,
 			},
 			expectedLoadOptions: config.LoadOptions{
-				SharedConfigProfile:    "default",
+				SharedConfigProfile:    emptySharedProfileExpectedProfile,
 				SharedCredentialsFiles: []string{""},
 				Region:                 "us-east-1",
 			},
