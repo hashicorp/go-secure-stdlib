@@ -361,6 +361,8 @@ func TestGenerateAwsConfigOptions(t *testing.T) {
 		},
 		{
 			// See the setup above for emptySharedProfileExpectedProfile
+			// This tests that the `SharedConfigProfileNotExistError" check works
+			// when the default profile lives in the usual ~/.aws/config file
 			name: "empty shared profile adds default profile without shared file",
 			cfg: func() *CredentialsConfig {
 				credCfg, err := NewCredentialsConfig()
@@ -378,6 +380,8 @@ func TestGenerateAwsConfigOptions(t *testing.T) {
 			},
 		},
 		{
+			// This tests that the `SharedConfigProfileNotExistError" check works
+			// when the default profile lives in a credentials file
 			name: "empty shared profile adds default profile with shared file",
 			cfg: func() *CredentialsConfig {
 				credCfg, err := NewCredentialsConfig()
