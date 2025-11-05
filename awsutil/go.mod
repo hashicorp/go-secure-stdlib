@@ -1,6 +1,6 @@
 module github.com/hashicorp/go-secure-stdlib/awsutil/v2
 
-go 1.23.3
+go 1.24
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.32.5
@@ -27,7 +27,6 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/fatih/color v1.13.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
-	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/kr/pretty v0.3.0 // indirect
 	github.com/mattn/go-colorable v0.1.12 // indirect
 	github.com/mattn/go-isatty v0.0.14 // indirect

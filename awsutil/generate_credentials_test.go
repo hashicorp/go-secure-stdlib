@@ -5,10 +5,10 @@ package awsutil
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"os"
 	"path"
+	"slices"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -90,7 +90,6 @@ func TestNewCredentialsConfig(t *testing.T) {
 		},
 	}
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 			assert := assert.New(t)
@@ -150,7 +149,6 @@ func TestRetrieveCreds(t *testing.T) {
 		},
 	}
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 			assert := assert.New(t)
@@ -159,7 +157,7 @@ func TestRetrieveCreds(t *testing.T) {
 			require.NoError(err)
 			require.NotNil(cfg)
 
-			awscfg, err := RetrieveCreds(context.Background(), "foo", "bar", "baz", nil, tc.opts...)
+			awscfg, err := RetrieveCreds(t.Context(), "foo", "bar", "baz", nil, tc.opts...)
 			if tc.expectedErr != "" {
 				require.Error(err)
 				require.EqualError(err, tc.expectedErr)
@@ -169,7 +167,7 @@ func TestRetrieveCreds(t *testing.T) {
 			require.NoError(err)
 			assert.NotNil(awscfg)
 
-			creds, err := awscfg.Credentials.Retrieve(context.Background())
+			creds, err := awscfg.Credentials.Retrieve(t.Context())
 			require.NoError(err)
 			assert.Equal("foo", creds.AccessKeyID)
 			assert.Equal("bar", creds.SecretAccessKey)
@@ -179,24 +177,35 @@ func TestRetrieveCreds(t *testing.T) {
 }
 
 func TestGenerateCredentialChain(t *testing.T) {
+	// Create a shared creds file with a default profile
+	dir := t.TempDir()
+	profileWithDefault := path.Join(dir, "profile_with_default")
+	f, err := os.Create(profileWithDefault)
+	require.NoError(t, err)
+	_, err = f.Write([]byte("[default]\nregion=us-east-2\n"))
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+
 	cases := []struct {
-		name        string
-		opts        []Option
-		expectedErr string
+		name              string
+		opts              []Option
+		expectedErr       error
+		ccModFunc         func(cc *CredentialsConfig)
+		additionalAsserts func(t *testing.T, cfg *aws.Config)
 	}{
 		{
 			name: "static cred missing access key",
 			opts: []Option{
 				WithSecretKey("foo"),
 			},
-			expectedErr: "static AWS client credentials haven't been properly configured (the access key or secret key were provided but not both)",
+			expectedErr: ErrBadStaticCreds,
 		},
 		{
 			name: "static cred missing secret key",
 			opts: []Option{
 				WithAccessKey("foo"),
 			},
-			expectedErr: "static AWS client credentials haven't been properly configured (the access key or secret key were provided but not both)",
+			expectedErr: ErrBadStaticCreds,
 		},
 		{
 			name: "valid static cred",
@@ -205,9 +214,26 @@ func TestGenerateCredentialChain(t *testing.T) {
 				WithSecretKey("bar"),
 			},
 		},
+		{
+			// Note: Region won't match the profile's region because
+			// NewCredentialsConfig ignores config file's region
+			name: "creds from shared creds file",
+			ccModFunc: func(cc *CredentialsConfig) {
+				cc.Filename = profileWithDefault
+			},
+			additionalAsserts: func(t *testing.T, cfg *aws.Config) {
+				isDefaultProfile := func(cfs any) bool {
+					configSource, ok := cfs.(config.SharedConfig)
+					if !ok {
+						return false
+					}
+					return configSource.Profile == defaultStr
+				}
+				assert.True(t, slices.ContainsFunc(cfg.ConfigSources, isDefaultProfile))
+			},
+		},
 	}
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 			assert := assert.New(t)
@@ -216,15 +242,22 @@ func TestGenerateCredentialChain(t *testing.T) {
 			require.NoError(err)
 			require.NotNil(cfg)
 
-			awscfg, err := cfg.GenerateCredentialChain(context.Background())
-			if tc.expectedErr != "" {
-				require.Error(err)
-				assert.ErrorContains(err, tc.expectedErr)
+			if tc.ccModFunc != nil {
+				tc.ccModFunc(cfg)
+			}
+
+			awscfg, err := cfg.GenerateCredentialChain(t.Context())
+			if tc.expectedErr != nil {
+				assert.ErrorIs(err, tc.expectedErr)
 				assert.Nil(awscfg)
 				return
 			}
 			require.NoError(err)
 			assert.NotNil(awscfg)
+
+			if tc.additionalAsserts != nil {
+				tc.additionalAsserts(t, awscfg)
+			}
 		})
 	}
 }
@@ -238,6 +271,28 @@ func TestGenerateAwsConfigOptions(t *testing.T) {
 	_, err = f.Write([]byte("hello world"))
 	require.NoError(t, err)
 	require.NoError(t, f.Close())
+
+	// Create a shared creds file with a default "profile"
+	// because this is a creds file, it doesn't use the profile keyword but is
+	// otherwise treated the same as a config file
+	profileWithDefault := path.Join(dir, "profile_with_default")
+	f2, err := os.Create(profileWithDefault)
+	require.NoError(t, err)
+	_, err = f2.Write([]byte("[default]\nregion=us-west-1\n"))
+	require.NoError(t, err)
+	require.NoError(t, f2.Close())
+
+	// Check for default profile in ~/.aws/config because "empty shared profile adds default profile without shared file"
+	// fails if there is not a default profile present
+	emptySharedProfileExpectedProfile := ""
+	home, err := os.UserHomeDir()
+	require.NoError(t, err)
+	bs, err := os.ReadFile(path.Join(home, ".aws", "config"))
+	if err == nil {
+		if bytes.Contains(bs, []byte("[profile default]")) {
+			emptySharedProfileExpectedProfile = defaultStr
+		}
+	}
 
 	cases := []struct {
 		name                           string
@@ -302,6 +357,47 @@ func TestGenerateAwsConfigOptions(t *testing.T) {
 				Region:                 "us-east-1",
 				SharedConfigProfile:    "foobar",
 				SharedCredentialsFiles: []string{"foobaz"},
+			},
+		},
+		{
+			// See the setup above for emptySharedProfileExpectedProfile
+			// This tests that the `SharedConfigProfileNotExistError" check works
+			// when the default profile lives in the usual ~/.aws/config file
+			name: "empty shared profile adds default profile without shared file",
+			cfg: func() *CredentialsConfig {
+				credCfg, err := NewCredentialsConfig()
+				require.NoError(t, err)
+				credCfg.Profile = ""
+				return credCfg
+			}(),
+			opts: options{
+				withSharedCredentials: true,
+			},
+			expectedLoadOptions: config.LoadOptions{
+				SharedConfigProfile:    emptySharedProfileExpectedProfile,
+				SharedCredentialsFiles: []string{""},
+				Region:                 "us-east-1",
+			},
+		},
+		{
+			// This tests that the `SharedConfigProfileNotExistError" check works
+			// when the default profile lives in a credentials file
+			name: "empty shared profile adds default profile with shared file",
+			cfg: func() *CredentialsConfig {
+				credCfg, err := NewCredentialsConfig()
+				require.NoError(t, err)
+				credCfg.Filename = profileWithDefault
+				return credCfg
+			}(),
+			opts: options{
+				withSharedCredentials: true,
+			},
+			expectedLoadOptions: config.LoadOptions{
+				SharedConfigProfile:    "default",
+				SharedCredentialsFiles: []string{profileWithDefault},
+				// Because the profiles aren't actually consumed, the
+				// region is still the default us-east-1
+				Region: "us-east-1",
 			},
 		},
 		{
@@ -391,11 +487,10 @@ func TestGenerateAwsConfigOptions(t *testing.T) {
 		},
 	}
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			require := require.New(t)
 			assert := assert.New(t)
-			opts := tc.cfg.generateAwsConfigOptions(tc.opts)
+			opts := tc.cfg.generateAwsConfigOptions(t.Context(), tc.opts)
 			cfgLoadOpts := config.LoadOptions{}
 			for _, f := range opts {
 				require.NoError(f(&cfgLoadOpts))
@@ -430,7 +525,7 @@ func TestGenerateAwsConfigOptions(t *testing.T) {
 
 			if tc.expectedStaticCredentials != nil {
 				require.NotNil(cfgLoadOpts.Credentials)
-				actualCreds, err := cfgLoadOpts.Credentials.Retrieve(context.Background())
+				actualCreds, err := cfgLoadOpts.Credentials.Retrieve(t.Context())
 				require.NoError(err)
 				assert.Equal(tc.expectedStaticCredentials.AccessKeyID, actualCreds.AccessKeyID)
 				assert.Equal(tc.expectedStaticCredentials.SecretAccessKey, actualCreds.SecretAccessKey)
