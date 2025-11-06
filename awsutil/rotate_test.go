@@ -38,9 +38,6 @@ func TestRotation(t *testing.T) {
 	}
 
 	username := os.Getenv("AWS_USERNAME")
-	if username == "" {
-		username = "aws-iam-kms-testing"
-	}
 
 	// Create an initial key
 	out, err := credsConfig.CreateAccessKey(context.Background(), WithUsername(username), WithValidityCheckTimeout(testRotationWaitTimeout))
