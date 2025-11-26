@@ -203,7 +203,6 @@ func (c *CredentialsConfig) generateAwsConfigOptions(ctx context.Context, opts o
 		if c.Profile != "" {
 			cfgOpts = append(cfgOpts, config.WithSharedConfigProfile(c.Profile))
 		} else {
-			c.Profile = defaultStr
 			opts := []func(*config.LoadOptions) error{config.WithSharedConfigProfile(defaultStr)}
 			if c.Filename != "" {
 				opts = append(opts, config.WithSharedCredentialsFiles([]string{c.Filename}))

@@ -191,7 +191,7 @@ func TestGenerateCredentialChain(t *testing.T) {
 		opts              []Option
 		expectedErr       error
 		ccModFunc         func(cc *CredentialsConfig)
-		additionalAsserts func(t *testing.T, cfg *aws.Config)
+		additionalAsserts func(t *testing.T, awscfg *aws.Config, cfg *CredentialsConfig)
 	}{
 		{
 			name: "static cred missing access key",
@@ -221,7 +221,7 @@ func TestGenerateCredentialChain(t *testing.T) {
 			ccModFunc: func(cc *CredentialsConfig) {
 				cc.Filename = profileWithDefault
 			},
-			additionalAsserts: func(t *testing.T, cfg *aws.Config) {
+			additionalAsserts: func(t *testing.T, awscfg *aws.Config, _ *CredentialsConfig) {
 				isDefaultProfile := func(cfs any) bool {
 					configSource, ok := cfs.(config.SharedConfig)
 					if !ok {
@@ -229,7 +229,14 @@ func TestGenerateCredentialChain(t *testing.T) {
 					}
 					return configSource.Profile == defaultStr
 				}
-				assert.True(t, slices.ContainsFunc(cfg.ConfigSources, isDefaultProfile))
+				assert.True(t, slices.ContainsFunc(awscfg.ConfigSources, isDefaultProfile))
+			},
+		},
+		{
+			// Note: This test fails if you have a profile named `default` in your aws config
+			name: "check c.Profile isn't changed when creds config checks for the default profile",
+			additionalAsserts: func(t *testing.T, _ *aws.Config, cfg *CredentialsConfig) {
+				assert.NotEqual(t, cfg.Profile, defaultStr)
 			},
 		},
 	}
@@ -256,7 +263,7 @@ func TestGenerateCredentialChain(t *testing.T) {
 			assert.NotNil(awscfg)
 
 			if tc.additionalAsserts != nil {
-				tc.additionalAsserts(t, awscfg)
+				tc.additionalAsserts(t, awscfg, cfg)
 			}
 		})
 	}
