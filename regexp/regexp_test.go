@@ -138,6 +138,34 @@ func TestCleanupCorrectKind(t *testing.T) {
 	l.Unlock()
 }
 
+// Test_ConcurrentCompileInternedRegexps tests that multiple goroutines can compile
+// and use interned regular expressions concurrently without issues.
+// We spin up a number of goroutines that compile the same interned regexp
+// and hold on to it for a second. If there are any issues with concurrent access,
+// this test should trip the race detector.
+func Test_ConcurrentCompileInternedRegexps(t *testing.T) {
+	t.Parallel()
+	var wg sync.WaitGroup
+	pattern := ".*"
+
+	// Kick off 100 goroutines that compile and use the same interned regexp.
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			exp, err := CompileInterned(pattern)
+			require.NoError(t, err)
+			exp2 := MustCompileInterned(pattern)
+			// We want to hold a reference to the compiled regexp to ensure it is not
+			// garbage collected before other goroutines are spun up.
+			time.Sleep(1 * time.Second)
+			exp.Match([]byte("test"))
+			exp2.Match([]byte("test"))
+		}()
+	}
+	wg.Wait()
+}
+
 func BenchmarkRegexps(b *testing.B) {
 	s := make([]*regexp.Regexp, b.N)
 	for i := 0; i < b.N; i++ {
