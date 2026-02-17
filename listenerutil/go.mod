@@ -2,11 +2,18 @@ module github.com/hashicorp/go-secure-stdlib/listenerutil
 
 go 1.20
 
+replace (
+	github.com/hashicorp/go-secure-stdlib/parseutil => ../parseutil
+	github.com/hashicorp/go-secure-stdlib/reloadutil => ../reloadutil
+	github.com/hashicorp/go-secure-stdlib/strutil => ../strutil
+	github.com/hashicorp/go-secure-stdlib/tlsutil => ../tlsutil
+)
+
 require (
 	github.com/google/go-cmp v0.6.0
 	github.com/hashicorp/cli v1.1.7
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/hashicorp/go-secure-stdlib/parseutil v0.1.8
+	github.com/hashicorp/go-secure-stdlib/parseutil v0.2.0
 	github.com/hashicorp/go-secure-stdlib/reloadutil v0.1.1
 	github.com/hashicorp/go-secure-stdlib/strutil v0.1.2
 	github.com/hashicorp/go-secure-stdlib/tlsutil v0.1.3
@@ -24,6 +31,7 @@ require (
 	github.com/bgentry/speakeasy v0.1.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/fatih/color v1.16.0 // indirect
+	github.com/go-viper/mapstructure/v2 v2.2.1 // indirect
 	github.com/google/uuid v1.3.1 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/huandu/xstrings v1.3.3 // indirect
@@ -32,7 +40,6 @@ require (
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mitchellh/copystructure v1.0.0 // indirect
-	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/posener/complete v1.2.3 // indirect
