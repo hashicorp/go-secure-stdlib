@@ -4,7 +4,7 @@
 package plugincontainer
 
 import (
-	"github.com/docker/docker/api/types/network"
+	"github.com/moby/moby/api/types/network"
 )
 
 // Config is used to opt in to running plugins inside a container.
