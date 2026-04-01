@@ -15,17 +15,16 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/filters"
-	"github.com/docker/docker/api/types/image"
-	"github.com/docker/docker/api/types/mount"
-	"github.com/docker/docker/api/types/network"
-	"github.com/docker/docker/client"
-	"github.com/docker/docker/pkg/stdcopy"
+	"github.com/joshlf/go-acl"
+	"github.com/moby/moby/api/pkg/stdcopy"
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/mount"
+	"github.com/moby/moby/api/types/network"
+	"github.com/moby/moby/client"
+
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-plugin"
 	"github.com/hashicorp/go-plugin/runner"
-	"github.com/joshlf/go-acl"
 )
 
 const pluginSocketDir = "/tmp/go-plugin-container"
@@ -64,7 +63,7 @@ func (cfg *Config) NewContainerRunner(logger hclog.Logger, cmd *exec.Cmd, hostSo
 		return nil, fmt.Errorf("image %q must not have any ':' characters, use the Tag field to specify a tag", cfg.Image)
 	}
 
-	client, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	client, err := client.New(client.FromEnv)
 	if err != nil {
 		return nil, err
 	}
@@ -177,14 +176,14 @@ func (c *containerRunner) Start(ctx context.Context) error {
 			ref += ":" + c.tag
 		}
 		// Check the Image and SHA256 provided in the config match up.
-		images, err := c.dockerClient.ImageList(ctx, image.ListOptions{
-			Filters: filters.NewArgs(filters.Arg("reference", ref)),
+		images, err := c.dockerClient.ImageList(ctx, client.ImageListOptions{
+			Filters: make(client.Filters).Add("reference", ref),
 		})
 		if err != nil {
 			return fmt.Errorf("failed to verify that image %s matches with provided SHA256 hash %s: %w", ref, c.sha256, err)
 		}
 		var imageFound bool
-		for _, image := range images {
+		for _, image := range images.Items {
 			if image.ID == "sha256:"+c.sha256 {
 				imageFound = true
 				break
@@ -195,21 +194,25 @@ func (c *containerRunner) Start(ctx context.Context) error {
 		}
 	}
 
-	resp, err := c.dockerClient.ContainerCreate(ctx, c.containerConfig, c.hostConfig, c.networkConfig, nil, "")
+	resp, err := c.dockerClient.ContainerCreate(ctx, client.ContainerCreateOptions{
+		Config:           c.containerConfig,
+		HostConfig:       c.hostConfig,
+		NetworkingConfig: c.networkConfig,
+	})
 	if err != nil {
 		return fmt.Errorf("error creating container: %w", err)
 	}
 	c.id = resp.ID
 	c.logger.Trace("created container", "image", c.image, "id", c.id)
 
-	if err := c.dockerClient.ContainerStart(ctx, c.id, container.StartOptions{}); err != nil {
+	if _, err := c.dockerClient.ContainerStart(ctx, c.id, client.ContainerStartOptions{}); err != nil {
 		return fmt.Errorf("error starting container: %w", err)
 	}
 
 	// ContainerLogs combines stdout and stderr.
 	// Container logs will stream beyond the lifetime of the initial start
 	// context, so we pass it a fresh context with no timeout.
-	logReader, err := c.dockerClient.ContainerLogs(context.Background(), c.id, container.LogsOptions{
+	logReader, err := c.dockerClient.ContainerLogs(context.Background(), c.id, client.ContainerLogsOptions{
 		Follow:     true,
 		ShowStdout: true,
 		ShowStderr: true,
@@ -240,13 +243,15 @@ func (c *containerRunner) Start(ctx context.Context) error {
 }
 
 func (c *containerRunner) Wait(ctx context.Context) error {
-	statusCh, errCh := c.dockerClient.ContainerWait(ctx, c.id, container.WaitConditionNotRunning)
+	wait := c.dockerClient.ContainerWait(ctx, c.id, client.ContainerWaitOptions{
+		Condition: container.WaitConditionNotRunning,
+	})
 	select {
-	case err := <-errCh:
+	case err := <-wait.Error:
 		if err != nil {
 			return err
 		}
-	case st := <-statusCh:
+	case st := <-wait.Result:
 		if st.StatusCode != 0 {
 			c.logger.Error("plugin shut down with non-0 exit code", "id", c.id, "status", st.StatusCode)
 		}
@@ -266,7 +271,7 @@ func (c *containerRunner) Kill(ctx context.Context) error {
 	if c.id != "" {
 		if c.debug {
 			defer func() {
-				err := c.dockerClient.ContainerRemove(ctx, c.id, container.RemoveOptions{
+				_, err := c.dockerClient.ContainerRemove(ctx, c.id, client.ContainerRemoveOptions{
 					Force: true,
 				})
 				if err != nil {
@@ -274,7 +279,7 @@ func (c *containerRunner) Kill(ctx context.Context) error {
 				}
 			}()
 		}
-		err := c.dockerClient.ContainerStop(ctx, c.id, container.StopOptions{})
+		_, err := c.dockerClient.ContainerStop(ctx, c.id, client.ContainerStopOptions{})
 		if err != nil {
 			// Docker SDK does not seem to expose sentinel errors in a way we can
 			// use here instead of string matching.
@@ -361,10 +366,11 @@ func emptyStrSlice(s []string) bool {
 }
 
 func (c *containerRunner) diagnoseContainerInfo(ctx context.Context) string {
-	info, err := c.dockerClient.ContainerInspect(ctx, c.id)
+	res, err := c.dockerClient.ContainerInspect(ctx, c.id, client.ContainerInspectOptions{})
 	if err != nil {
 		return ""
 	}
+	info := res.Container
 
 	notes := "Container config:\n"
 	notes += fmt.Sprintf("Image: %s\n", info.Image)
@@ -401,7 +407,7 @@ Check stdout in the logs below.
 }
 
 func (c *containerRunner) diagnoseLogs(ctx context.Context) string {
-	logReader, err := c.dockerClient.ContainerLogs(ctx, c.id, container.LogsOptions{
+	logReader, err := c.dockerClient.ContainerLogs(ctx, c.id, client.ContainerLogsOptions{
 		ShowStdout: true,
 		ShowStderr: true,
 		Follow:     false,

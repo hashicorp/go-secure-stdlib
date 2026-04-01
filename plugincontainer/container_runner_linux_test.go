@@ -11,9 +11,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/docker/docker/api/types/network"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-plugin"
+	"github.com/moby/moby/api/types/network"
 )
 
 // TestNewContainerRunner_config ensures all the config options passed in have

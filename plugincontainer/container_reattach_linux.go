@@ -7,24 +7,25 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/docker/docker/client"
+	"github.com/moby/moby/client"
+
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-plugin/runner"
 )
 
 func ReattachFunc(logger hclog.Logger, id, hostSocketDir string) (runner.AttachedRunner, error) {
-	client, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	docker, err := client.New(client.FromEnv)
 	if err != nil {
 		return nil, err
 	}
 
-	_, err = client.ContainerInspect(context.Background(), id)
+	_, err = docker.ContainerInspect(context.Background(), id, client.ContainerInspectOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("container with ID %s not found: %w", id, err)
 	}
 
 	return &containerRunner{
-		dockerClient:  client,
+		dockerClient:  docker,
 		logger:        logger,
 		id:            id,
 		hostSocketDir: hostSocketDir,
