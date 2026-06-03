@@ -43,10 +43,6 @@ func (a *syncMapNonceService) IsStrict() bool    { return true }
 func (a *syncMapNonceService) IsCrossNode() bool { return false }
 
 func generateNonce() (string, error) {
-	return generateRandomBase64(21)
-}
-
-func generateRandomBase64(srcBytes int) (string, error) {
 	data := make([]byte, 21)
 	if _, err := io.ReadFull(rand.Reader, data); err != nil {
 		return "", err
