@@ -1,7 +1,8 @@
 // Copyright IBM Corp. 2020, 2025
 // SPDX-License-Identifier: MPL-2.0
 
-// +build dragonfly freebsd linux openbsd solaris
+//go:build aix || dragonfly || freebsd || linux || openbsd || solaris
+// +build aix dragonfly freebsd linux openbsd solaris
 
 package mlock
 
