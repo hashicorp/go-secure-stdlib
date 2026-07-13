@@ -1,8 +1,8 @@
 // Copyright IBM Corp. 2020, 2025
 // SPDX-License-Identifier: MPL-2.0
 
-//go:build linux || darwin || freebsd || netbsd || openbsd || dragonfly || js
-// +build linux darwin freebsd netbsd openbsd dragonfly js
+//go:build linux || darwin || freebsd || netbsd || openbsd || dragonfly || js || aix
+// +build linux darwin freebsd netbsd openbsd dragonfly js aix
 
 package password
 
