@@ -5,6 +5,8 @@ package kvbuilder
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 )
@@ -142,15 +144,37 @@ func TestBuilder_sameKeyMultipleTimes(t *testing.T) {
 func TestBuilder_specialCharactersInKey(t *testing.T) {
 	var b Builder
 	b.Stdin = bytes.NewBufferString("{\"foo\": \"bay\"}")
-	err := b.Add("@foo=bar", "-foo=baz", "-")
+	err := b.Add("-foo=baz", "-")
 	if err != nil {
 		t.Fatalf("err: %s", err)
 	}
 
 	expected := map[string]interface{}{
-		"@foo": "bar",
 		"-foo": "baz",
 		"foo":  "bay",
+	}
+	actual := b.Map()
+	if !reflect.DeepEqual(actual, expected) {
+		t.Fatalf("bad: %#v", actual)
+	}
+}
+
+func TestBuilder_fileWithEqualsInName(t *testing.T) {
+	dir := t.TempDir()
+	filename := filepath.Join(dir, "cn=foo,o=example.com.json")
+	contents := []byte(`{"policies":["role.terraform"]}`)
+	if err := os.WriteFile(filename, contents, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	var b Builder
+	err := b.Add("@" + filename)
+	if err != nil {
+		t.Fatalf("err: %s", err)
+	}
+
+	expected := map[string]interface{}{
+		"policies": []interface{}{"role.terraform"},
 	}
 	actual := b.Map()
 	if !reflect.DeepEqual(actual, expected) {
