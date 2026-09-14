@@ -226,7 +226,7 @@ func (c *CredentialsConfig) generateAwsConfigOptions(ctx context.Context, opts o
 		c.log(hclog.Debug, "added static credential provider", "AccessKey", c.AccessKey)
 	}
 
-	// Add the assume role provider
+	// Add the web identity role provider
 	if c.RoleARN != "" {
 		if c.WebIdentityTokenFile != "" {
 			// this session is only created to create the WebIdentityRoleProvider, variables used to
@@ -248,8 +248,6 @@ func (c *CredentialsConfig) generateAwsConfigOptions(ctx context.Context, opts o
 			cfgOpts = append(cfgOpts, webIdentityRoleCred)
 			c.log(hclog.Debug, "added web identity provider with token", "roleARN", c.RoleARN)
 		}
-		// The plain assume-role case (no web-identity token) is handled
-		// directly in GenerateCredentialChain.
 	}
 
 	return cfgOpts
@@ -306,10 +304,13 @@ func (c *CredentialsConfig) GenerateCredentialChain(ctx context.Context, opt ...
 			}
 		})
 		awsConfig.Credentials = aws.NewCredentialsCache(provider)
-		c.log(hclog.Debug, "added explicit assume-role provider", "roleARN", c.RoleARN)
+		c.log(hclog.Info, "configured assume-role credential provider", "roleARN", c.RoleARN)
 	}
 
 	if opts.withCredentialsProvider != nil {
+		if c.RoleARN != "" && c.WebIdentityTokenFile == "" && c.WebIdentityToken == "" {
+			c.log(hclog.Warn, "WithCredentialsProvider overrides assume-role provider; RoleARN will be ignored", "roleARN", c.RoleARN)
+		}
 		awsConfig.Credentials = opts.withCredentialsProvider
 	}
 
