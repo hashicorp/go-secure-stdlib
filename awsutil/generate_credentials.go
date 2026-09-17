@@ -287,7 +287,11 @@ func (c *CredentialsConfig) GenerateCredentialChain(ctx context.Context, opt ...
 				return nil, fmt.Errorf("error creating STS client: %w", err)
 			}
 		} else {
-			stsClient = sts.NewFromConfig(awsConfig)
+			var stsOpts []func(*sts.Options)
+			if c.STSEndpointResolver != nil {
+				stsOpts = append(stsOpts, sts.WithEndpointResolverV2(c.STSEndpointResolver))
+			}
+			stsClient = sts.NewFromConfig(awsConfig, stsOpts...)
 		}
 		provider := stscreds.NewAssumeRoleProvider(stsClient, c.RoleARN, func(o *stscreds.AssumeRoleOptions) {
 			if c.RoleSessionName != "" {
@@ -304,7 +308,7 @@ func (c *CredentialsConfig) GenerateCredentialChain(ctx context.Context, opt ...
 			}
 		})
 		awsConfig.Credentials = aws.NewCredentialsCache(provider)
-		c.log(hclog.Info, "configured assume-role credential provider", "roleARN", c.RoleARN)
+		c.log(hclog.Debug, "configured assume-role credential provider", "roleARN", c.RoleARN)
 	}
 
 	if opts.withCredentialsProvider != nil {
