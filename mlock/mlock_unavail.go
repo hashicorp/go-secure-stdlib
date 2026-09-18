@@ -1,8 +1,8 @@
 // Copyright IBM Corp. 2020, 2025
 // SPDX-License-Identifier: MPL-2.0
 
-//go:build darwin || nacl || netbsd || plan9 || windows || js
-// +build darwin nacl netbsd plan9 windows js
+//go:build !aix && !dragonfly && !freebsd && !linux && !openbsd && !solaris
+// +build !aix,!dragonfly,!freebsd,!linux,!openbsd,!solaris
 
 package mlock
 
