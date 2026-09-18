@@ -226,7 +226,7 @@ func (c *CredentialsConfig) generateAwsConfigOptions(ctx context.Context, opts o
 		c.log(hclog.Debug, "added static credential provider", "AccessKey", c.AccessKey)
 	}
 
-	// Add the assume role provider
+	// Add the web identity role provider
 	if c.RoleARN != "" {
 		if c.WebIdentityTokenFile != "" {
 			// this session is only created to create the WebIdentityRoleProvider, variables used to
@@ -247,23 +247,6 @@ func (c *CredentialsConfig) generateAwsConfigOptions(ctx context.Context, opts o
 			})
 			cfgOpts = append(cfgOpts, webIdentityRoleCred)
 			c.log(hclog.Debug, "added web identity provider with token", "roleARN", c.RoleARN)
-		} else {
-			// this session is only created to create the AssumeRoleProvider, variables used to
-			// assume a role are pulled from values provided in options. If the option values are
-			// not set, then the provider will default to using the environment variables.
-			assumeRoleCred := config.WithAssumeRoleCredentialOptions(func(options *stscreds.AssumeRoleOptions) {
-				options.RoleARN = c.RoleARN
-				options.RoleSessionName = c.RoleSessionName
-				options.ExternalID = aws.String(c.RoleExternalId)
-				for k, v := range c.RoleTags {
-					options.Tags = append(options.Tags, types.Tag{
-						Key:   aws.String(k),
-						Value: aws.String(v),
-					})
-				}
-			})
-			cfgOpts = append(cfgOpts, assumeRoleCred)
-			c.log(hclog.Debug, "added ec2-instance role provider", "roleARN", c.RoleARN)
 		}
 	}
 
@@ -292,7 +275,46 @@ func (c *CredentialsConfig) GenerateCredentialChain(ctx context.Context, opt ...
 		return nil, fmt.Errorf("%w: %w", ErrLoadConfigWithCredsFailed, err)
 	}
 
+	// For the plain assume-role path (RoleARN set, no web-identity token,
+	// no static keys), construct the AssumeRoleProvider explicitly so that
+	// sts:AssumeRole is called regardless of whether ~/.aws/config has a
+	// role_arn entry.
+	if c.RoleARN != "" && c.WebIdentityTokenFile == "" && c.WebIdentityToken == "" {
+		var stsClient stscreds.AssumeRoleAPIClient
+		if opts.withSTSAPIFunc != nil {
+			stsClient, err = opts.withSTSAPIFunc(&awsConfig)
+			if err != nil {
+				return nil, fmt.Errorf("error creating STS client: %w", err)
+			}
+		} else {
+			var stsOpts []func(*sts.Options)
+			if c.STSEndpointResolver != nil {
+				stsOpts = append(stsOpts, sts.WithEndpointResolverV2(c.STSEndpointResolver))
+			}
+			stsClient = sts.NewFromConfig(awsConfig, stsOpts...)
+		}
+		provider := stscreds.NewAssumeRoleProvider(stsClient, c.RoleARN, func(o *stscreds.AssumeRoleOptions) {
+			if c.RoleSessionName != "" {
+				o.RoleSessionName = c.RoleSessionName
+			}
+			if c.RoleExternalId != "" {
+				o.ExternalID = aws.String(c.RoleExternalId)
+			}
+			for k, v := range c.RoleTags {
+				o.Tags = append(o.Tags, types.Tag{
+					Key:   aws.String(k),
+					Value: aws.String(v),
+				})
+			}
+		})
+		awsConfig.Credentials = aws.NewCredentialsCache(provider)
+		c.log(hclog.Debug, "configured assume-role credential provider", "roleARN", c.RoleARN)
+	}
+
 	if opts.withCredentialsProvider != nil {
+		if c.RoleARN != "" && c.WebIdentityTokenFile == "" && c.WebIdentityToken == "" {
+			c.log(hclog.Warn, "WithCredentialsProvider overrides assume-role provider; RoleARN will be ignored", "roleARN", c.RoleARN)
+		}
 		awsConfig.Credentials = opts.withCredentialsProvider
 	}
 
