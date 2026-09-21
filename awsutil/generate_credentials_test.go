@@ -475,6 +475,25 @@ func TestGenerateAwsConfigOptions(t *testing.T) {
 			},
 		},
 		{
+			name: "assume role credential without external id",
+			cfg: func() *CredentialsConfig {
+				credCfg, err := NewCredentialsConfig(
+					WithRoleArn("foo"),
+					WithRoleSessionName("bar"),
+				)
+				require.NoError(t, err)
+				return credCfg
+			}(),
+			expectedLoadOptions: config.LoadOptions{
+				Region: "us-east-1",
+			},
+			expectedAssumeRoleOptions: &stscreds.AssumeRoleOptions{
+				RoleARN:         "foo",
+				RoleSessionName: "bar",
+				ExternalID:      nil,
+			},
+		},
+		{
 			name: "static credential",
 			cfg: func() *CredentialsConfig {
 				credCfg, err := NewCredentialsConfig(

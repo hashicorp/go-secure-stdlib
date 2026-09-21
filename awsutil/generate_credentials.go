@@ -254,7 +254,9 @@ func (c *CredentialsConfig) generateAwsConfigOptions(ctx context.Context, opts o
 			assumeRoleCred := config.WithAssumeRoleCredentialOptions(func(options *stscreds.AssumeRoleOptions) {
 				options.RoleARN = c.RoleARN
 				options.RoleSessionName = c.RoleSessionName
-				options.ExternalID = aws.String(c.RoleExternalId)
+				if c.RoleExternalId != "" {
+					options.ExternalID = aws.String(c.RoleExternalId)
+				}
 				for k, v := range c.RoleTags {
 					options.Tags = append(options.Tags, types.Tag{
 						Key:   aws.String(k),
