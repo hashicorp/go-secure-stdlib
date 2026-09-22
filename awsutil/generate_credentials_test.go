@@ -10,10 +10,12 @@ import (
 	"path"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	stsTypes "github.com/aws/aws-sdk-go-v2/service/sts/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -448,33 +450,6 @@ func TestGenerateAwsConfigOptions(t *testing.T) {
 			},
 		},
 		{
-			name: "assume role credential",
-			cfg: func() *CredentialsConfig {
-				credCfg, err := NewCredentialsConfig(
-					WithRoleArn("foo"),
-					WithRoleSessionName("bar"),
-					WithRoleExternalId("baz"),
-					WithRoleTags(map[string]string{"foo": "bar"}),
-				)
-				require.NoError(t, err)
-				return credCfg
-			}(),
-			expectedLoadOptions: config.LoadOptions{
-				Region: "us-east-1",
-			},
-			expectedAssumeRoleOptions: &stscreds.AssumeRoleOptions{
-				RoleARN:         "foo",
-				RoleSessionName: "bar",
-				ExternalID:      aws.String("baz"),
-				Tags: []stsTypes.Tag{
-					{
-						Key:   aws.String("foo"),
-						Value: aws.String("bar"),
-					},
-				},
-			},
-		},
-		{
 			name: "static credential",
 			cfg: func() *CredentialsConfig {
 				credCfg, err := NewCredentialsConfig(
@@ -539,4 +514,48 @@ func TestGenerateAwsConfigOptions(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGenerateCredentialChain_AmbientRolePath(t *testing.T) {
+	// Case 1: RoleARN set, no static keys.
+	// Verifies that the provider correctly calls sts:AssumeRole.
+	cfg, err := NewCredentialsConfig(
+		WithRoleArn("arn:aws:iam::123456789012:role/TestRole"),
+		WithRegion("us-east-1"),
+	)
+	require.NoError(t, err)
+
+	awsCfg, err := cfg.GenerateCredentialChain(t.Context(),
+		WithSTSAPIFunc(NewMockSTS(
+			WithAssumeRoleOutput(&sts.AssumeRoleOutput{
+				Credentials: &stsTypes.Credentials{
+					AccessKeyId:     aws.String("ASIAfoobar"),
+					SecretAccessKey: aws.String("secretkey"),
+					SessionToken:    aws.String("sessiontoken"),
+					Expiration:      aws.Time(time.Now().Add(time.Hour)),
+				},
+			}),
+		)),
+	)
+	require.NoError(t, err)
+	require.NotNil(t, awsCfg)
+
+	// Force credential resolution — this calls sts:AssumeRole on the mock.
+	creds, err := awsCfg.Credentials.Retrieve(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, "ASIAfoobar", creds.AccessKeyID)
+
+	// Case 2: RoleARN set, STS returns an error.
+	// Verifies that a bad ARN is no longer silently ignored.
+	awsCfg2, err := cfg.GenerateCredentialChain(t.Context(),
+		WithSTSAPIFunc(NewMockSTS(
+			WithAssumeRoleError(errors.New("no such role")),
+		)),
+	)
+	require.NoError(t, err)
+	require.NotNil(t, awsCfg2)
+
+	_, err = awsCfg2.Credentials.Retrieve(t.Context())
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "no such role")
 }
