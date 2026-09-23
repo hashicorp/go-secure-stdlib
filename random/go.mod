@@ -3,9 +3,9 @@ module github.com/hashicorp/go-secure-stdlib/random
 go 1.22.1
 
 require (
+	github.com/go-viper/mapstructure/v2 v2.2.1
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/hcl v1.0.1-vault-5
-	github.com/mitchellh/mapstructure v1.5.0
 )
 
 require (

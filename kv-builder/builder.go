@@ -12,7 +12,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/mitchellh/mapstructure"
+	"github.com/go-viper/mapstructure/v2"
 )
 
 // Builder is a struct to build a key/value mapping based on a list
