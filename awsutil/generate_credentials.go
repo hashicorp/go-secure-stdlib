@@ -215,7 +215,9 @@ func (c *CredentialsConfig) generateAwsConfigOptions(ctx context.Context, opts o
 			}
 		}
 
-		cfgOpts = append(cfgOpts, config.WithSharedCredentialsFiles([]string{c.Filename}))
+		if c.Filename != "" {
+			cfgOpts = append(cfgOpts, config.WithSharedCredentialsFiles([]string{c.Filename}))
+		}
 		c.log(hclog.Debug, "added shared profile credential provider")
 	}
 
