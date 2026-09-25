@@ -369,6 +369,28 @@ func TestGenerateAwsConfigOptions(t *testing.T) {
 			},
 		},
 		{
+			// Regression test for https://github.com/hashicorp/go-secure-stdlib/issues/193:
+			// a named profile with no explicit Filename (the "aws_profile" set,
+			// "aws_shared_credentials_file" unset case reported upstream) must not
+			// produce a SharedCredentialsFiles option at all, so the AWS SDK falls
+			// back to its own default (~/.aws/credentials or
+			// AWS_SHARED_CREDENTIALS_FILE) instead of a literal empty path.
+			name: "shared credential profile without filename uses SDK default",
+			cfg: func() *CredentialsConfig {
+				credCfg, err := NewCredentialsConfig()
+				require.NoError(t, err)
+				credCfg.Profile = "foobar"
+				return credCfg
+			}(),
+			opts: options{
+				withSharedCredentials: true,
+			},
+			expectedLoadOptions: config.LoadOptions{
+				Region:              "us-east-1",
+				SharedConfigProfile: "foobar",
+			},
+		},
+		{
 			// See the setup above for emptySharedProfileExpectedProfile
 			// This tests that the `SharedConfigProfileNotExistError" check works
 			// when the default profile lives in the usual ~/.aws/config file
@@ -382,10 +404,14 @@ func TestGenerateAwsConfigOptions(t *testing.T) {
 			opts: options{
 				withSharedCredentials: true,
 			},
+			// Regression test for https://github.com/hashicorp/go-secure-stdlib/issues/193:
+			// an unset Filename must NOT be turned into a one-element slice
+			// holding an empty string, since the AWS SDK only falls back to
+			// its own default shared-credentials-file resolution when the
+			// slice is empty (len == 0), not merely when its entry is "".
 			expectedLoadOptions: config.LoadOptions{
-				SharedConfigProfile:    emptySharedProfileExpectedProfile,
-				SharedCredentialsFiles: []string{""},
-				Region:                 "us-east-1",
+				SharedConfigProfile: emptySharedProfileExpectedProfile,
+				Region:              "us-east-1",
 			},
 		},
 		{
@@ -558,4 +584,45 @@ func TestGenerateCredentialChain_AmbientRolePath(t *testing.T) {
 	_, err = awsCfg2.Credentials.Retrieve(t.Context())
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "no such role")
+}
+
+// TestGenerateCredentialChain_SharedCredentialsDefaultLocation is a
+// regression test for https://github.com/hashicorp/go-secure-stdlib/issues/193.
+//
+// When a shared-credentials profile is requested (c.Profile set) but no
+// explicit Filename is configured, generateAwsConfigOptions must leave the
+// SDK's own default shared-credentials-file resolution intact instead of
+// passing it a one-element slice containing an empty string. An empty-string
+// entry is not treated the same as "no entries" by the AWS SDK for Go v2, so
+// passing one silently disables the SDK's own default-location and
+// AWS_SHARED_CREDENTIALS_FILE handling, and ~/.aws/credentials is never read.
+func TestGenerateCredentialChain_SharedCredentialsDefaultLocation(t *testing.T) {
+	dir := t.TempDir()
+	credsFile := path.Join(dir, "credentials")
+	credsBody := "[example-profile]\naws_access_key_id = AKIAEXAMPLE\naws_secret_access_key = examplesecret\n"
+	require.NoError(t, os.WriteFile(credsFile, []byte(credsBody), 0o600))
+
+	// config.DefaultSharedCredentialsFiles is resolved once, from $HOME, at
+	// package init time, so it cannot be redirected via t.Setenv("HOME", ...)
+	// at test time. Point it at our fixture directly, matching how the SDK
+	// itself would resolve ~/.aws/credentials (or AWS_SHARED_CREDENTIALS_FILE)
+	// when no explicit file list is supplied.
+	origDefaultCredsFiles := config.DefaultSharedCredentialsFiles
+	config.DefaultSharedCredentialsFiles = []string{credsFile}
+	t.Cleanup(func() { config.DefaultSharedCredentialsFiles = origDefaultCredsFiles })
+
+	cfg, err := NewCredentialsConfig()
+	require.NoError(t, err)
+	cfg.Profile = "example-profile"
+	// cfg.Filename is intentionally left unset, matching aws_profile being
+	// set without aws_shared_credentials_file in the reported bug.
+
+	awsCfg, err := cfg.GenerateCredentialChain(t.Context())
+	require.NoError(t, err)
+	require.NotNil(t, awsCfg)
+
+	creds, err := awsCfg.Credentials.Retrieve(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, "AKIAEXAMPLE", creds.AccessKeyID)
+	assert.Equal(t, "examplesecret", creds.SecretAccessKey)
 }
