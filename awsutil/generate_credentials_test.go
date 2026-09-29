@@ -517,6 +517,17 @@ func TestGenerateAwsConfigOptions(t *testing.T) {
 }
 
 func TestGenerateCredentialChain_AmbientRolePath(t *testing.T) {
+	// Isolate from the real ~/.aws/config so this test is not affected by
+	// the presence or absence of a local default profile. Use an empty
+	// [default] section (no credentials) so the profile is found but
+	// contributes nothing — env vars are the only credential source.
+	dir := t.TempDir()
+	configFile := path.Join(dir, "config")
+	require.NoError(t, os.WriteFile(configFile, []byte("[default]\n"), 0600))
+	t.Setenv("AWS_CONFIG_FILE", configFile)
+	t.Setenv("AWS_ACCESS_KEY_ID", "AKIAbasekey")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "basesecret")
+
 	// Case 1: RoleARN set, no static keys.
 	// Verifies that the provider correctly calls sts:AssumeRole.
 	cfg, err := NewCredentialsConfig(
@@ -558,4 +569,96 @@ func TestGenerateCredentialChain_AmbientRolePath(t *testing.T) {
 	_, err = awsCfg2.Credentials.Retrieve(t.Context())
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "no such role")
+}
+
+// TestGenerateCredentialChain_EnvVarsWithEmptyProfile verifies that env var
+// credentials are used as the base for AssumeRole even when a shared config
+// profile exists but contains no credentials. An empty [default] profile in
+// ~/.aws/config causes the AWS SDK to bypass env vars entirely (routing
+// through the profile path which falls through to EC2 IMDS). The fix builds a
+// profile-free base config, eagerly retrieves credentials from it, and pins
+// them as a static provider so the AssumeRoleProvider has a concrete base.
+func TestGenerateCredentialChain_EnvVarsWithEmptyProfile(t *testing.T) {
+	// Write a shared config file with an empty [default] section — no
+	// credentials, no region. This simulates the common case of running
+	// `aws configure` and only setting output/region, leaving credentials
+	// elsewhere (e.g. env vars).
+	dir := t.TempDir()
+	sharedConfigFile := path.Join(dir, "config")
+	require.NoError(t, os.WriteFile(sharedConfigFile, []byte("[default]\n"), 0600))
+
+	t.Setenv("AWS_CONFIG_FILE", sharedConfigFile)
+	t.Setenv("AWS_ACCESS_KEY_ID", "AKIAenvkey")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "envsecret")
+
+	cfg, err := NewCredentialsConfig(
+		WithRoleArn("arn:aws:iam::123456789012:role/TestRole"),
+		WithRegion("us-east-1"),
+	)
+	require.NoError(t, err)
+
+	assumeRoleCalled := false
+	awsCfg, err := cfg.GenerateCredentialChain(t.Context(),
+		WithSTSAPIFunc(func(c *aws.Config) (STSClient, error) {
+			// Capture the base credentials the STS client will use.
+			baseCreds, credsErr := c.Credentials.Retrieve(t.Context())
+			require.NoError(t, credsErr, "base credentials for AssumeRole must resolve without hitting IMDS")
+			assert.Equal(t, "AKIAenvkey", baseCreds.AccessKeyID, "env var credentials must be used as AssumeRole base, not IMDS")
+
+			assumeRoleCalled = true
+			return NewMockSTS(WithAssumeRoleOutput(&sts.AssumeRoleOutput{
+				Credentials: &stsTypes.Credentials{
+					AccessKeyId:     aws.String("ASIArolekey"),
+					SecretAccessKey: aws.String("rolesecret"),
+					SessionToken:    aws.String("roletoken"),
+					Expiration:      aws.Time(time.Now().Add(time.Hour)),
+				},
+			}))(c)
+		}),
+	)
+	require.NoError(t, err)
+	require.NotNil(t, awsCfg)
+
+	creds, err := awsCfg.Credentials.Retrieve(t.Context())
+	require.NoError(t, err)
+	assert.True(t, assumeRoleCalled, "AssumeRole must have been called")
+	assert.Equal(t, "ASIArolekey", creds.AccessKeyID)
+}
+
+// TestGenerateCredentialChain_ProfileFallbackWhenNoEnvVars verifies that when
+// no env var credentials are present, the base config credential resolution
+// falls back gracefully — the eager Retrieve() fails silently and awsConfig
+// retains whatever credentials the original LoadDefaultConfig resolved.
+func TestGenerateCredentialChain_ProfileFallbackWhenNoEnvVars(t *testing.T) {
+	// Write a shared config file with a [default] section that has no
+	// credentials — same empty profile scenario, but this time no env vars
+	// are set either.
+	dir := t.TempDir()
+	sharedConfigFile := path.Join(dir, "config")
+	require.NoError(t, os.WriteFile(sharedConfigFile, []byte("[default]\n"), 0600))
+
+	t.Setenv("AWS_CONFIG_FILE", sharedConfigFile)
+	t.Setenv("AWS_ACCESS_KEY_ID", "")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
+
+	cfg, err := NewCredentialsConfig(
+		WithRoleArn("arn:aws:iam::123456789012:role/TestRole"),
+		WithRegion("us-east-1"),
+	)
+	require.NoError(t, err)
+
+	// GenerateCredentialChain must not error even when base credential
+	// retrieval fails — the failure is swallowed and the AssumeRoleProvider
+	// is still wired up (it will fail later when Retrieve is called).
+	awsCfg, err := cfg.GenerateCredentialChain(t.Context(),
+		WithSTSAPIFunc(NewMockSTS(
+			WithAssumeRoleError(errors.New("no base creds")),
+		)),
+	)
+	require.NoError(t, err)
+	require.NotNil(t, awsCfg)
+
+	// Retrieve should fail because neither env vars nor profile have creds.
+	_, err = awsCfg.Credentials.Retrieve(t.Context())
+	require.Error(t, err)
 }
