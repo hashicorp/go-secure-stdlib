@@ -280,6 +280,30 @@ func (c *CredentialsConfig) GenerateCredentialChain(ctx context.Context, opt ...
 	// sts:AssumeRole is called regardless of whether ~/.aws/config has a
 	// role_arn entry.
 	if c.RoleARN != "" && c.WebIdentityTokenFile == "" && c.WebIdentityToken == "" {
+		// When a shared config profile exists (even an empty [default] profile),
+		// the SDK routes credential resolution through that profile and bypasses
+		// env vars entirely, falling through to EC2 IMDS. To avoid this, build
+		// a base config without WithSharedConfigProfile so the SDK resolves env
+		// vars directly, eagerly retrieve those credentials, and pin them as a
+		// static provider so the AssumeRole STS call has a concrete base
+		// identity rather than a lazy chain that may end up at IMDS.
+		baseCfgOpts := []func(*config.LoadOptions) error{
+			config.WithRegion(c.Region),
+		}
+		if c.MaxRetries != nil {
+			baseCfgOpts = append(baseCfgOpts, config.WithRetryMaxAttempts(*c.MaxRetries))
+		}
+		baseCfg, baseErr := config.LoadDefaultConfig(ctx, baseCfgOpts...)
+		if baseErr == nil {
+			if baseCreds, credsErr := baseCfg.Credentials.Retrieve(ctx); credsErr == nil {
+				awsConfig.Credentials = credentials.NewStaticCredentialsProvider(
+					baseCreds.AccessKeyID,
+					baseCreds.SecretAccessKey,
+					baseCreds.SessionToken,
+				)
+			}
+		}
+
 		var stsClient stscreds.AssumeRoleAPIClient
 		if opts.withSTSAPIFunc != nil {
 			stsClient, err = opts.withSTSAPIFunc(&awsConfig)
