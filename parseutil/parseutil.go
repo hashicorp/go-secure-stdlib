@@ -19,9 +19,9 @@ import (
 )
 
 var (
-	validCapacityString                = regexp.MustCompile("^[\t ]*([0-9]+)[\t ]?([kmgtKMGT][iI]?[bB])?[\t ]*$")
-	ErrDurationMultiplicationOverflow  = errors.New("multiplication of durations resulted in overflow, one operand may be too large")
-	ErrCapacityMultiplicationOverflow  = errors.New("multiplication of capacity resulted in overflow, one operand may be too large")
+	validCapacityString               = regexp.MustCompile("^[\t ]*([0-9]+)[\t ]?([kmgtKMGT][iI]?[bB])?[\t ]*$")
+	ErrDurationMultiplicationOverflow = errors.New("multiplication of durations resulted in overflow, one operand may be too large")
+	ErrCapacityMultiplicationOverflow = errors.New("multiplication of capacity resulted in overflow, one operand may be too large")
 )
 
 // ParseCapacityString parses a capacity string and returns the number of bytes it represents.
