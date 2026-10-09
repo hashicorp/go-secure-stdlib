@@ -19,8 +19,9 @@ import (
 )
 
 var (
-	validCapacityString               = regexp.MustCompile("^[\t ]*([0-9]+)[\t ]?([kmgtKMGT][iI]?[bB])?[\t ]*$")
-	ErrDurationMultiplicationOverflow = errors.New("multiplication of durations resulted in overflow, one operand may be too large")
+	validCapacityString                = regexp.MustCompile("^[\t ]*([0-9]+)[\t ]?([kmgtKMGT][iI]?[bB])?[\t ]*$")
+	ErrDurationMultiplicationOverflow  = errors.New("multiplication of durations resulted in overflow, one operand may be too large")
+	ErrCapacityMultiplicationOverflow  = errors.New("multiplication of capacity resulted in overflow, one operand may be too large")
 )
 
 // ParseCapacityString parses a capacity string and returns the number of bytes it represents.
@@ -73,6 +74,12 @@ func ParseCapacityString(in interface{}) (uint64, error) {
 		size, err := strconv.ParseUint(matches[1], 10, 64)
 		if err != nil {
 			return cap, err
+		}
+		// A uint64 multiply wraps. 16777216TiB is 2^64 bytes and would come
+		// back as 0, and 16777217TiB would come back as 1TiB. Duration parsing
+		// in this file already rejects that class of overflow.
+		if multiplier != 0 && size > math.MaxUint64/multiplier {
+			return cap, ErrCapacityMultiplicationOverflow
 		}
 
 		cap = size * multiplier
