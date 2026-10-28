@@ -369,6 +369,25 @@ func TestGenerateAwsConfigOptions(t *testing.T) {
 			},
 		},
 		{
+			// An empty Filename must not set SharedCredentialsFiles. Setting it to
+			// []string{""} stops the AWS SDK from falling back to
+			// AWS_SHARED_CREDENTIALS_FILE or ~/.aws/credentials.
+			name: "shared credential profile without filename leaves SDK default",
+			cfg: func() *CredentialsConfig {
+				credCfg, err := NewCredentialsConfig()
+				require.NoError(t, err)
+				credCfg.Profile = "foobar"
+				return credCfg
+			}(),
+			opts: options{
+				withSharedCredentials: true,
+			},
+			expectedLoadOptions: config.LoadOptions{
+				Region:              "us-east-1",
+				SharedConfigProfile: "foobar",
+			},
+		},
+		{
 			// See the setup above for emptySharedProfileExpectedProfile
 			// This tests that the `SharedConfigProfileNotExistError" check works
 			// when the default profile lives in the usual ~/.aws/config file
@@ -383,9 +402,8 @@ func TestGenerateAwsConfigOptions(t *testing.T) {
 				withSharedCredentials: true,
 			},
 			expectedLoadOptions: config.LoadOptions{
-				SharedConfigProfile:    emptySharedProfileExpectedProfile,
-				SharedCredentialsFiles: []string{""},
-				Region:                 "us-east-1",
+				SharedConfigProfile: emptySharedProfileExpectedProfile,
+				Region:              "us-east-1",
 			},
 		},
 		{
