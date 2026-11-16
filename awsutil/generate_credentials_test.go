@@ -293,7 +293,7 @@ func TestGenerateAwsConfigOptions(t *testing.T) {
 
 	// Check for default profile in ~/.aws/config because "empty shared profile adds default profile without shared file"
 	// fails if there is not a default profile present
-	emptySharedProfileExpectedProfile := "default"
+	emptySharedProfileExpectedProfile := ""
 	home, err := os.UserHomeDir()
 	require.NoError(t, err)
 	bs, err := os.ReadFile(path.Join(home, ".aws", "config"))
