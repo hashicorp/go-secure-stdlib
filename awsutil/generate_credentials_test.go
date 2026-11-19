@@ -384,7 +384,7 @@ func TestGenerateAwsConfigOptions(t *testing.T) {
 			},
 			expectedLoadOptions: config.LoadOptions{
 				SharedConfigProfile:    emptySharedProfileExpectedProfile,
-				SharedCredentialsFiles: []string{""},
+				SharedCredentialsFiles: nil,
 				Region:                 "us-east-1",
 			},
 		},
