@@ -388,9 +388,6 @@ func populateInfo(kms *KMS, infoKeys *[]string, info *map[string]string, kmsInfo
 	switch kms.Type {
 	case wrapping.WrapperTypeAead.String():
 		str := "AEAD Type"
-		if len(kms.Purpose) > 0 {
-			str = fmt.Sprintf("%v %s", kms.Purpose, str)
-		}
 		parsedInfo[str] = kmsInfo["aead_type"]
 
 	case wrapping.WrapperTypeAliCloudKms.String():
@@ -435,8 +432,12 @@ func populateInfo(kms *KMS, infoKeys *[]string, info *map[string]string, kmsInfo
 
 	if infoKeys != nil && info != nil {
 		for k, v := range parsedInfo {
-			*infoKeys = append(*infoKeys, k)
-			(*info)[k] = v
+			str := k
+			if len(kms.Purpose) > 0 {
+				str = fmt.Sprintf("%v %s", kms.Purpose, str)
+			}
+			*infoKeys = append(*infoKeys, str)
+			(*info)[str] = v
 		}
 	}
 }
