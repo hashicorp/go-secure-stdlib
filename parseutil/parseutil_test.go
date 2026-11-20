@@ -137,6 +137,24 @@ func Test_ParseCapacityString(t *testing.T) {
 			true,
 			uint64(5497558138880),
 		},
+		{
+			"tib at the uint64 limit",
+			"16777215tib",
+			true,
+			uint64(16777215) * 1024 * 1024 * 1024 * 1024,
+		},
+		{
+			"tib overflow to zero",
+			"16777216tib",
+			false,
+			uint64(0),
+		},
+		{
+			"tib overflow to a smaller value",
+			"16777217tib",
+			false,
+			uint64(0),
+		},
 	}
 
 	for _, tc := range testCases {
