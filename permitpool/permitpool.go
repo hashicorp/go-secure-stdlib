@@ -1,3 +1,5 @@
+// Copyright IBM Corp. 2020, 2026
+
 // Package permitpool exposes a synchronization primitive for
 // limiting the number of concurrent operations. See the Pool
 // example for a simple use case.
